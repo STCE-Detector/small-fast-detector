@@ -11,5 +11,5 @@ model.export(
     half=False,  # use FP16 half-precision inference
     dynamic=False,  # ONNX export only supports static size
     simplify=False,  # ONNX export only supports static size
-    opset=None,  # ONNX opset version
+    opset=9,  # ONNX opset version
 )
