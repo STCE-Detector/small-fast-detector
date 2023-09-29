@@ -2,13 +2,13 @@ from ultralytics import YOLO
 # For more info visit: https://docs.ultralytics.com/modes/predict/
 
 # Load model
-model = YOLO('/Users/inaki-eab/Desktop/small-fast-detector/inference_tools/models/yolov8n.onnx', task='detect')
+model = YOLO('./models/custom_best.onnx', task='detect')
 
 # Source
-source = '/Users/inaki-eab/Desktop/datasets/coco128/images/train2017'
+source = './data/video_frames'
 
 # Output directory
-root = '/Users/inaki-eab/Desktop/small-fast-detector/inference_tools/ouputs'
+root = './ouputs'
 experiment_name = 'exp_1'
 
 # Inference
