@@ -1,15 +1,16 @@
+from inference_utils import inference_time_csv_writer
 from ultralytics import YOLO
 # For more info visit: https://docs.ultralytics.com/modes/predict/
 
-# Load model
-model = YOLO('./models/custom_best.onnx', task='detect')
-
 # Source
-source = './data/video_frames'
+source = './data/test'
 
 # Output directory
 root = './ouputs'
 experiment_name = 'exp_1'
+
+# Load model
+model = YOLO('./models/custom_best.onnx', task='detect')
 
 # Inference
 results = model(
@@ -25,13 +26,8 @@ results = model(
     # save results to project/name relative to script directory or absolute path
     project=root,
     name=experiment_name,
+    exist_ok=True
 )
 
-# Results saved to JSON if needed
-"""
-for i, result in enumerate(results):
-    if i == 0:
-        json_result = result.tojson()
-
-json_result
-"""
+# Save inference time to csv
+inference_time_csv_writer(results, root, experiment_name)
