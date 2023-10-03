@@ -6,8 +6,8 @@ from ultralytics import YOLO
 source = './data/test'
 
 # Output directory
-root = './ouputs'
-experiment_name = 'exp_1'
+root = './outputs'
+experiment_name = 'experiment_'
 
 # Load model
 model = YOLO('./models/custom_best.onnx', task='detect')
@@ -26,7 +26,6 @@ results = model(
     # save results to project/name relative to script directory or absolute path
     project=root,
     name=experiment_name,
-    exist_ok=True
 )
 
 # Save inference time to csv

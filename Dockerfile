@@ -4,12 +4,13 @@ FROM python:3.8-slim
 LABEL authors="ejbejaranos"
 RUN apt update \
     && apt install --no-install-recommends -y gcc git zip curl htop libgl1-mesa-glx libglib2.0-0 libpython3-dev gnupg g++ libusb-1.0-0
+WORKDIR /app
+COPY ultralytics ultralytics
 
-COPY ./ultralytics /app/src
-COPY ./inference_tools /app/inference_tools
-#WORKDIR /app/inference_tools
+COPY inference_tools/requirements.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN pip install cmake
-RUN pip install -r /app/inference_tools/inference_requirements.txt
+COPY inference_tools/ .
+
 
 #CMD ["python", "infer.py"]
