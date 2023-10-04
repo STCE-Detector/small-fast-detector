@@ -9,7 +9,8 @@ This README provides instructions on how to run inference and export using a Doc
 docker build -t detector_onnx .
 ```
 This command builds a Docker image from the Dockerfile in the current directory and tags the image as detector_onnx.
-If you are running the Docker image in Apple M1/M2 processor, you should use the following command:
+If you are running the Docker image in Apple M1/M2 processor, you should use the following command to emulate an AMD64 
+processor (emulation is much slower than native execution):
 ```bash
 docker build -t detector_onnx . --platform linux/amd64
 ```
@@ -24,21 +25,13 @@ Notice that two volumes are mounted in the container to store the outputs and th
 the second volume is mounted in the /app/outputs directory of the container. The absolute paths to the models and outputs 
 directories in your system should be provided in the command.
 
-This command starts a new container from the onnx image and opens an interactive terminal session (-it option).
-### 3. Run export.py to export the model to ONNX format (Optional):
-Inside the interective terminal session, run the following command:
-``` bash
-python export.py
-```
-This command exports the /inference_tools/models/custom_best.pt model to /inference_tools/models/custom_best.onnx.
-This step is optional because the model is already exported to ONNX format and stored in the models directory. 
-Nonetheless, for a proper inference, the model should have been exported to ONNX format using the same software version
+This command starts a new container from the onnx image and opens an interactive terminal session (-it option). 
+Automatically the started container runs the exportation script (export.py) and then the inference script (infer.py).
+
+Firstly exports the /inference_tools/models/custom_best.pt model to /inference_tools/models/custom_best.onnx.
+For a proper inference, the model should have been exported to ONNX format using the same software version
 as the one used to run inference. This is because the ONNX format is not backward compatible.
-### 4. Run infer.py to run inference on a set of images:
-Inside the interective terminal session, run the following command:
-``` bash
-python infer.py
-```
-This command runs inference on the images located in the /inference_tools/images/test directory and stores the outputs 
-in the outputs directory. The outputs are: original images with bounding boxes, a text file with detection results for 
+
+Then inference is performed on the images located in the /inference_tools/images/test directory and stores the outputs 
+in the /outputs directory. The outputs are: original images with bounding boxes, a text file with detection results for 
 each image in YOLO format and a csv with inference time for each image.
