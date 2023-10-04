@@ -29,4 +29,4 @@ results = model(
 )
 
 # Save inference time to csv
-inference_time_csv_writer(results, root, experiment_name)
+inference_time_csv_writer(results, root, model.predictor.save_dir.name)
