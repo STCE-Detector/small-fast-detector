@@ -160,10 +160,10 @@ def rename_dir(dir, shift=1):
         new_path = os.path.join(dir, new_filename)
         os.rename(old_path, new_path)
 
-rename_dir(os.path.join(new_dataset_root,'images','train'), shift=1+50495)
-rename_dir(os.path.join(new_dataset_root,'images','val'), shift=1+7595)
-rename_dir(os.path.join(new_dataset_root,'labels','train'), shift=1+50495)
-rename_dir(os.path.join(new_dataset_root,'labels','val'), shift=1+7595)
+rename_dir(os.path.join(new_dataset_root,'images','train'), shift=1+54229)
+rename_dir(os.path.join(new_dataset_root,'images','val'), shift=1+10093)
+rename_dir(os.path.join(new_dataset_root,'labels','train'), shift=1+54229)
+rename_dir(os.path.join(new_dataset_root,'labels','val'), shift=1+10093)
 
 # Inspect the new dataset
 import pandas as pd
