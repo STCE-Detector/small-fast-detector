@@ -20,7 +20,7 @@ import os
 from PIL import Image
 
 # Set the paths for the input and output directories
-input_dir = '/data-fast/127-data2/ierregue/datasets/custom_dataset_v1'
+input_dir = '/data-fast/127-data2/ierregue/datasets/custom_dataset_v2'
 output_dir = input_dir
 
 # Define the categories for the COCO dataset
