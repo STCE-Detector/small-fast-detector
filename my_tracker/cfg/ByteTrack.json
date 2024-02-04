@@ -2,7 +2,7 @@
   "name": "ByteTrack",
 
   "source_weights_path": "./../inference_tools/models/detector_best.pt",
-  "source_video_path": "./data/test2.mp4",
+  "source_video_path": "./data/MOT17-04-raw.mp4",
 
   "device": "mps",
   "video_stride": 1,
@@ -30,7 +30,7 @@
 
   "save_dir": "./outputs/",
   "save_results": true,
-  "display": false,
+  "display": true,
 
   "action_recognition": {
     "speed_projection": [0.7, 1.5],
