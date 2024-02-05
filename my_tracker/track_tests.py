@@ -16,6 +16,8 @@ from my_tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
 from sahi import AutoDetectionModel
 from sahi.predict  import get_sliced_prediction
+from sahi_batched.models import Yolov8DetectionModel
+from sahi_batched import get_sliced_prediction_batched
 import imageio
 import supervision as sv
 
@@ -72,11 +74,16 @@ class VideoProcessor:
 
         # self.model = YOLO(config["source_weights_path"])
         # self.model.fuse()
-        self.model = AutoDetectionModel.from_pretrained(
+        """self.model = AutoDetectionModel.from_pretrained(
         model_type='yolov8',
         model_path=config["source_weights_path"],
         confidence_threshold=self.conf_threshold,
         device="mps",  # or 'cuda:0'
+        )"""
+        self.model = Yolov8DetectionModel(
+            model_path=config["source_weights_path"],
+            confidence_threshold=self.conf_threshold,
+            device="mps",
         )
         self.tracker = ByteTrack(config, config["frame_rate"])
 
@@ -217,7 +224,7 @@ class VideoProcessor:
             max_det=self.max_det
         )[0]
         detections = sv.Detections.from_ultralytics(results)"""
-        result = get_sliced_prediction(
+        result = get_sliced_prediction_batched(
             frame,
             self.model,
             slice_height=540,
