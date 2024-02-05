@@ -14,35 +14,46 @@ from my_tracker.action_recognition import ActionRecognizer
 from my_tracker.utils.cfg.parse_config import ConfigParser
 from my_tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
+from sahi import AutoDetectionModel
+from sahi.predict  import get_sliced_prediction
+from sahi_batched.models import Yolov8DetectionModel
+from sahi_batched import get_sliced_prediction_batched
 import imageio
 import supervision as sv
 
 COLORS = sv.ColorPalette.default()
 
 
-# TODO: move to utils
-def convert_video_to_gif(video_path, gif_path, fps=25):
-    """
-    Convert a video file to a GIF.
-    :param video_path: Path to the video file.
-    :param gif_path: Path where the GIF should be saved.
-    :param fps: Frames per second for the GIF.
-    """
-    """reader = imageio.get_reader(video_path)
-    with imageio.get_writer(gif_path, fps=fps) as writer:
-        for frame in reader:
-            writer.append_data(frame)
-    print(f"Saved GIF to {gif_path}")"""
-    command = [
-        'ffmpeg',
-        '-i', video_path,  # Input file
-        '-vf', f'fps={fps}',  # Set frame rate
-        '-f', 'gif',  # Set format to GIF
-        gif_path  # Output file
-    ]
-    subprocess.run(command, check=True)
-    print(f"Saved GIF to {gif_path}")
+class Result:
+    def __init__(self, result):
+        num_pred = len(result.object_prediction_list)
+        xyxy = np.zeros((num_pred, 4))
+        conf = np.zeros(num_pred)
+        cls = np.zeros(num_pred)
+        for i, res in enumerate(result.to_coco_annotations()):
+            xyxy[i] = self.xywh_toxyxy(res["bbox"])
+            conf[i] = res["score"]
+            cls[i] = res["category_id"]
+        self.xyxy = xyxy
+        self.confidence = conf
+        self.class_id = cls
 
+    def xywh_toxyxy(self, xywh):
+        # print(xywh)
+        x = xywh[0]
+        y = xywh[1]
+        w = xywh[2]
+        h = xywh[3]
+        x1, y1 = x, y
+        x2, y2 = x+w, y+h
+        return [x1, y1, x2, y2]
+
+    def print(self):
+        return {
+            "xyxy": self.xyxy,
+            "conf": self.conf,
+            "cls": self.cls
+        }
 
 class VideoProcessor:
     def __init__(self, config) -> None:
@@ -61,8 +72,19 @@ class VideoProcessor:
         self.wait_time = 1
         self.slow_factor = 1
 
-        self.model = YOLO(config["source_weights_path"])
-        self.model.fuse()
+        # self.model = YOLO(config["source_weights_path"])
+        # self.model.fuse()
+        """self.model = AutoDetectionModel.from_pretrained(
+        model_type='yolov8',
+        model_path=config["source_weights_path"],
+        confidence_threshold=self.conf_threshold,
+        device="mps",  # or 'cuda:0'
+        )"""
+        self.model = Yolov8DetectionModel(
+            model_path=config["source_weights_path"],
+            confidence_threshold=self.conf_threshold,
+            device="mps",
+        )
         self.tracker = ByteTrack(config, config["frame_rate"])
 
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
@@ -191,6 +213,7 @@ class VideoProcessor:
 
 
     def process_frame(self, frame: np.ndarray, frame_number: int, fps: float) -> np.ndarray:
+        """
         results = self.model(
             frame,
             verbose=False,
@@ -200,7 +223,16 @@ class VideoProcessor:
             device=self.device,
             max_det=self.max_det
         )[0]
-        detections = sv.Detections.from_ultralytics(results)
+        detections = sv.Detections.from_ultralytics(results)"""
+        result = get_sliced_prediction_batched(
+            frame,
+            self.model,
+            slice_height=540,
+            slice_width=540,
+            overlap_height_ratio=0.2,
+            overlap_width_ratio=0.2
+        )
+        detections = Result(result)
         detections, tracks = self.tracker.update(detections, frame)
 
         ar_results = self.action_recognizer.recognize_frame(tracks)
