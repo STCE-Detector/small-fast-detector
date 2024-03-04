@@ -1,16 +1,16 @@
 from ultralytics import YOLO
 
 
-model_name = '8s-100e-128b-auto'
+model_name = '8sp2_150'
 
 # Initialize model and load matching weights
-model = YOLO('./models/'+model_name+'.pt')
+model = YOLO('./evaluation_tools/models/'+model_name+'.pt')
 
 metrics = model.val(
     data='custom_dataset.yaml',
     imgsz=640,
-    batch=16,
-    device=[3],
+    batch=8,
+    device=[1],
     verbose=True,
     save=True,
     save_json=True,

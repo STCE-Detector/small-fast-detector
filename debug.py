@@ -20,7 +20,7 @@ results = model.train(
     project='debug',
     name='8s',
     data='coco8.yaml',
-    epochs=3,
+    epochs=2,
     batch=4,
     imgsz=320,
 )
