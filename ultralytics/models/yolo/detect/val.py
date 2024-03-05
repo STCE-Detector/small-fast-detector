@@ -217,6 +217,7 @@ class DetectionValidator(BaseValidator):
 
             # Save macro metrics per class
             for i, c in enumerate(self.metrics.ap_class_index):
+                stats[f"metrics/P_{self.names[c]}"] = self.metrics.class_result(i)[0]
                 stats[f"metrics/R_{self.names[c]}"] = self.metrics.class_result(i)[1]
 
         return stats
