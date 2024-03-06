@@ -3,7 +3,7 @@ import comet_ml
 from ultralytics import YOLO
 
 # Set number of threads
-N_THREADS = '8'
+N_THREADS = '12'
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ['OMP_NUM_THREADS'] = N_THREADS
 os.environ['OPENBLAS_NUM_THREADS'] = N_THREADS
@@ -18,7 +18,8 @@ comet_ml.init()
 model = YOLO('yolov8s-p2.yaml', task='detect').load('./../models/yolov8s.pt')
 
 epochs = 50
-batch = 64
+batch = 16
+fraction = 0.5
 optimizer = 'auto'
 
 model.train(
@@ -28,14 +29,19 @@ model.train(
     batch=batch,
     optimizer=optimizer,
     save=True,
-    fraction=0.5,
+    fraction=fraction,
     save_json=True,
     plots=True,
-    device=[6,7],
-    project='fine-tune-cdv2',
-    name=f'8sp2-{epochs}e-{batch}b-CW_C2N',
+    device=[2,3],
+    project='boosting_v8sp2',
+    name=f'{epochs}e-{batch}b-{fraction}f-{optimizer}-scale',
     verbose=True,
     patience=25,
     cache=False,
-    amp=False
+    amp=False,
+    ##############
+    scale=0.9,
+    #mixup=0.15,
+    #copy_paste=0.3,
+    #close_mosaic=15,
 )
