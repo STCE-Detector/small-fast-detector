@@ -32,6 +32,8 @@ onnxruntime-silicon>=1.16.0; sys_platform == 'darwin' and platform_machine == 'a
 onnxruntime-gpu>=1.16.3; sys_platform != 'darwin'
 onnxsim>=0.4.35
 onnxoptimizer>=0.3.13
+timm
+einops
 
 nvidia-pyindex; sys_platform != 'darwin' # TensorRT export
 nvidia-tensorrt; sys_platform != 'darwin'  # TensorRT export
