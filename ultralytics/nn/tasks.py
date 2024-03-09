@@ -56,7 +56,7 @@ from ultralytics.utils.torch_utils import (
     time_sync,
 )
 from ultralytics.nn.modules.backbone.repghost import C2f_repghost
-from ultralytics.nn.modules.backbone.ghostnetv2 import C2f_GhostBottleneckV2
+from ultralytics.nn.modules.backbone.ghostnetv2 import C2fGhostV2, GhostModuleV2, GhostBottleneckV2
 from ultralytics.nn.modules.backbone.gghostnet import C2f_g_ghostBottleneck
 from ultralytics.nn.modules.backbone.vanillanet import VanillaBlock
 from ultralytics.nn.modules.headv2.goldyolo import IFM, SimFusion_3in, SimFusion_4in, InjectionMultiSum_Auto_pool, \
@@ -782,7 +782,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 DWConvTranspose2d,
                 C3x,
                 RepC3,
-                C2f_GhostBottleneckV2,
+                C2fGhostV2,
                 C2f_repghost,
                 C2f_g_ghostBottleneck,
                 VanillaBlock,
@@ -793,10 +793,14 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
 
             args = [c1, c2, *args[1:]]
-            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3, C2f_GhostBottleneckV2, C2f_repghost,
+            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3, C2fGhostV2, C2f_repghost,
                      C2f_g_ghostBottleneck):
                 args.insert(2, n)  # number of repeats
                 n = 1
+            if m in {Conv, GhostConv, Bottleneck, GhostBottleneck, GhostModuleV2, GhostBottleneckV2, DWConv,
+                     Focus, BottleneckCSP, C3, C3TR}:
+                if 'act' in d.keys():
+                    args_dict = {"act": d['act']}
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in (HGStem, HGBlock):
