@@ -58,6 +58,9 @@ from ultralytics.utils.torch_utils import (
 from ultralytics.nn.modules.backbone.repghost import C2f_repghost
 from ultralytics.nn.modules.backbone.ghostnetv2 import C2f_GhostBottleneckV2
 from ultralytics.nn.modules.backbone.gghostnet import C2f_g_ghostBottleneck
+from ultralytics.nn.modules.backbone.vanillanet import VanillaBlock
+from ultralytics.nn.modules.headv2.goldyolo import IFM, SimFusion_3in, SimFusion_4in, InjectionMultiSum_Auto_pool, \
+    PyramidPoolAgg, TopBasicLayer, AdvPoolFusion
 
 try:
     import thop
@@ -781,7 +784,8 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 RepC3,
                 C2f_GhostBottleneckV2,
                 C2f_repghost,
-                C2f_g_ghostBottleneck
+                C2f_g_ghostBottleneck,
+                VanillaBlock,
 
         ):
             c1, c2 = ch[f], args[0]
@@ -813,6 +817,28 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
+        #####################gold-yolo##################
+        elif m in {SimFusion_4in, AdvPoolFusion}:
+            c2 = sum(ch[x] for x in f)
+        elif m is SimFusion_3in:
+            c2 = args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [[ch[f_] for f_ in f], c2]
+        elif m is IFM:
+            c1 = ch[f]
+            c2 = sum(args[0])
+            args = [c1, *args]
+        elif m is InjectionMultiSum_Auto_pool:
+            c1 = ch[f[0]]
+            c2 = args[0]
+            args = [c1, *args]
+        elif m is PyramidPoolAgg:
+            c2 = args[0]
+            args = [sum([ch[f_] for f_ in f]), *args]
+        elif m is TopBasicLayer:
+            c2 = sum(args[1])
+        #####################gold-yolo##################
         else:
             c2 = ch[f]
 
