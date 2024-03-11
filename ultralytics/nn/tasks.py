@@ -61,6 +61,7 @@ from ultralytics.nn.modules.backbone.gghostnet import C2f_g_ghostBottleneck
 from ultralytics.nn.modules.backbone.vanillanet import VanillaBlock
 from ultralytics.nn.modules.headv2.goldyolo import IFM, SimFusion_3in, SimFusion_4in, InjectionMultiSum_Auto_pool, \
     PyramidPoolAgg, TopBasicLayer, AdvPoolFusion
+from ultralytics.nn.modules.headv2.cbam import ResBlock_CBAM
 
 try:
     import thop
@@ -786,6 +787,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 C2f_repghost,
                 C2f_g_ghostBottleneck,
                 VanillaBlock,
+                ResBlock_CBAM
 
         ):
             c1, c2 = ch[f], args[0]
