@@ -119,7 +119,6 @@ class AutoBackend(nn.Module):
             paddle,
             ncnn,
             triton,
-            ascend,
         ) = self._model_type(w)
         fp16 &= pt or jit or onnx or xml or engine or nn_module or triton or ascend  # FP16
         nhwc = coreml or saved_model or pb or tflite or edgetpu  # BHWC formats (vs torch BCWH)
@@ -323,9 +322,6 @@ class AutoBackend(nn.Module):
             from ultralytics.utils.triton import TritonRemoteModel
 
             model = TritonRemoteModel(w)
-
-        elif ascend:
-            check_requirements("ascend-deploy")
         else:
             from ultralytics.engine.exporter import export_formats
 
