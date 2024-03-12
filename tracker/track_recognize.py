@@ -109,12 +109,10 @@ class VideoProcessor:
         return image_data
 
     def postprocess(self, input_image, output):
-        # Assuming outputs are already in the shape you've processed before
         outputs = np.transpose(np.squeeze(output[0]))
         rows = outputs.shape[0]
 
-        # Preparing lists for Detections data
-        xyxy = []
+        boxes = []  # For NMS
         scores = []
         class_ids = []
 
@@ -125,35 +123,41 @@ class VideoProcessor:
                 class_id = np.argmax(classes_scores)
                 x, y, w, h = outputs[i][0], outputs[i][1], outputs[i][2], outputs[i][3]
 
-                # Scale the bounding box back from the model's input size to the original image size
                 x_factor = input_image.shape[1] / 640
                 y_factor = input_image.shape[0] / 640
-                left = x - w / 2
-                top = y - h / 2
-                right = x + w / 2
-                bottom = y + h / 2
+                left = (x - w / 2) * x_factor
+                top = (y - h / 2) * y_factor
+                width = w * x_factor
+                height = h * y_factor
 
-                # Adjust coordinates to match the original image size
-                left *= x_factor
-                top *= y_factor
-                right *= x_factor
-                bottom *= y_factor
-
-                # Appending data for sv.Detections
-                xyxy.append([left, top, right, bottom])
+                boxes.append([left, top, width, height])
                 scores.append(max_score)
                 class_ids.append(class_id)
 
-        # Convert lists to numpy arrays
-        xyxy = np.array(xyxy)
-        scores = np.array(scores)
-        class_ids = np.array(class_ids)
+        # Convert lists to numpy arrays for NMS
+        boxes_np = np.array(boxes)
+        scores_np = np.array(scores)
 
-        # Create sv.Detections instance
+        # Perform NMS
+        indices = cv2.dnn.NMSBoxes(boxes, scores, self.conf_threshold, self.iou_threshold).flatten()
+
+        # Filter boxes, scores, and class_ids based on NMS indices
+        filtered_boxes = boxes_np[indices]
+        filtered_scores = scores_np[indices]
+        filtered_class_ids = np.array(class_ids)[indices]
+
+        # Convert boxes from [left, top, width, height] to [x1, y1, x2, y2]
+        filtered_xyxy = np.zeros_like(filtered_boxes)
+        filtered_xyxy[:, 0] = filtered_boxes[:, 0]
+        filtered_xyxy[:, 1] = filtered_boxes[:, 1]
+        filtered_xyxy[:, 2] = filtered_boxes[:, 0] + filtered_boxes[:, 2]
+        filtered_xyxy[:, 3] = filtered_boxes[:, 1] + filtered_boxes[:, 3]
+
+        # Create sv.Detections instance with filtered detections
         detections = sv.Detections(
-            xyxy=xyxy,
-            confidence=scores,
-            class_id=class_ids
+            xyxy=filtered_xyxy,
+            confidence=filtered_scores,
+            class_id=filtered_class_ids
         )
 
         return detections
