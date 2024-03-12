@@ -2,6 +2,9 @@ import argparse
 import csv
 import os
 
+import onnxruntime
+import torch
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 import cv2
@@ -13,10 +16,14 @@ from tracker.byte_track import ByteTrack
 from tracker.action_recognition import ActionRecognizer
 from tracker.utils.cfg.parse_config import ConfigParser
 from tracker.utils.timer.utils import FrameRateCounter, Timer
-from ultralytics import YOLO
 import supervision as sv
 
 COLORS = sv.ColorPalette.default()
+
+try:
+    from ultralytics import YOLO
+except:
+    print("Ultralytics not installed. Please install it using 'pip install ultralytics'")
 
 
 class VideoProcessor:
@@ -37,16 +44,25 @@ class VideoProcessor:
         self.video_stride = config["video_stride"]
         self.wait_time = 1
         self.slow_factor = 1
-
-        self.model = YOLO(config["source_weights_path"])
-        self.model.fuse()
+        try:
+            self.model = YOLO(config["source_weights_path"])
+            self.model.fuse()
+        except:
+            cuda = torch.cuda.is_available()
+            # check if .onnx file
+            if config["source_weights_path"].endswith(".onnx"):
+                providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if cuda else ["CPUExecutionProvider"]
+                self.model = onnxruntime.InferenceSession(config["source_weights_path"], providers=providers)
+                output_names = [x.name for x in self.model.get_outputs()]
+                metadata = self.model.get_modelmeta().custom_metadata_map
 
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
         self.tracker = ByteTrack(config, frame_rate=self.video_info.fps)
 
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
-        self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
+        self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
+                                                 thickness=2)
 
         self.display = config["display"]
         self.save_results = config["save_results"]
@@ -62,6 +78,85 @@ class VideoProcessor:
         }
 
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
+
+    def preprocess(self, img):
+        """
+        Preprocesses the input image before performing inference.
+
+        Returns:
+            image_data: Preprocessed image data ready for inference.
+        """
+
+        # Get the height and width of the input image
+        self.img_height, self.img_width = img.shape[:2]
+
+        # Convert the image color space from BGR to RGB
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        # Resize the image to match the input shape
+        img = cv2.resize(img, (640, 640))
+
+        # Normalize the image data by dividing it by 255.0
+        image_data = np.array(img) / 255.0
+
+        # Transpose the image to have the channel dimension as the first dimension
+        image_data = np.transpose(image_data, (2, 0, 1))  # Channel first
+
+        # Expand the dimensions of the image data to match the expected input shape
+        image_data = np.expand_dims(image_data, axis=0).astype(np.float32)
+
+        # Return the preprocessed image data
+        return image_data
+
+    def postprocess(self, input_image, output):
+        # Assuming outputs are already in the shape you've processed before
+        outputs = np.transpose(np.squeeze(output[0]))
+        rows = outputs.shape[0]
+
+        # Preparing lists for Detections data
+        xyxy = []
+        scores = []
+        class_ids = []
+
+        for i in range(rows):
+            classes_scores = outputs[i][4:]
+            max_score = np.amax(classes_scores)
+            if max_score >= self.conf_threshold:
+                class_id = np.argmax(classes_scores)
+                x, y, w, h = outputs[i][0], outputs[i][1], outputs[i][2], outputs[i][3]
+
+                # Scale the bounding box back from the model's input size to the original image size
+                x_factor = input_image.shape[1] / 640
+                y_factor = input_image.shape[0] / 640
+                left = x - w / 2
+                top = y - h / 2
+                right = x + w / 2
+                bottom = y + h / 2
+
+                # Adjust coordinates to match the original image size
+                left *= x_factor
+                top *= y_factor
+                right *= x_factor
+                bottom *= y_factor
+
+                # Appending data for sv.Detections
+                xyxy.append([left, top, right, bottom])
+                scores.append(max_score)
+                class_ids.append(class_id)
+
+        # Convert lists to numpy arrays
+        xyxy = np.array(xyxy)
+        scores = np.array(scores)
+        class_ids = np.array(class_ids)
+
+        # Create sv.Detections instance
+        detections = sv.Detections(
+            xyxy=xyxy,
+            confidence=scores,
+            class_id=class_ids
+        )
+
+        return detections
 
     def process_video(self):
         print(f"Processing video: {os.path.basename(self.source_video_path)} ...")
@@ -90,7 +185,7 @@ class VideoProcessor:
                 pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
                 if i % self.video_stride == 0:
                     annotated_frame = self.process_frame(frame, i, fps_counter.value())
-                    fps_counter.step() # here
+                    fps_counter.step()  # here
 
                     if not self.display:
                         sink.write_frame(annotated_frame)
@@ -142,21 +237,33 @@ class VideoProcessor:
                 w.writerows(zip(*data_dict.values()))
 
     def process_frame(self, frame: np.ndarray, frame_number: int, fps: float) -> np.ndarray:
-        results = self.model(
-            frame,
-            verbose=False,
-            conf=self.conf_threshold,
-            iou=self.iou_threshold,
-            imgsz=self.img_size,
-            device=self.device,
-            max_det=self.max_det
-        )[0]
-        detections = sv.Detections.from_ultralytics(results)
+        try:
+            results = self.model(
+                frame,
+                verbose=False,
+                conf=self.conf_threshold,
+                iou=self.iou_threshold,
+                imgsz=self.img_size,
+                device=self.device,
+                max_det=self.max_det
+            )[0]
+            detections = sv.Detections.from_ultralytics(results)
+        except:
+            input_name = self.model.get_inputs()[0].name
+            output_name = self.model.get_outputs()[0].name
+            # ADAPT TO ONNX
+            processed_frame = self.preprocess(frame)
+            """resized_frame = cv2.resize(frame, expected_dim, interpolation=cv2.INTER_LINEAR)
+            processed_frame = resized_frame.transpose(2, 0, 1)
+            processed_frame = processed_frame[np.newaxis, :, :, :]"""
+            results = self.model.run([output_name], {input_name: processed_frame.astype(np.float32)})
+
+            detections = self.postprocess(frame, results)
         detections, tracks = self.tracker.update(detections, frame)
 
         ar_results = self.action_recognizer.recognize_frame(tracks)
 
-        return self.annotate_frame(frame, detections, ar_results,  frame_number, fps)
+        return self.annotate_frame(frame, detections, ar_results, frame_number, fps)
 
     def annotate_frame(self, frame: np.ndarray, detections: sv.Detections, ar_results: None, frame_number: int,
                        fps: float) -> np.ndarray:

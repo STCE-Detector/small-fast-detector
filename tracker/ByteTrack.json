@@ -1,7 +1,7 @@
 {
   "name": "qualitative",
 
-  "source_weights_path": "./models/8sp2_150.pt",
+  "source_weights_path": "./models/detector_best_opset13.onnx",
   "source_video_path": "./data/test1.mp4",
 
   "device": "cpu",
