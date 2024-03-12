@@ -9,7 +9,7 @@ from ultralytics import YOLO
 # SETTING UP PARAMETERS
 # Better not to change these parameters
 dataset_root = './data/client_test/'
-model_path = './models/8sp2_150.pt'
+model_path = './models/8sp2_150.onnx'
 outputs_root = './outputs'
 experiment_name = time.strftime("%Y%m%d-%H%M%S")
 # Can be changed
