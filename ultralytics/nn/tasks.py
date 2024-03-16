@@ -63,6 +63,7 @@ from ultralytics.nn.modules.headv2.goldyolo import IFM, SimFusion_3in, SimFusion
     PyramidPoolAgg, TopBasicLayer, AdvPoolFusion
 from ultralytics.nn.modules.headv2.cbam import ResBlock_CBAM
 from ultralytics.nn.modules.backbone.dynamic_ghost import C2f_GhostDynamicConv
+from ultralytics.nn.modules.backbone.ghostnetv2_orig import GhostBottleneckV2_orig, GhostModuleV2_orig, GhostConv2_orig
 
 try:
     import thop
@@ -790,6 +791,9 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 VanillaBlock,
                 ResBlock_CBAM,
                 C2f_GhostDynamicConv,
+                GhostBottleneckV2_orig,
+                GhostModuleV2_orig,
+                GhostConv2_orig
         ):
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
@@ -802,9 +806,21 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 args.insert(2, n)  # number of repeats
                 n = 1
             if m in {Conv, GhostConv, Bottleneck, GhostBottleneck, GhostModuleV2, GhostBottleneckV2, DWConv,
-                     Focus, BottleneckCSP, C3, C3TR}:
+                     Focus, BottleneckCSP, C3, C3TR, GhostBottleneckV2_orig,
+                     GhostModuleV2_orig, GhostConv2_orig}:
                 if 'act' in d.keys():
                     args_dict = {"act": d['act']}
+
+        elif m is GhostBottleneckV2_orig:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            if len(args) >= 3:
+                dw_kernel_size, s, se_ratio, layer_id, act, downscale = args[1:]
+                args = [c1, c2, dw_kernel_size, s, se_ratio, layer_id, act, downscale]
+            else:
+                args = [c1, c2, *args[1:]]
+
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in (HGStem, HGBlock):
