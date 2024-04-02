@@ -121,9 +121,11 @@ class BaseModel(nn.Module):
             if visualize:
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
             if embed and m.i in embed:
-                embeddings.append(nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
+                #embeddings.append(nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
+                embeddings.append(x)
                 if m.i == max(embed):
-                    return torch.unbind(torch.cat(embeddings, 1), dim=0)
+                    #return torch.unbind(torch.cat(embeddings, 1), dim=0)
+                    self.embeddings = embeddings
         return x
 
     def _predict_augment(self, x):
@@ -243,7 +245,7 @@ class BaseModel(nn.Module):
         if verbose:
             LOGGER.info(f"Transferred {len(csd)}/{len(self.model.state_dict())} items from pretrained weights")
 
-    def loss(self, batch, preds=None):
+    def loss(self, batch, preds=None, epoch=None):
         """
         Compute loss.
 
@@ -255,7 +257,7 @@ class BaseModel(nn.Module):
             self.criterion = self.init_criterion()
 
         preds = self.forward(batch["img"]) if preds is None else preds
-        return self.criterion(preds, batch)
+        return self.criterion(preds, batch, epoch)
 
     def init_criterion(self):
         """Initialize the loss criterion for the BaseModel."""
@@ -296,6 +298,8 @@ class DetectionModel(BaseModel):
         if verbose:
             self.info()
             LOGGER.info("")
+
+        self.embeddings = None
 
     def _predict_augment(self, x):
         """Perform augmentations on input image x and return augmented inference and train outputs."""

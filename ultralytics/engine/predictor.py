@@ -281,9 +281,9 @@ class BasePredictor:
                 # Inference
                 with profilers[1]:
                     preds = self.inference(im, *args, **kwargs)
-                    if self.args.embed:
-                        yield from [preds] if isinstance(preds, torch.Tensor) else preds  # yield embedding tensors
-                        continue
+                    #if self.args.embed:
+                        #yield from [preds] if isinstance(preds, torch.Tensor) else preds  # yield embedding tensors
+                        #continue
 
                 # Postprocess
                 with profilers[2]:

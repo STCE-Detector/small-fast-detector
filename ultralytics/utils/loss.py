@@ -203,7 +203,7 @@ class v8DetectionLoss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, preds, batch):
+    def __call__(self, preds, batch, epoch=None):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
         feats = preds[1] if isinstance(preds, tuple) else preds
@@ -241,16 +241,18 @@ class v8DetectionLoss:
 
         # Cls loss
         masking = False
-        if masking:
-            bg_mask_threshold = 0.3
+        close_masking = 15
+        # TODO: total epochs not hardcoded
+        if masking and (epoch is not None) and (epoch >= 50-close_masking):
+            bg_mask_threshold = 0.7
             bg_mask = (~((target_scores.sum(dim=2, keepdim=True) == 0).repeat(1, 1, self.nc) & (
                         pred_scores > bg_mask_threshold))).to(dtype)
             pred_scores *= bg_mask
 
-        class_weights = False
+        class_weights = True
         if class_weights:
             bs, num_anchor, num_classes = pred_scores.shape
-            class_weights = torch.tensor([1, 1, 2, 23, 21, 10], device=self.device, dtype=dtype)
+            class_weights = torch.tensor([1.10, 0.80, 0.90, 0.78, 0.96, 1.48], device=self.device, dtype=dtype)
             w = class_weights.repeat(bs, num_anchor, 1)
         else:
             w = None
