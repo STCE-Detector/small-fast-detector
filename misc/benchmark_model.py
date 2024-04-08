@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import time
 
@@ -304,34 +305,54 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
         "latency (ms)": [],  # Milisegundos
         "FPS (frames/s)": [],  # Frames (cuadros) por segundo
     }
+    export_configs = [
+        {'format': 'pytorch', 'args': {}},
+        {'format': 'torchscript', 'args': {'imgsz': cfg.imgsz, 'optimize': True}},
+        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'simplify': False, 'opset': 12}},
+        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'simplify': False, 'opset': 12}},
+        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'simplify': True, 'opset': 12}},
+        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'simplify': True, 'opset': 12}},
+        {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'simplify': False, 'workspace': 4}},
+        {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'simplify': True, 'workspace': 4}},
+        {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'simplify': False, 'workspace': 4}},
+        {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'simplify': True, 'workspace': 4}},
+    ]
 
     for arch in archs:
-        # read from path
         full_path = check_file_exists(path, arch)
-        if cfg.device == 'cuda':
-            torch.cuda.empty_cache()
-        # model = torch.load(full_path)
-        try:
+
+        for config in export_configs:
+            if cfg.device == 'cuda':
+                torch.cuda.empty_cache()
+
             yolo = YOLO(full_path)
             model = yolo.model
+            n_l, n_p, n_g, flops = model_info(model)
 
-        except:
-            state_dict = torch.load(full_path, map_location=cfg.device)
-            model_instance = YOLO().model  # Asumiendo que puedes crear una instancia vacía
-            new_state_dict = {key.replace('module.', ''): value for key, value in state_dict.items()}
-            # Cargar el nuevo state_dict en el modelo
-            model_instance.load_state_dict(new_state_dict)
-            model = model_instance
+            try:
+                args_str = json.dumps(config['args'], sort_keys=True)
+                export_filename = f"{arch}.{config['format']}"
+                export_path = f'./{export_filename}'
+                unique_id = ''.join(e for e in args_str if e.isalnum())
+                export_filename = f"{arch}_{config['format']}_{unique_id}"
+                if config['format'] == 'pytorch':
+                    pass
+                else:
+                    yolo.export(format=config['format'], **config['args'])
+                    print(f"Modelo {arch} exportado como {export_filename} a {export_path}")
+                    model_path = export_path if os.path.exists(export_path) else f"{export_path}.{config['format']}"
+                    yolo = YOLO(model_path)
+            except Exception as e:
+                print(f"Error exporting model {arch} to format {config['format']}: {e}")
+                continue
+            inference_time_yolo_hard, fps_yolo = inference_yolo_hard(cfg, yolo)
 
-        n_l, n_p, n_g, flops = model_info(model)
-        inference_time_yolo_hard, fps_yolo = inference_yolo_hard(cfg, yolo)
-
-        # Añadir resultados al diccionario
-        results["model"].append(arch)
-        results["parameters (count)"].append("{:,.0f}".format(n_p))
-        results["GFLOPs"].append("{:,.2f}".format(flops))
-        results["latency (ms)"].append("{:.2f}".format(inference_time_yolo_hard))
-        results["FPS (frames/s)"].append("{:.2f}".format(fps_yolo))
+            # Añadir resultados al diccionario
+            results["model"].append(export_filename)
+            results["parameters (count)"].append("{:,.0f}".format(n_p))
+            results["GFLOPs"].append("{:,.2f}".format(flops))
+            results["latency (ms)"].append("{:.2f}".format(inference_time_yolo_hard))
+            results["FPS (frames/s)"].append("{:.2f}".format(fps_yolo))
 
     # Convertir el diccionario de resultados en un DataFrame de pandas
     df = pd.DataFrame(results)

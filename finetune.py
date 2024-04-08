@@ -15,7 +15,7 @@ os.environ['NUMEXPR_NUM_THREADS'] = N_THREADS
 comet_ml.init()
 
 # Initialize model and load matching weights
-model = YOLO('yolov8s-p2_ghostv2_orig.yaml', task='detect') #.load('./../models/yolov8s.pt')
+model = YOLO('yolov8s-p2.yaml', task='detect') #.load('./../models/yolov8s.pt')
 
 epochs = 75
 batch = 16
