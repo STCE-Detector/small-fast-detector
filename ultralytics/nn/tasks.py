@@ -55,6 +55,15 @@ from ultralytics.utils.torch_utils import (
     scale_img,
     time_sync,
 )
+from ultralytics.nn.modules.backbone.repghost import C2f_repghost
+from ultralytics.nn.modules.backbone.ghostnetv2 import C2fGhostV2, GhostModuleV2, GhostBottleneckV2
+from ultralytics.nn.modules.backbone.gghostnet import C2f_g_ghostBottleneck
+from ultralytics.nn.modules.backbone.vanillanet import VanillaBlock
+from ultralytics.nn.modules.headv2.goldyolo import IFM, SimFusion_3in, SimFusion_4in, InjectionMultiSum_Auto_pool, \
+    PyramidPoolAgg, TopBasicLayer, AdvPoolFusion
+from ultralytics.nn.modules.headv2.cbam import ResBlock_CBAM
+from ultralytics.nn.modules.backbone.dynamic_ghost import C2f_GhostDynamicConv
+from ultralytics.nn.modules.backbone.ghostnetv2_orig import GhostBottleneckV2_orig, GhostModuleV2_orig, GhostConv2_orig
 
 try:
     import thop
@@ -325,9 +334,9 @@ class DetectionModel(BaseModel):
     def _clip_augmented(self, y):
         """Clip YOLO augmented inference tails."""
         nl = self.model[-1].nl  # number of detection layers (P3-P5)
-        g = sum(4**x for x in range(nl))  # grid points
+        g = sum(4 ** x for x in range(nl))  # grid points
         e = 1  # exclude layer count
-        i = (y[0].shape[-1] // g) * sum(4**x for x in range(e))  # indices
+        i = (y[0].shape[-1] // g) * sum(4 ** x for x in range(e))  # indices
         y[0] = y[0][..., :-i]  # large
         i = (y[-1].shape[-1] // g) * sum(4 ** (nl - 1 - x) for x in range(e))  # indices
         y[-1] = y[-1][..., i:]  # small
@@ -625,11 +634,11 @@ def torch_safe_load(weight):
     file = attempt_download_asset(weight)  # search online if missing locally
     try:
         with temporary_modules(
-            {
-                "ultralytics.yolo.utils": "ultralytics.utils",
-                "ultralytics.yolo.v8": "ultralytics.models.yolo",
-                "ultralytics.yolo.data": "ultralytics.data",
-            }
+                {
+                    "ultralytics.yolo.utils": "ultralytics.utils",
+                    "ultralytics.yolo.v8": "ultralytics.models.yolo",
+                    "ultralytics.yolo.data": "ultralytics.data",
+                }
         ):  # for legacy 8.0 Classify and Pose models
             return torch.load(file, map_location="cpu"), file  # load
 
@@ -755,36 +764,63 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
 
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         if m in (
-            Classify,
-            Conv,
-            ConvTranspose,
-            GhostConv,
-            Bottleneck,
-            GhostBottleneck,
-            SPP,
-            SPPF,
-            DWConv,
-            Focus,
-            BottleneckCSP,
-            C1,
-            C2,
-            C2f,
-            C3,
-            C3TR,
-            C3Ghost,
-            nn.ConvTranspose2d,
-            DWConvTranspose2d,
-            C3x,
-            RepC3,
+                Classify,
+                Conv,
+                ConvTranspose,
+                GhostConv,
+                Bottleneck,
+                GhostBottleneck,
+                SPP,
+                SPPF,
+                DWConv,
+                Focus,
+                BottleneckCSP,
+                C1,
+                C2,
+                C2f,
+                C3,
+                C3TR,
+                C3Ghost,
+                nn.ConvTranspose2d,
+                DWConvTranspose2d,
+                C3x,
+                RepC3,
+                C2fGhostV2,
+                C2f_repghost,
+                C2f_g_ghostBottleneck,
+                VanillaBlock,
+                ResBlock_CBAM,
+                C2f_GhostDynamicConv,
+                GhostBottleneckV2_orig,
+                GhostModuleV2_orig,
+                GhostConv2_orig
         ):
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
 
             args = [c1, c2, *args[1:]]
-            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3):
+
+            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3, C2fGhostV2, C2f_repghost,
+                     C2f_g_ghostBottleneck, C2f_GhostDynamicConv, VanillaBlock):
                 args.insert(2, n)  # number of repeats
                 n = 1
+            if m in {Conv, GhostConv, Bottleneck, GhostBottleneck, GhostModuleV2, GhostBottleneckV2, DWConv,
+                     Focus, BottleneckCSP, C3, C3TR, GhostBottleneckV2_orig,
+                     GhostModuleV2_orig, GhostConv2_orig}:
+                if 'act' in d.keys():
+                    args_dict = {"act": d['act']}
+
+        elif m is GhostBottleneckV2_orig:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            if len(args) >= 3:
+                dw_kernel_size, s, se_ratio, layer_id, act, downscale = args[1:]
+                args = [c1, c2, dw_kernel_size, s, se_ratio, layer_id, act, downscale]
+            else:
+                args = [c1, c2, *args[1:]]
+
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in (HGStem, HGBlock):
@@ -805,6 +841,28 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
+        #####################gold-yolo##################
+        elif m in {SimFusion_4in, AdvPoolFusion}:
+            c2 = sum(ch[x] for x in f)
+        elif m is SimFusion_3in:
+            c2 = args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [[ch[f_] for f_ in f], c2]
+        elif m is IFM:
+            c1 = ch[f]
+            c2 = sum(args[0])
+            args = [c1, *args]
+        elif m is InjectionMultiSum_Auto_pool:
+            c1 = ch[f[0]]
+            c2 = args[0]
+            args = [c1, *args]
+        elif m is PyramidPoolAgg:
+            c2 = args[0]
+            args = [sum([ch[f_] for f_ in f]), *args]
+        elif m is TopBasicLayer:
+            c2 = sum(args[1])
+        #####################gold-yolo##################
         else:
             c2 = ch[f]
 

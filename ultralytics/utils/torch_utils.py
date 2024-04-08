@@ -255,7 +255,11 @@ def model_info(model, detailed=False, verbose=True, imgsz=640):
     fs = f", {flops:.1f} GFLOPs" if flops else ""
     yaml_file = getattr(model, "yaml_file", "") or getattr(model, "yaml", {}).get("yaml_file", "")
     model_name = Path(yaml_file).stem.replace("yolo", "YOLO") or "Model"
-    LOGGER.info(f"{model_name} summary{fused}: {n_l} layers, {n_p} parameters, {n_g} gradients{fs}")
+
+    formatted_n_p = f"{n_p:,.0f}".replace(",", ".")
+    formatted_n_g = f"{n_g:,.0f}".replace(",", ".")
+    formatted_n_l = f"{n_l:,.0f}".replace(",", ".")
+    LOGGER.info(f"{model_name} summary{fused}: {formatted_n_l} layers, {formatted_n_p} parameters, {formatted_n_g} gradients{fs}")
     return n_l, n_p, n_g, flops
 
 
