@@ -5,7 +5,6 @@ import time
 import numpy as np
 import pandas as pd
 import torch
-from thop import profile, clever_format
 
 from ultralytics import YOLO
 from ultralytics.utils.torch_utils import model_info
@@ -56,130 +55,6 @@ def plot_results(df, filename='benchmark_results.png'):
     plt.savefig(filename)
     plt.show()
 
-
-def measure_inference_time(cfg, model, repetitions=300, warmup_iterations=10):
-    """
-    Measure inference time of a model.
-    Purpose: This function measures the average inference time and its standard deviation of a model over a specified number of repetitions. It performs a "warm-up" phase to ensure the measurements are stable and not affected by initial caching/loading behaviors.
-    How It Works: It first prepares a dummy input image (or batch of images) according to the specified configuration (e.g., batch size, image size). It then runs this input through the model multiple times, measuring how long each inference takes. If running on a GPU, it uses CUDA events for accurate timing; otherwise, it falls back to using the system time. It returns the average time and standard deviation across all repetitions.
-    """
-    device = torch.device(cfg.device)
-    model.to(device)
-    model.eval()
-    # Ajustando para una sola imagen o un batch de imágenes con dimensiones [B, C, H, W]
-    dummy_input = torch.rand(cfg.bs, cfg.channels, cfg.imgsz, cfg.imgsz).to(device)
-
-    # GPU-WARM-UP
-    for _ in range(warmup_iterations):
-        _ = model(dummy_input)
-
-    timings = np.zeros(repetitions)
-    # MEASURE PERFORMANCE
-    with torch.no_grad():
-        for rep in range(repetitions):
-            if cfg.device == 'cuda':
-                # Usar eventos CUDA para GPU
-                starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
-                starter.record()
-                _ = model(dummy_input)
-                ender.record()
-                torch.cuda.synchronize()  # Esperar a que la GPU termine
-                curr_time = starter.elapsed_time(ender)  # Milisegundos
-            else:
-                # Usar time.time para CPU y otros dispositivos
-                start_time = time.time()
-                _ = model(dummy_input)
-                end_time = time.time()
-                curr_time = (end_time - start_time) * 1000  # Convertir a milisegundos
-            timings[rep] = curr_time
-
-    mean_time = np.mean(timings)
-    std_dev_time = np.std(timings)
-    return mean_time, std_dev_time
-
-
-def measure_throughput(cfg, model, repetitions=300):
-    """
-    Purpose: This function calculates the throughput of the model, which is a measure of how many images the model can process per unit of time (images per second).
-    How It Works: Similar to measure_inference_time, it uses a dummy input to repeatedly run the model for a given number of repetitions. It then divides the total number of processed images by the total time taken to process them, providing a measure of throughput.
-    """
-    device = torch.device(cfg.device)
-    model.to(device)
-    model.eval()
-    # Ajustando para un batch de imágenes
-    dummy_input = torch.rand(cfg.bs, cfg.channels, cfg.imgsz, cfg.imgsz).to(device)
-
-    start_time = time.time()
-    with torch.no_grad():
-        for _ in range(repetitions):
-            _ = model(dummy_input)
-    total_time = time.time() - start_time
-
-    throughput = (cfg.bs * repetitions) / total_time
-    return throughput
-
-
-def get_parameters(model):
-    """
-    Purpose: This function calculates the total number of trainable parameters in the model. This is a measure of the model's complexity.
-    How It Works: It iterates over all parameters of the model, sums their sizes, and returns the total count. This helps understand the model's size and potential computational demands.
-    """
-    return sum(p.numel() for p in model.parameters())
-
-
-def get_flops(cfg, model):
-    """
-    Purpose: To estimate the number of floating-point operations (FLOPs) the model performs during inference. This is another measure of model complexity and computational intensity.
-    How It Works: It uses a tool to profile the model with a dummy input, calculating the total FLOPs required to process it. This gives an idea of how computationally intensive the model is.
-    """
-    input_tensor = torch.autograd.Variable(torch.rand(cfg.bs, cfg.channels, cfg.imgsz, cfg.imgsz))
-
-    macs, params = profile(model, inputs=(input_tensor,))
-    macs, params = clever_format([macs, params], "%.3f")
-    return macs
-
-
-def get_flops_with_torch_profiler(model, imgsz=640):
-    """
-    Purpose: An alternative way to calculate FLOPs, potentially offering more detail or accuracy using PyTorch's built-in profiling tools.
-    How It Works: This function also profiles the model with a dummy input but uses PyTorch's profiler. It adjusts the FLOPs calculation based on the input image size, providing a more precise measure tailored to the specific operational scenario.
-    """
-    # model = de_parallel(model) in case of pasing DDP model, it transforms it to a single GPU model
-    p = next(model.parameters())
-    stride = (max(int(model.stride.max()), 32) if hasattr(model, 'stride') else 32) * 2  # max stride
-    im = torch.zeros((1, p.shape[1], stride, stride), device=p.device)  # input image in BCHW format
-    with torch.profiler.profile(with_flops=True) as prof:
-        model(im)
-    flops = sum(x.flops for x in prof.key_averages()) / 1E9
-    imgsz = imgsz if isinstance(imgsz, list) else [imgsz, imgsz]  # expand if int/float
-    flops = flops * imgsz[0] / stride * imgsz[1] / stride  # 640x640 GFLOPs
-    return flops
-
-
-def get_fps_latency(cfg, model):
-    """
-    Purpose: To measure the latency (inference time per image) and frames per second (FPS) of the model in a practical scenario.
-    How It Works: After warming up the model, it runs a set number of inferences and calculates the total time taken. It then computes the average latency per inference and the corresponding FPS. This gives a direct indication of the model's performance in real-time applications.
-    """
-    model.eval()
-    model.to(cfg.device)
-    input_tensor = torch.autograd.Variable(torch.rand(cfg.bs, cfg.channels, cfg.imgsz, cfg.imgsz)).to(cfg.device)
-    print('Model is loaded, start forwarding.')
-
-    start_time = time.time()
-    with torch.no_grad():
-        for _ in range(cfg.num_runs - cfg.num_warmup_runs):
-            pred = model(input_tensor)
-    end_time = time.time()
-
-    total_forward = end_time - start_time
-    actual_num_runs = cfg.num_runs - cfg.num_warmup_runs
-    latency = total_forward / actual_num_runs  # Latency per inference
-    fps = actual_num_runs / total_forward  # Frames per second
-
-    return total_forward, fps, latency
-
-
 def check_file_exists(path, arch):
     """
     Purpose: To verify that a specified configuration file for the model exists at a given path. This is a utility function to ensure necessary files are present before attempting to load or benchmark a model.
@@ -192,15 +67,6 @@ def check_file_exists(path, arch):
     else:
         print(f"El archivo {full_path} existe.")
     return full_path
-
-
-def inference_yolo(cfg, yolo):
-    """
-    Purpose: A basic function to run inference with the YOLO model on a single image and return the inference speed.
-    How It Works: It generates a random image and passes it through the YOLO model, collecting and returning the speed of inference.
-    """
-    results = yolo(torch.rand(1, 3, 640, 640).to(cfg.device))
-    return results[0].speed['inference']
 
 
 def inference_yolo_hard(cfg, yolo, num_images=100):
@@ -228,72 +94,6 @@ def inference_yolo_hard(cfg, yolo, num_images=100):
     median_fps = 1 / median_speed_s
 
     return median_speed, median_fps
-
-
-def perform_benchmark_old(cfg, archs, path='../ultralytics/cfg/models/v8/'):
-    results = {
-        "model": [],
-        "parameters (count)": [],  # Sin unidad específica, conteo de parámetros
-        "GFLOPs": [],  # Giga Floating Point Operations, sin unidad de tiempo porque es un conteo total
-        "inference_time (ms)": [],  # Milisegundos
-        "inference_time_yolo(ms)": [],  # Milisegundos
-        "inference_time_yolo_hard (ms)": [],  # Imágenes por segundo para throughput
-        "inference_time_hard (images/s)": [],  # Imágenes por segundo para throughput
-        "latency (ms)": [],  # Milisegundos
-        "hard_latency_time (ms)": [],  # Milisegundos
-        "hard_latency_std (ms)": [],  # Milisegundos, desviación estándar de la latencia
-        "FPS (frames/s)": [],  # Frames (cuadros) por segundo
-        "FPS_yolo (frames/s)": [],  # Frames (cuadros) por segundo
-    }
-
-    # Simulación de benchmarking para cada modelo
-    for arch in archs:
-        # read from path
-        full_path = check_file_exists(path, arch)
-        if cfg.device == 'cuda':
-            torch.cuda.empty_cache()
-        # model = torch.load(full_path)
-        try:
-            yolo = YOLO(full_path)
-            model = yolo.model
-
-        except:
-            state_dict = torch.load(full_path, map_location=cfg.device)
-            model_instance = YOLO().model  # Asumiendo que puedes crear una instancia vacía
-            new_state_dict = {key.replace('module.', ''): value for key, value in state_dict.items()}
-            # Cargar el nuevo state_dict en el modelo
-            model_instance.load_state_dict(new_state_dict)
-            model = model_instance
-
-        n_p, n_g, n_l, flops = model_info(model)
-
-        parameters = get_parameters(model)
-        inference_time, fps, latency = get_fps_latency(cfg, model)
-        inference_time_hard = 0
-        hard_latency = 0
-        hard_latency = measure_inference_time(cfg, model)
-        inference_time_hard = measure_throughput(cfg, model)
-        inference_time_yolo = inference_yolo(cfg, yolo)
-        inference_time_yolo_hard, fps_yolo = inference_yolo_hard(cfg, yolo)
-
-        # Añadir resultados al diccionario
-        results["model"].append(arch)
-        results["parameters (count)"].append(parameters)
-        results["GFLOPs"].append(flops)
-        results["inference_time (ms)"].append(inference_time)
-        results["inference_time_yolo(ms)"].append(inference_time_yolo)
-        results["inference_time_yolo_hard (ms)"].append(inference_time_yolo_hard)
-        results["inference_time_hard (images/s)"].append(inference_time_hard)
-        results["latency (ms)"].append(latency)
-        results["hard_latency_time (ms)"].append(hard_latency[0])
-        results["hard_latency_std (ms)"].append(hard_latency[1])
-        results["FPS (frames/s)"].append(fps)
-        results["FPS_yolo (frames/s)"].append(fps_yolo)
-
-    # Convertir el diccionario de resultados en un DataFrame de pandas
-    df = pd.DataFrame(results)
-
-    return df
 
 
 def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
