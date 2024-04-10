@@ -10,6 +10,9 @@ from thop import profile, clever_format
 
 from ultralytics import YOLO
 from ultralytics.utils.torch_utils import model_info
+import os
+
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 """
 These functions collectively provide a toolkit for evaluating different aspects of a model's performance, from its computational complexity (parameters, FLOPs) to its real-world applicability (inference time, FPS, throughput). By benchmarking models on these metrics, developers can make informed decisions about which models are most suitable for their applications, balancing the trade-offs between accuracy, speed, and computational resources.
@@ -204,97 +207,45 @@ def inference_yolo(cfg, yolo):
     return results[0].speed['inference']
 
 
-def inference_yolo_hard(cfg, yolo, num_images=100):
+def inference_yolo_hard(cfg, yolo, config, num_images=100):
     """
     Purpose: The core function that orchestrates the entire benchmarking process for a list of model architectures.
     How It Works: For each architecture, it performs a series of measurements (like parameter count, FLOPs, inference time, FPS, and latency) using the functions described above. It aggregates these metrics into a comprehensive report (in the form of a DataFrame), allowing for an in-depth comparison of model performances.
     """
     speeds = []
+    inference_list = []
+    if cfg.device == 'cuda':
+        device = torch.device('cuda')
+    elif cfg.device == 'mps':
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
 
     for _ in range(num_images):
         # Generate a random image
-        image = torch.rand(1, 3, 640, 640).to(cfg.device)
+        if config.get('args', {}).get('half', False):
+            image = torch.rand(1, 3, 640, 640).half().to(device)
+        elif config.get('args', {}).get('int8', False):
+            image = torch.rand(1, 3, 640, 640).half().to(device)
+        else:
+            image = torch.rand(1, 3, 640, 640).to(device)
 
         # Run inference
-        results = yolo(image)
+        results = yolo.predict(image, device=0, half=config.get('args', {}).get('half', False), int8=config.get('args', {}).get('int8', False))
 
         # Collect inference speed
-        speeds.append(results[0].speed['inference'])
+        speeds.append(results[0].speed['inference'] + results[0].speed['postprocess'])
+        inference_list.append(results[0].speed['inference'])
 
     # Calculate the median inference speed
     median_speed = np.median(speeds)
+    median_inference = np.median(inference_list)
     median_speed_s = median_speed / 1000
 
     # Calculate median FPS (frames per second)
     median_fps = 1 / median_speed_s
 
-    return median_speed, median_fps
-
-
-def perform_benchmark_old(cfg, archs, path='../ultralytics/cfg/models/v8/'):
-    results = {
-        "model": [],
-        "parameters (count)": [],  # Sin unidad específica, conteo de parámetros
-        "GFLOPs": [],  # Giga Floating Point Operations, sin unidad de tiempo porque es un conteo total
-        "inference_time (ms)": [],  # Milisegundos
-        "inference_time_yolo(ms)": [],  # Milisegundos
-        "inference_time_yolo_hard (ms)": [],  # Imágenes por segundo para throughput
-        "inference_time_hard (images/s)": [],  # Imágenes por segundo para throughput
-        "latency (ms)": [],  # Milisegundos
-        "hard_latency_time (ms)": [],  # Milisegundos
-        "hard_latency_std (ms)": [],  # Milisegundos, desviación estándar de la latencia
-        "FPS (frames/s)": [],  # Frames (cuadros) por segundo
-        "FPS_yolo (frames/s)": [],  # Frames (cuadros) por segundo
-    }
-
-    # Simulación de benchmarking para cada modelo
-    for arch in archs:
-        # read from path
-        full_path = check_file_exists(path, arch)
-        if cfg.device == 'cuda':
-            torch.cuda.empty_cache()
-        # model = torch.load(full_path)
-        try:
-            yolo = YOLO(full_path)
-            model = yolo.model
-
-        except:
-            state_dict = torch.load(full_path, map_location=cfg.device)
-            model_instance = YOLO().model  # Asumiendo que puedes crear una instancia vacía
-            new_state_dict = {key.replace('module.', ''): value for key, value in state_dict.items()}
-            # Cargar el nuevo state_dict en el modelo
-            model_instance.load_state_dict(new_state_dict)
-            model = model_instance
-
-        n_p, n_g, n_l, flops = model_info(model)
-
-        parameters = get_parameters(model)
-        inference_time, fps, latency = get_fps_latency(cfg, model)
-        inference_time_hard = 0
-        hard_latency = 0
-        hard_latency = measure_inference_time(cfg, model)
-        inference_time_hard = measure_throughput(cfg, model)
-        inference_time_yolo = inference_yolo(cfg, yolo)
-        inference_time_yolo_hard, fps_yolo = inference_yolo_hard(cfg, yolo)
-
-        # Añadir resultados al diccionario
-        results["model"].append(arch)
-        results["parameters (count)"].append(parameters)
-        results["GFLOPs"].append(flops)
-        results["inference_time (ms)"].append(inference_time)
-        results["inference_time_yolo(ms)"].append(inference_time_yolo)
-        results["inference_time_yolo_hard (ms)"].append(inference_time_yolo_hard)
-        results["inference_time_hard (images/s)"].append(inference_time_hard)
-        results["latency (ms)"].append(latency)
-        results["hard_latency_time (ms)"].append(hard_latency[0])
-        results["hard_latency_std (ms)"].append(hard_latency[1])
-        results["FPS (frames/s)"].append(fps)
-        results["FPS_yolo (frames/s)"].append(fps_yolo)
-
-    # Convertir el diccionario de resultados en un DataFrame de pandas
-    df = pd.DataFrame(results)
-
-    return df
+    return median_speed, median_fps, median_inference
 
 
 def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
@@ -303,18 +254,19 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
         "parameters (count)": [],  # Sin unidad específica, conteo de parámetros
         "GFLOPs": [],  # Giga Floating Point Operations, sin unidad de tiempo porque es un conteo total
         "latency (ms)": [],  # Milisegundos
+        "inference (ms)": [],
         "FPS (frames/s)": [],  # Frames (cuadros) por segundo
     }
     export_configs = [
-        {'format': 'pytorch', 'args': {}},
-        {'format': 'torchscript', 'args': {'imgsz': cfg.imgsz, 'optimize': True}},
-        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'simplify': False, 'opset': 12}},
-        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'simplify': False, 'opset': 12}},
-        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'simplify': True, 'opset': 12}},
-        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'simplify': True, 'opset': 12}},
+        {'format': 'pytorch', 'args': {'half': False}},
+        {'format': 'pytorch', 'args': {'half': True}},
+        {'format': 'torchscript', 'args': {'imgsz': cfg.imgsz, 'optimize': False}},
+        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False, 'opset': 12}},
+        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True, 'opset': 12}},
+        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'opset': 12}},
+        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': True, 'simplify': True, 'opset': 12}},
         {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'simplify': False, 'workspace': 4}},
         {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'simplify': True, 'workspace': 4}},
-        {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'simplify': False, 'workspace': 4}},
         {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'simplify': True, 'workspace': 4}},
     ]
 
@@ -325,7 +277,8 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
             if cfg.device == 'cuda':
                 torch.cuda.empty_cache()
 
-            yolo = YOLO(full_path)
+            yolo = YOLO(full_path, task='detect')
+            yolo.to(cfg.device)
             model = yolo.model
             n_l, n_p, n_g, flops = model_info(model)
 
@@ -338,25 +291,26 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
                 if config['format'] == 'pytorch':
                     pass
                 else:
-                    yolo.export(format=config['format'], **config['args'])
+                    yolo.export(format=config['format'], device=cfg.device, **config['args'])
                     print(f"Modelo {arch} exportado como {export_filename} a {export_path}")
                     model_path = export_path if os.path.exists(export_path) else f"{export_path}.{config['format']}"
-                    yolo = YOLO(model_path)
+                    yolo = YOLO(model_path, task='detect')
             except Exception as e:
                 print(f"Error exporting model {arch} to format {config['format']}: {e}")
                 continue
-            inference_time_yolo_hard, fps_yolo = inference_yolo_hard(cfg, yolo)
+            inference_time_yolo_hard, fps_yolo, inference_ms = inference_yolo_hard(cfg, yolo, config)
 
             # Añadir resultados al diccionario
             results["model"].append(export_filename)
             results["parameters (count)"].append("{:,.0f}".format(n_p))
             results["GFLOPs"].append("{:,.2f}".format(flops))
             results["latency (ms)"].append("{:.2f}".format(inference_time_yolo_hard))
+            results["inference (ms)"].append("{:.2f}".format(inference_ms))
             results["FPS (frames/s)"].append("{:.2f}".format(fps_yolo))
 
     # Convertir el diccionario de resultados en un DataFrame de pandas
     df = pd.DataFrame(results)
-    plot_results(df)
+    # plot_results(df)
     return df
 
 
@@ -364,7 +318,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute FLOPs of a model.')
     parser.add_argument('--bs', type=int, default=1, help='batch size')
     parser.add_argument('--channels', type=int, default=3, help='batch size')
-    parser.add_argument('--device', type=str, default='mps', help='device')
+    parser.add_argument('--device', type=str, default='cuda', help='device')
     parser.add_argument('--num-frames', type=int, default=32, help='temporal clip length.')
     parser.add_argument('--imgsz', type=int, default=640,
                         help='size of the input image size. default is 224')
@@ -377,6 +331,7 @@ if __name__ == '__main__':
     path = '../ultralytics/cfg/models/v8/'
     # get all files in the path
     model_names = [f.split('.')[0] for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    model_names = sorted(model_names)
 
     args = parser.parse_args()
     cfg = args
