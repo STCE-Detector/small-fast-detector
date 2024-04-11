@@ -69,7 +69,7 @@ def check_file_exists(path, arch):
     return full_path
 
 
-def inference_yolo_hard(cfg, yolo, num_images=101):
+def inference_yolo_hard(cfg, yolo):
     """
     Purpose: The core function that orchestrates the entire benchmarking process for a list of model architectures.
     How It Works: For each architecture, it performs a series of measurements (like parameter count, FLOPs, inference time, FPS, and latency) using the functions described above. It aggregates these metrics into a comprehensive report (in the form of a DataFrame), allowing for an in-depth comparison of model performances.
@@ -78,18 +78,19 @@ def inference_yolo_hard(cfg, yolo, num_images=101):
     infer = []
     post = []
 
-    for i in range(num_images):
+    for i in range(cfg.num_runs):
         # Generate a random image
-        image = torch.rand(1, 3, 640, 640).to(cfg.device)
+        image = torch.rand(1, 3, cfg.imgsz, cfg.imgsz).to(cfg.device)
 
         # Run inference
         results = yolo.predict(
             source=image,
+            imgsz=cfg.imgsz,
             device=cfg.device,
             verbose=False,
         )
 
-        if i > 0:
+        if i >= cfg.num_warmup_runs:
             # Collect inference speed
             pre.append(results[0].speed['preprocess'])
             infer.append(results[0].speed['inference'])
@@ -118,8 +119,17 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
             torch.cuda.empty_cache()
 
         yolo = YOLO(arch+'.yaml', task='detect')
-
         n_l, n_p, n_g, flops = yolo.info()
+        if cfg.onnx:
+            yolo.export(
+                format='onnx',
+                imgsz=cfg.imgsz,
+                opset=12,
+                dynamic=False,
+                simplify=True,
+                project='./data/arch_benchmark/models',
+            )
+            yolo = YOLO('./data/arch_benchmark/models/' + arch + '.onnx', task='detect')
         t_pre, t_infer, t_post = inference_yolo_hard(cfg, yolo)
 
         # Añadir resultados al diccionario
@@ -132,22 +142,22 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
 
     # Convertir el diccionario de resultados en un DataFrame de pandas
     df = pd.DataFrame(results)
-    #plot_results(df)
+    if cfg.save:
+        df.to_csv('./data/arch_benchmark/results.csv', index=False)
     return df
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute FLOPs of a model.')
-    parser.add_argument('--bs', type=int, default=1, help='batch size')
-    parser.add_argument('--channels', type=int, default=3, help='batch size')
     parser.add_argument('--device', type=str, default='cpu', help='device')
-    parser.add_argument('--num-frames', type=int, default=32, help='temporal clip length.')
     parser.add_argument('--imgsz', type=int, default=640,
                         help='size of the input image size. default is 224')
     parser.add_argument('--num-runs', type=int, default=105,
-                        help='number of runs to compute average forward timing. default is 105')
+                        help='number of runs to compute average forward timing. default is 101')
     parser.add_argument('--num-warmup-runs', type=int, default=5,
                         help='number of warmup runs to avoid initial slow speed. default is 5')
+    parser.add_argument('--onnx', type=bool, default=True, help='export to onnx')
+    parser.add_argument('--save', type=bool, default=True, help='save the model')
 
     # Nombres de los modelos subidos, asumiendo que corresponden a los nombres de archivo sin la extensión
     path = '../ultralytics/cfg/models/v8/'
@@ -158,6 +168,7 @@ if __name__ == '__main__':
         'yolov8s',
         'yolov8s-p2',
         'yolov8s-p234',
+        'yolov8s-p2-c2fsum',
         'yolov8s-p2-late_decoup',
         'yolov8s-p2-late_decoupV2',
         'yolov8s-p2-pconv_neck',
@@ -170,4 +181,3 @@ if __name__ == '__main__':
     cfg = args
     # merge args into cfg
     df = perform_benchmark(cfg, model_names)
-    df.to_csv('./data/arch_benchmark/results.csv', index=False)
