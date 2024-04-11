@@ -19,6 +19,9 @@ from ultralytics.nn.modules import (
     Bottleneck,
     BottleneckCSP,
     C2f,
+    C2fPConv,
+    C2fPConvEMA,
+    C2fPConvSimAM,
     C3Ghost,
     C3x,
     Classify,
@@ -27,6 +30,8 @@ from ultralytics.nn.modules import (
     Conv2,
     ConvTranspose,
     Detect,
+    DetectLateDecoup,
+    DetectLateDecoupV2,
     DWConv,
     DWConvTranspose2d,
     Focus,
@@ -231,7 +236,7 @@ class BaseModel(nn.Module):
         """
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Segment)):
+        if isinstance(m, (Detect, Segment, DetectLateDecoup, DetectLateDecoupV2)):
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
             m.strides = fn(m.strides)
@@ -290,7 +295,7 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Segment, Pose, OBB)):
+        if isinstance(m, (Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2)):
             s = 256  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, Pose, OBB)) else self.forward(x)
@@ -686,7 +691,7 @@ def attempt_load_weights(weights, device=None, inplace=True, fuse=False):
     # Module updates
     for m in ensemble.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -722,7 +727,7 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     # Module updates
     for m in model.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -778,6 +783,9 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 C1,
                 C2,
                 C2f,
+                C2fPConv,
+                C2fPConvEMA,
+                C2fPConvSimAM,
                 C3,
                 C3TR,
                 C3Ghost,
@@ -802,7 +810,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             args = [c1, c2, *args[1:]]
 
             if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3, C2fGhostV2, C2f_repghost,
-                     C2f_g_ghostBottleneck, C2f_GhostDynamicConv, VanillaBlock):
+                     C2f_g_ghostBottleneck, C2f_GhostDynamicConv, VanillaBlock, C2fPConv, C2fPConvEMA, C2fPConvSimAM):
                 args.insert(2, n)  # number of repeats
                 n = 1
             if m in {Conv, GhostConv, Bottleneck, GhostBottleneck, GhostModuleV2, GhostBottleneckV2, DWConv,
@@ -835,7 +843,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             args = [ch[f]]
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
-        elif m in (Detect, Segment, Pose, OBB):
+        elif m in (Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2):
             args.append([ch[x] for x in f])
             if m is Segment:
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
@@ -960,7 +968,7 @@ def guess_model_task(model):
                 return cfg2task(eval(x))
 
         for m in model.modules():
-            if isinstance(m, Detect):
+            if isinstance(m, Detect, DetectLateDecoup, DetectLateDecoupV2):
                 return "detect"
             elif isinstance(m, Segment):
                 return "segment"
