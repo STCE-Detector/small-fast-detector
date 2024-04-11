@@ -58,6 +58,8 @@ class VideoBenchmark:
         self.tracker_times = []
         self.action_recognition_times = []
         self.annotated_frame_times = []
+        self.video_fps = None
+        self.time_taken = None
 
         self.class_names = {
             0: "person",
@@ -133,6 +135,8 @@ class VideoBenchmark:
         self.tracker_times = []
         self.action_recognition_times = []
         self.annotated_frame_times = []
+        self.video_fps = None
+        self.time_taken = None
     def run_benchmark(self, archs, videos, export_configs, path_model='../ultralytics/cfg/models/v8/', path_videos='./videos/'):
         results = []
         for arch in archs:
@@ -148,18 +152,22 @@ class VideoBenchmark:
                     self.process_video()
                     results.append({
                         'model_name': arch,
-                        'parameters_count': n_p,
-                        'GFLOPs': flops / 1e9,
-                        'latency_ms': np.mean(self.tracker_times),  # Assuming you want to measure tracker latency
-                        'inference_ms': np.mean(self.model_times),
-                        'FPS': np.mean(self.video_info.fps / np.mean(self.model_times)),
+                        'parameters_count': "{:,.0f}".format(n_p),
+                        'GFLOPs': "{:,.2f}".format(flops),
+                        'latency_total_ms': "{:.4f}".format(np.mean(self.post_processing_times)),
+                        'latency_tracker_ms': "{:.4f}".format(np.mean(self.tracker_times)),
+                        'inference_ms': "{:.2f}".format(np.mean(self.model_times)),
+                        'FPS_model': 1 / (np.mean(self.model_times) / 1000),
+                        'FPS_video': self.video_fps,
+                        'time_taken': self.time_taken,
+                        # 'Diff_FPS': (np.float32(self.video_fps) - (1 / (np.mean(self.model_times) / 1000)))*-1,
                         # Add other metrics you want to save
                     })
                     self.reset_times()
 
 
             df = pd.DataFrame(results)
-            df.to_csv(self.config['output_csv'], index=False)
+            df.to_csv("./benchmark_tracker.csv", index=False)
 
     def process_video(self):
         print(f"Processing video: {os.path.basename(self.source_video_path)} ...")
@@ -231,6 +239,8 @@ class VideoBenchmark:
         print(f"\nTracking complete over {self.video_info.total_frames} frames.")
         print(f"Total time: {time_taken}")
         print(f"Average FPS: {avg_fps:.2f}")
+        self.video_fps = str(avg_fps).format("{:.2f}")
+        self.time_taken = f"{int(timer.elapsed() / 60)}:{int(timer.elapsed() % 60)}"
 
         # Save datadict in csv
         """if self.save_results:
@@ -255,7 +265,7 @@ class VideoBenchmark:
         start_time_post_processing = time.perf_counter()
         detections = sv.Detections.from_ultralytics(results)
         postprocessing_time = time.perf_counter() - start_time_post_processing
-        model_speed_postprocess = model_speed_postprocess + postprocessing_time
+        model_speed_postprocess = model_speed_inference + model_speed_postprocess + postprocessing_time
 
         # TRACKER TIME HERE
         start_time_tracker = time.perf_counter()
@@ -266,7 +276,6 @@ class VideoBenchmark:
         start_time_action_recognition = time.perf_counter()
         ar_results = self.action_recognizer.recognize_frame(tracks)
         action_recognition_time = time.perf_counter() - start_time_action_recognition
-        # TODO: finish time here
         start_time_annotated_frame = time.perf_counter()
         annotated_frame = self.annotate_frame(frame, detections, ar_results,  frame_number, fps)
         annotated_frame_time = time.perf_counter() - start_time_annotated_frame
