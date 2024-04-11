@@ -252,7 +252,6 @@ class VideoBenchmark:
         # MODEL INFERENCE TIME
         model_speed_inference = results.speed['inference']
         model_speed_postprocess = results.speed['postprocess']
-        print(f"Model inference time: {model_speed_inference:.2f} s")
         start_time_post_processing = time.perf_counter()
         detections = sv.Detections.from_ultralytics(results)
         postprocessing_time = time.perf_counter() - start_time_post_processing
