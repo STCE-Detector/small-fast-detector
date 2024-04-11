@@ -8,10 +8,11 @@ from ultralytics import YOLO
 
 # SETTING UP PARAMETERS
 # Better not to change these parameters
-dataset_root = './../../ultralytics/cfg/datasets/custom_dataset.yaml' #'./data/client_test/data.yaml'
-model_path = './models/8sp2_150.pt'
+#dataset_root = './../../ultralytics/cfg/datasets/custom_dataset.yaml' #'./data/client_test/data.yaml'
+dataset_root = './data/client_test/data.yaml'
+model_path = './models/v3/8s_150e_128b.pt'
 outputs_root = './outputs'
-experiment_name = time.strftime("%Y%m%d-%H%M%S")
+experiment_name = 'cdv3_8s_150e_128bF1ADJUSTED'#time.strftime("%Y%m%d-%H%M%S")
 # Can be changed
 imgsz = 640
 batch = 32

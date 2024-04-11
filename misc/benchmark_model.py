@@ -69,73 +69,70 @@ def check_file_exists(path, arch):
     return full_path
 
 
-def inference_yolo_hard(cfg, yolo, num_images=100):
+def inference_yolo_hard(cfg, yolo, num_images=101):
     """
     Purpose: The core function that orchestrates the entire benchmarking process for a list of model architectures.
     How It Works: For each architecture, it performs a series of measurements (like parameter count, FLOPs, inference time, FPS, and latency) using the functions described above. It aggregates these metrics into a comprehensive report (in the form of a DataFrame), allowing for an in-depth comparison of model performances.
     """
-    speeds = []
+    pre = []
+    infer = []
+    post = []
 
-    for _ in range(num_images):
+    for i in range(num_images):
         # Generate a random image
         image = torch.rand(1, 3, 640, 640).to(cfg.device)
 
         # Run inference
-        results = yolo(image)
+        results = yolo.predict(
+            source=image,
+            device=cfg.device,
+            verbose=False,
+        )
 
-        # Collect inference speed
-        speeds.append(results[0].speed['inference'])
+        if i > 0:
+            # Collect inference speed
+            pre.append(results[0].speed['preprocess'])
+            infer.append(results[0].speed['inference'])
+            post.append(results[0].speed['postprocess'])
 
-    # Calculate the median inference speed
-    median_speed = np.median(speeds)
-    median_speed_s = median_speed / 1000
+    # Calculate the mean inference speeds
+    t_pre = np.mean(pre)
+    t_infer = np.mean(infer)
+    t_post = np.mean(post)
 
-    # Calculate median FPS (frames per second)
-    median_fps = 1 / median_speed_s
-
-    return median_speed, median_fps
+    return t_pre, t_infer, t_post
 
 
 def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
     results = {
-        "model": [],
-        "parameters (count)": [],  # Sin unidad específica, conteo de parámetros
+        "Model": [],
+        "Parameters": [],  # Sin unidad específica, conteo de parámetros
         "GFLOPs": [],  # Giga Floating Point Operations, sin unidad de tiempo porque es un conteo total
-        "latency (ms)": [],  # Milisegundos
-        "FPS (frames/s)": [],  # Frames (cuadros) por segundo
+        "Preprocessing": [],
+        "Inference": [],
+        "Postprocessing": []
     }
 
     for arch in archs:
-        # read from path
-        full_path = check_file_exists(path, arch)
         if cfg.device == 'cuda':
             torch.cuda.empty_cache()
-        # model = torch.load(full_path)
-        try:
-            yolo = YOLO(full_path)
-            model = yolo.model
 
-        except:
-            state_dict = torch.load(full_path, map_location=cfg.device)
-            model_instance = YOLO().model  # Asumiendo que puedes crear una instancia vacía
-            new_state_dict = {key.replace('module.', ''): value for key, value in state_dict.items()}
-            # Cargar el nuevo state_dict en el modelo
-            model_instance.load_state_dict(new_state_dict)
-            model = model_instance
+        yolo = YOLO(arch+'.yaml', task='detect')
 
-        n_l, n_p, n_g, flops = model_info(model)
-        inference_time_yolo_hard, fps_yolo = inference_yolo_hard(cfg, yolo)
+        n_l, n_p, n_g, flops = yolo.info()
+        t_pre, t_infer, t_post = inference_yolo_hard(cfg, yolo)
 
         # Añadir resultados al diccionario
-        results["model"].append(arch)
-        results["parameters (count)"].append("{:,.0f}".format(n_p))
-        results["GFLOPs"].append("{:,.2f}".format(flops))
-        results["latency (ms)"].append("{:.2f}".format(inference_time_yolo_hard))
-        results["FPS (frames/s)"].append("{:.2f}".format(fps_yolo))
+        results["Model"].append(arch)
+        results["Parameters"].append(n_p)
+        results["GFLOPs"].append(flops)
+        results["Preprocessing"].append(t_pre)
+        results["Inference"].append(t_infer)
+        results["Postprocessing"].append(t_post)
 
     # Convertir el diccionario de resultados en un DataFrame de pandas
     df = pd.DataFrame(results)
-    plot_results(df)
+    #plot_results(df)
     return df
 
 
@@ -143,7 +140,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute FLOPs of a model.')
     parser.add_argument('--bs', type=int, default=1, help='batch size')
     parser.add_argument('--channels', type=int, default=3, help='batch size')
-    parser.add_argument('--device', type=str, default='mps', help='device')
+    parser.add_argument('--device', type=str, default='cpu', help='device')
     parser.add_argument('--num-frames', type=int, default=32, help='temporal clip length.')
     parser.add_argument('--imgsz', type=int, default=640,
                         help='size of the input image size. default is 224')
@@ -155,10 +152,22 @@ if __name__ == '__main__':
     # Nombres de los modelos subidos, asumiendo que corresponden a los nombres de archivo sin la extensión
     path = '../ultralytics/cfg/models/v8/'
     # get all files in the path
-    model_names = [f.split('.')[0] for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    #model_names = [f.split('.')[0] for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+
+    model_names = [
+        'yolov8s',
+        'yolov8s-p2',
+        'yolov8s-p234',
+        'yolov8s-p2-late_decoup',
+        'yolov8s-p2-late_decoupV2',
+        'yolov8s-p2-pconv_neck',
+        'yolov8s-p2-pconv_bone',
+        'yolov8s-p2-pconvema_bone',
+        'yolov8s-p2-pconvsimam_bone',
+    ]
 
     args = parser.parse_args()
     cfg = args
     # merge args into cfg
     df = perform_benchmark(cfg, model_names)
-    df.to_csv('benchmark_results.csv')
+    df.to_csv('./data/arch_benchmark/results.csv', index=False)
