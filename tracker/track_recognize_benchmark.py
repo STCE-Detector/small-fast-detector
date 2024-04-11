@@ -76,7 +76,7 @@ class VideoBenchmark:
             Purpose: To verify that a specified configuration file for the model exists at a given path. This is a utility function to ensure necessary files are present before attempting to load or benchmark a model.
             How It Works: It constructs the full path to the expected file and checks if the file exists there, raising an error if not. This helps prevent runtime errors due to missing files.
             """
-            full_path = os.path.join(path, arch) + '.yaml'
+            full_path = os.path.join(path, arch) + '.pt'
             print(full_path)
             if not os.path.exists(full_path):
                 raise FileNotFoundError(f"El archivo {full_path} no existe.")
@@ -137,11 +137,11 @@ class VideoBenchmark:
         self.annotated_frame_times = []
         self.video_fps = None
         self.time_taken = None
-    def run_benchmark(self, archs, videos, export_configs, path_model='../ultralytics/cfg/models/v8/', path_videos='./videos/'):
-        results = []
+    def run_benchmark(self, archs, videos, export_configs, path_model='./models/', path_videos='./videos/'):
+
         for arch in archs:
             for config_export in export_configs:
-
+                results = []
                 self.load_model(path_model, arch)
                 n_l, n_p, n_g, flops = model_info(self.model.model) # TODO: GUARDAR TODA LA INFO DEL MODELO
 
@@ -164,6 +164,7 @@ class VideoBenchmark:
                         # Add other metrics you want to save
                     })
                     self.reset_times()
+
 
 
             df = pd.DataFrame(results)
@@ -313,18 +314,35 @@ if __name__ == "__main__":
         type=str,
         help="config file path (default: None)",
     )
-    path_models = '../ultralytics/cfg/models/v8/'
+    # path_models = '../ultralytics/cfg/models/v8/'
+    path_models = './models/'
     # get all files in the path
     model_names = [f.split('.')[0] for f in os.listdir(path_models) if os.path.isfile(os.path.join(path_models, f))]
     model_names = sorted(model_names)
-    export_configs = [
-        {'format': 'pytorch', 'args': {'half': False}},
-    ]
 
     path_videos = './videos/'
     videos = [f.split('.')[0] for f in os.listdir(path_videos) if os.path.isfile(os.path.join(path_videos, f))]
 
     config = ConfigParser.from_args(parser)
+    export_configs = [
+        {'format': 'pytorch', 'args': {'half': False}},
+        {'format': 'pytorch', 'args': {'half': True}},
+        {'format': 'torchscript', 'args': {'imgsz': config["img_size"], 'optimize': False}},
+        {'format': 'onnx',
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False, 'opset': 12}},
+        {'format': 'onnx',
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True, 'opset': 12}},
+        {'format': 'onnx',
+         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'opset': 12}},
+        {'format': 'onnx',
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': True, 'simplify': True, 'opset': 12}},
+        {'format': 'engine',
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'simplify': False, 'workspace': 4}},
+        {'format': 'engine',
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'simplify': True, 'workspace': 4}},
+        {'format': 'engine',
+         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'simplify': True, 'workspace': 4}},
+    ]
     benchmark = VideoBenchmark(config)
     benchmark.run_benchmark(model_names, videos, export_configs)
 
