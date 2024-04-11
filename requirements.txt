@@ -37,6 +37,7 @@ einops
 
 nvidia-pyindex; sys_platform != 'darwin' # TensorRT export
 nvidia-tensorrt; sys_platform != 'darwin'  # TensorRT export
+tensorrt; sys_platform != 'darwin'
 # scikit-learn==0.19.2  # CoreML quantization
 # tensorflow>=2.4.1  # TF exports (-cpu, -aarch64, -macos)
 # tflite-support
