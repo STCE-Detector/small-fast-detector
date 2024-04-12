@@ -286,7 +286,8 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
                 args_str = json.dumps(config['args'], sort_keys=True)
                 export_filename = f"{arch}.{config['format']}"
                 export_path = f'./{export_filename}'
-                unique_id = ''.join(e for e in args_str if e.isalnum())
+                args_dict = json.loads(args_str)
+                unique_id = '_'.join(f"{key}_{value}" for key, value in args_dict.items())
                 export_filename = f"{arch}_{config['format']}_{unique_id}"
                 if config['format'] == 'pytorch':
                     pass
