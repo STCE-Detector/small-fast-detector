@@ -94,7 +94,7 @@ class VideoBenchmark:
         try:
             args_str = json.dumps(config_export['args'], sort_keys=True)
             export_filename = f"{arch}.{config_export['format']}"
-            export_path = f'./{export_filename}'
+            export_path = f'./models/{export_filename}'
             args_dict = json.loads(args_str)
             unique_id = '_'.join(f"{key}_{value}" for key, value in args_dict.items())
             export_filename = f"{arch}_{config_export['format']}_{unique_id}"
@@ -107,7 +107,8 @@ class VideoBenchmark:
                 self.model = YOLO(model_path, task='detect')
                 self.model.to(self.device)
         except Exception as e:
-            print(f"Error exporting model {arch} to format {config['format']}: {e}")
+            print(f"Error exporting model {arch} to format {config_export['format']}: {e}")
+            pass
 
     # get info video
     def initialize_video(self, video, video_path):
@@ -149,7 +150,7 @@ class VideoBenchmark:
 
                 for video in videos:
                     self.initialize_video(video, path_videos)
-                    self.process_video()
+                    self.process_video(config_export)
                     results.append({
                         'model_name': arch,
                         'parameters_count': "{:,.0f}".format(n_p),
@@ -170,7 +171,7 @@ class VideoBenchmark:
             df = pd.DataFrame(results)
             df.to_csv("./benchmark_tracker.csv", index=False)
 
-    def process_video(self):
+    def process_video(self, config_export):
         print(f"Processing video: {os.path.basename(self.source_video_path)} ...")
         print(f"Original video size: {self.video_info.resolution_wh}")
         print(f"Original video FPS: {self.video_info.fps}")
@@ -196,7 +197,7 @@ class VideoBenchmark:
             for i, frame in enumerate(pbar := tqdm(frame_generator, total=self.video_info.total_frames)):
                 pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
                 if i % self.video_stride == 0:
-                    annotated_frame = self.process_frame(frame, i, fps_counter.value())
+                    annotated_frame = self.process_frame(frame, i, fps_counter.value(), config_export)
                     fps_counter.step() # here
 
                     if not self.display:
@@ -250,15 +251,17 @@ class VideoBenchmark:
                 w.writerow(data_dict.keys())
                 w.writerows(zip(*data_dict.values()))"""
 
-    def process_frame(self, frame: np.ndarray, frame_number: int, fps: float) -> np.ndarray:
-        results = self.model(
+    def process_frame(self, frame: np.ndarray, frame_number: int, fps: float, config_export) -> np.ndarray:
+        results = self.model.predict(
             frame,
             verbose=False,
             conf=self.conf_threshold,
             iou=self.iou_threshold,
             imgsz=self.img_size,
             device=self.device,
-            max_det=self.max_det
+            max_det=self.max_det,
+            half=config_export.get('args', {}).get('half', False),
+            int8=config_export.get('args', {}).get('int8', False)
         )[0]
         # MODEL INFERENCE TIME
         model_speed_inference = results.speed['inference']
@@ -329,13 +332,13 @@ if __name__ == "__main__":
         {'format': 'pytorch', 'args': {'half': True}},
         {'format': 'torchscript', 'args': {'imgsz': config["img_size"], 'optimize': False}},
         {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False, 'opset': 12}},
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
         {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True, 'opset': 12}},
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'opset': 12}},
+         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': True, 'simplify': True, 'opset': 12}},
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': True, 'simplify': True}},
         {'format': 'engine',
          'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'simplify': False, 'workspace': 4}},
         {'format': 'engine',
