@@ -12,12 +12,13 @@ scipy>=1.4.1
 #torch>=1.8.0
 #torchvision>=0.9.0
 tqdm>=4.64.0
+supervision
 
 # Logging -------------------------------------
 # tensorboard>=2.13.0
 # dvclive>=2.12.0
 # clearml
-comet
+comet-ml
 
 # Plotting ------------------------------------
 pandas>=1.1.4
