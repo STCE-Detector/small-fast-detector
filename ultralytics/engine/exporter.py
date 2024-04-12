@@ -626,6 +626,7 @@ class Exporter:
     def export_engine(self, prefix=colorstr("TensorRT:")):
         """YOLOv8 TensorRT export https://developer.nvidia.com/tensorrt."""
         assert self.im.device.type != "cpu", "export running on CPU but must be on GPU, i.e. use 'device=0'"
+        self.args.simplify = True
         f_onnx, _ = self.export_onnx()  # run before trt import https://github.com/ultralytics/ultralytics/issues/7016
 
         try:
@@ -634,12 +635,10 @@ class Exporter:
             if LINUX:
                 check_requirements("nvidia-tensorrt", cmds="-U --index-url https://pypi.ngc.nvidia.com")
             import tensorrt as trt  # noqa
-
         check_version(trt.__version__, "7.0.0", hard=True)  # require tensorrt>=7.0.0
 
-        self.args.simplify = True
-
         LOGGER.info(f"\n{prefix} starting export with TensorRT {trt.__version__}...")
+        is_trt10 = int(trt.__version__.split(".")[0]) >= 10  # is TensorRT >= 10
         assert Path(f_onnx).exists(), f"failed to export ONNX file: {f_onnx}"
         f = self.file.with_suffix(".engine")  # TensorRT engine file
         logger = trt.Logger(trt.Logger.INFO)
@@ -648,9 +647,11 @@ class Exporter:
 
         builder = trt.Builder(logger)
         config = builder.create_builder_config()
-        config.max_workspace_size = self.args.workspace * 1 << 30
-        # config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, workspace << 30)  # fix TRT 8.4 deprecation notice
-
+        workspace = int(self.args.workspace * (1 << 30))
+        if is_trt10:
+            config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, workspace)
+        else:  # TensorRT versions 7, 8
+            config.max_workspace_size = workspace
         flag = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
         network = builder.create_network(flag)
         parser = trt.OnnxParser(network, logger)
@@ -669,27 +670,128 @@ class Exporter:
             if shape[0] <= 1:
                 LOGGER.warning(f"{prefix} WARNING ⚠️ 'dynamic=True' model requires max batch size, i.e. 'batch=16'")
             profile = builder.create_optimization_profile()
+            min_shape = (1, shape[1], 32, 32)  # minimum input shape
+            opt_shape = (max(1, shape[0] // 2), *shape[1:])  # optimal input shape
+            max_shape = (*shape[:2], *(max(1, self.args.workspace) * d for d in shape[2:]))  # max input shape
             for inp in inputs:
-                profile.set_shape(inp.name, (1, *shape[1:]), (max(1, shape[0] // 2), *shape[1:]), shape)
+                profile.set_shape(inp.name, min_shape, opt_shape, max_shape)
             config.add_optimization_profile(profile)
 
-        LOGGER.info(
-            f"{prefix} building FP{16 if builder.platform_has_fast_fp16 and self.args.half else 32} engine as {f}"
-        )
-        if builder.platform_has_fast_fp16 and self.args.half:
-            config.set_flag(trt.BuilderFlag.FP16)
+        half = builder.platform_has_fast_fp16 and self.args.half
+        int8 = builder.platform_has_fast_int8 and self.args.int8
+        mix_precision = half and int8
+        if mix_precision:
+            # https://github.com/NVIDIA/TensorRT/tree/main/samples/python/efficientdet
+            """
+            Experimental precision mode.
 
+            Enable mixed-precision mode. When set, the layers defined here will be forced to FP16 to maximize INT8
+            inference accuracy, while having minimal impact on latency.
+            """
+            config.set_flag(trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
+            config.set_flag(trt.BuilderFlag.DIRECT_IO)
+            config.set_flag(trt.BuilderFlag.REJECT_EMPTY_ALGORITHMS)
+
+            # All convolution operations in the first four blocks of the graph are pinned to FP16.
+            # These layers have been manually chosen as they give a good middle-point between int8 and fp16
+            # accuracy in COCO, while maintining almost the same latency as a normal int8 engine.
+            # To experiment with other datasets, or a different balance between accuracy/latency, you may
+            # add or remove blocks.
+            collect = []
+            for i in range(network.num_layers):
+                layer = network.get_layer(i)
+                collect.append([layer.name, layer])
+            for i in range(network.num_layers):
+                layer = network.get_layer(i)
+                if (
+                        layer.type == trt.LayerType.CONVOLUTION
+                        and any(
+                    [
+                        "/model.0/" in layer.name,
+                        "/model.1/" in layer.name,
+                        # "/model.2/" in layer.name,
+                        # "/model.3/" in layer.name,
+                        # "/model.4/m.0/" in layer.name,
+                        # "/model.4/m.1/" in layer.name,
+                        # "/model.22/cv2.0/" in layer.name,
+                        # "/model.22/cv2.1/" in layer.name,
+                        # "/model.22/cv2.2/" in layer.name,
+                        # "/model.22/cv3.0/" in layer.name,
+                        # "/model.22/cv3.1/" in layer.name,
+                        # "/model.22/cv3.2/" in layer.name,
+                        # "/model.22/cv2.0/cv2.0.2/Conv" in layer.name,
+                        # "/model.22/cv3.0/cv3.0.2/Conv" in layer.name,
+                        # "/model.22/cv2.1/cv2.1.2/Conv" in layer.name,
+                        # "/model.22/cv3.1/cv3.1.2/Conv" in layer.name,
+                        # "/model.22/cv2.2/cv2.2.2/Conv" in layer.name,
+                        # "/model.22/cv3.2/cv3.2.2/Conv" in layer.name,
+                        "/model.22/dfl/conv/Conv" in layer.name,
+                    ]
+                )
+                ) or (
+                        any(
+                            [
+                                # "/model.22/Sigmoid" in layer.name,
+                                # "/model.22/Mul_2" in layer.name,
+                            ]
+                        )
+                ):
+                    network.get_layer(i).precision = trt.DataType.HALF
+                    LOGGER.info("Mixed-Precision Layer {} set to HALF STRICT data type".format(layer.name))
+
+            LOGGER.info(f"{prefix} building a Mix Precision with FP16 and INT8 engine as {f}")
+        if half:
+            LOGGER.info(f"{prefix} building FP16 engine as {f}")
+            config.set_flag(trt.BuilderFlag.FP16)
+        if int8:
+            # https://github.com/NVIDIA/TensorRT/tree/main/samples/python/efficientdet
+            LOGGER.info(f"{prefix} building INT8 engine as {f}")
+            from ultralytics.engine.tensorrt_int8.calibrator import EngineCalibrator
+            from ultralytics.engine.tensorrt_int8.image_batcher import ImageBatcher
+
+            """
+            https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/#enable_int8_c
+            To avoid this issue, calibrate with as large a single batch as possible, 
+            and ensure that calibration batches are well randomized and have similar distribution.
+            """
+            # The batch size for the calibration process, default:
+            calib_batch_size = self.args.calib_batch_size
+            # The maximum number of images to use for calibration, default: len(os.listdir(calib_input))
+            calib_num_images = self.args.calib_num_images
+            # The directory holding images to use for calibration
+            calib_input = self.args.calib_input
+            cache_file = self.args.cache_file
+            if calib_num_images == None:
+                calib_num_images = len(os.listdir(calib_input))
+            config.set_flag(trt.BuilderFlag.INT8)
+            config.int8_calibrator = EngineCalibrator(cache_file)
+            if cache_file is None or not os.path.exists(cache_file):
+                calib_shape = [calib_batch_size] + list(inputs[0].shape[1:])
+                calib_dtype = trt.nptype(inputs[0].dtype)
+                imagebatcher = ImageBatcher(
+                    calib_input,
+                    calib_shape,
+                    calib_dtype,
+                    max_num_images=calib_num_images,
+                    exact_batches=True,
+                    shuffle_files=True,
+                )
+                imagebatcher.newshape = inputs[0].shape[2:]
+                config.int8_calibrator.set_image_batcher(imagebatcher)
+
+        # Free CUDA memory
         del self.model
         torch.cuda.empty_cache()
 
         # Write file
-        with builder.build_engine(network, config) as engine, open(f, "wb") as t:
+        build = builder.build_serialized_network if is_trt10 else builder.build_engine
+        with build(network, config) as engine, open(f, "wb") as t:
             # Metadata
             meta = json.dumps(self.metadata)
             t.write(len(meta).to_bytes(4, byteorder="little", signed=True))
             t.write(meta.encode())
             # Model
-            t.write(engine.serialize())
+            t.write(engine if is_trt10 else engine.serialize())
 
         return f, None
 
