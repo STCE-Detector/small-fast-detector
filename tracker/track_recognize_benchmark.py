@@ -211,6 +211,7 @@ class VideoBenchmark:
             "y1": [],
             "x2": [],
             "y2": [],
+            "write_video_time": []
         }
 
         video_sink = sv.VideoSink(self.target_video_path, self.video_info) if not self.display else nullcontext()
@@ -225,7 +226,9 @@ class VideoBenchmark:
                     fps_counter.step() # here
 
                     if not self.display:
+                        start_time_write_video = time.perf_counter()
                         sink.write_frame(annotated_frame)
+                        write_video_time = time.perf_counter() - start_time_write_video
                     else:
                         cv2.imshow("Processed Video", annotated_frame)
 
@@ -255,6 +258,7 @@ class VideoBenchmark:
                             data_dict["y1"].append(track.tlbr[1])
                             data_dict["x2"].append(track.tlbr[2])
                             data_dict["y2"].append(track.tlbr[3])
+                            data_dict["write_video_time"].append(write_video_time)
 
             if self.display:
                 cv2.destroyAllWindows()
