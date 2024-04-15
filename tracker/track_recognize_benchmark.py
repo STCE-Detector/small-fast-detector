@@ -42,6 +42,7 @@ class VideoBenchmark:
         self.slow_factor = 1
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.display = False
+        self.save_frame = self.config["save_frame"]
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
                                                  thickness=2)
         self.save_results = self.config["save_results"]
@@ -58,6 +59,9 @@ class VideoBenchmark:
         self.tracker_times = []
         self.action_recognition_times = []
         self.annotated_frame_times = []
+        self.loaded_video_times = []
+        self.write_video_time_list = []
+        self.timer_load_frame_list = []
         self.video_fps = None
         self.time_taken = None
 
@@ -200,9 +204,7 @@ class VideoBenchmark:
         print(f"Original video size: {self.video_info.resolution_wh}")
         print(f"Original video FPS: {self.video_info.fps}")
         print(f"Original video number of frames: {self.video_info.total_frames}\n")
-
         frame_generator = sv.get_video_frames_generator(source_path=self.source_video_path)
-
         data_dict = {
             "frame_id": [],
             "tracker_id": [],
@@ -213,23 +215,28 @@ class VideoBenchmark:
             "y2": [],
             "write_video_time": []
         }
-
+        timer_load_frame_end = 0
+        timer_load_frame_start = 0
         video_sink = sv.VideoSink(self.target_video_path, self.video_info) if not self.display else nullcontext()
         with video_sink as sink:
             fps_counter = FrameRateCounter()
             timer = Timer()
-
             for i, frame in enumerate(pbar := tqdm(frame_generator, total=self.video_info.total_frames)):
+                if i != 0:
+                    timer_load_frame_end = time.perf_counter()
+                timer_load_frame = timer_load_frame_end - timer_load_frame_start
+                self.timer_load_frame_list.append(timer_load_frame)
                 pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
                 if i % self.video_stride == 0:
                     annotated_frame = self.process_frame(frame, i, fps_counter.value(), config_export)
                     fps_counter.step() # here
 
-                    if not self.display:
+                    if self.save_frame:
                         start_time_write_video = time.perf_counter()
                         sink.write_frame(annotated_frame)
                         write_video_time = time.perf_counter() - start_time_write_video
-                    else:
+                        self.write_video_time_list.append(write_video_time)
+                    elif self.display:
                         cv2.imshow("Processed Video", annotated_frame)
 
                         k = cv2.waitKey(int(self.wait_time * self.slow_factor))  # dd& 0xFF
@@ -247,6 +254,8 @@ class VideoBenchmark:
                             slow_factor = self.slow_factor + 1
                             print(slow_factor)
                             break
+                    else:
+                        pass
 
                     # Store results
                     if self.save_results:
@@ -258,8 +267,8 @@ class VideoBenchmark:
                             data_dict["y1"].append(track.tlbr[1])
                             data_dict["x2"].append(track.tlbr[2])
                             data_dict["y2"].append(track.tlbr[3])
-                            data_dict["write_video_time"].append(write_video_time)
-
+                            # data_dict["write_video_time"].append(write_video_time)
+                timer_load_frame_start = time.perf_counter()
             if self.display:
                 cv2.destroyAllWindows()
 
