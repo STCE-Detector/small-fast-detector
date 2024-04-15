@@ -178,7 +178,7 @@ class VideoBenchmark:
                         'timer_load_frame_list': np.mean(self.timer_load_frame_list),
                         'FPS_model': 1 / (np.mean(self.model_times) / 1000),
                         'FPS_video': self.video_fps,
-                        'time_taken': self.time_taken,
+                        'time_taken_seconds': int(self.time_taken.split(':')[0]) * 60 + int(self.time_taken.split(':')[1])
                     }
                     all_video_results.append(video_results)
                     self.reset_times()
@@ -191,17 +191,14 @@ class VideoBenchmark:
                 }
                 for key in ['latency_total_ms', 'latency_tracker_ms', 'action_recognition_ms', 'inference_ms',
                             'annotated_frame_times', 'loaded_video_times', 'write_video_time_list',
-                            'timer_load_frame_list', 'FPS_model']:
+                            'timer_load_frame_list', 'FPS_model', 'time_taken_seconds']:
                     avg_results[key] = np.mean([vr[key] for vr in all_video_results])
 
                 avg_results['FPS_video'] = np.mean([float(vr['FPS_video']) for vr in all_video_results])
-                time_seconds = [int(min_sec.split(':')[0]) * 60 + int(min_sec.split(':')[1]) for min_sec in
-                                (vr['time_taken'] for vr in all_video_results)]
-                avg_results['time_taken'] = f"{np.mean(time_seconds) // 60}:{int(np.mean(time_seconds) % 60):02}"
 
                 all_arch_results.append(avg_results)
 
-            # Calculate the final average for the architecture across all configurations if needed
+                # Calculate the final average for the architecture across all configurations if needed
             final_arch_avg = {key: np.mean([res[key] for res in all_arch_results]) for key in all_arch_results[0]}
             results.append(final_arch_avg)
 
