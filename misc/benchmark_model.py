@@ -207,45 +207,54 @@ def inference_yolo(cfg, yolo):
     return results[0].speed['inference']
 
 
-def inference_yolo_hard(cfg, yolo, config, num_images=100):
+def inference_yolo_hard(cfg, yolo, config, num_test_images=100, num_warmup_images=10):
     """
-    Purpose: The core function that orchestrates the entire benchmarking process for a list of model architectures.
-    How It Works: For each architecture, it performs a series of measurements (like parameter count, FLOPs, inference time, FPS, and latency) using the functions described above. It aggregates these metrics into a comprehensive report (in the form of a DataFrame), allowing for an in-depth comparison of model performances.
+    Orchestrate the benchmarking process for a YOLO model using a specific number of test images and additional warmup images to stabilize performance metrics.
+
+    Args:
+    cfg: Configuration object with device settings.
+    yolo: YOLO model object.
+    config: Configuration dictionary with additional arguments.
+    num_test_images: Number of test images for gathering metrics, default is 100.
+    num_warmup_images: Number of warmup images to prepare the model, default is 10.
+
+    Returns:
+    Tuple containing mean speed in milliseconds, frames per second, and mean inference time.
     """
     speeds = []
-    inference_list = []
-    if cfg.device == 'cuda':
-        device = torch.device('cuda')
-    elif cfg.device == 'mps':
-        device = torch.device('mps')
-    else:
-        device = torch.device('cpu')
+    inference_times = []
 
-    for _ in range(num_images):
-        # Generate a random image
-        if config.get('args', {}).get('half', False):
-            image = torch.rand(1, 3, 640, 640).half().to(device)
-        elif config.get('args', {}).get('int8', False):
-            image = torch.rand(1, 3, 640, 640).half().to(device)
-        else:
-            image = torch.rand(1, 3, 640, 640).to(device)
+    # Set device based on configuration
+    device_type = cfg.device if cfg.device in ['cuda', 'mps'] else 'cpu'
+    device = torch.device(device_type)
 
-        # Run inference
-        results = yolo.predict(image, device=0, half=config.get('args', {}).get('half', False), int8=config.get('args', {}).get('int8', False))
+    # Warmup phase
+    for _ in range(num_warmup_images):
+        image = torch.rand((1, 3, 640, 640),
+                           dtype=torch.float16 if config.get('args', {}).get('half', False) else torch.float32,
+                           device=device)
+        _ = yolo.predict(image, device=cfg.device, half=config.get('args', {}).get('half', False),
+                         int8=config.get('args', {}).get('int8', False))
 
-        # Collect inference speed
-        speeds.append(results[0].speed['preprocess'] + results[0].speed['inference'] + results[0].speed['postprocess'])
-        inference_list.append(results[0].speed['inference'])
+    # Test phase
+    for _ in range(num_test_images):
+        image = torch.rand((1, 3, 640, 640),
+                           dtype=torch.float16 if config.get('args', {}).get('half', False) else torch.float32,
+                           device=device)
+        results = yolo.predict(image, device=0, half=config.get('args', {}).get('half', False),
+                               int8=config.get('args', {}).get('int8', False))
 
-    # Calculate the median inference speed
+        total_speed = sum(results[
+                              0].speed.values())  # Assuming results[0].speed contains 'preprocess', 'inference', 'postprocess' times
+        speeds.append(total_speed)
+        inference_times.append(results[0].speed['inference'])
+
+    # Calculate mean speeds and convert to seconds for FPS calculation
     mean_speed = np.mean(speeds)
-    mean_inference = np.mean(inference_list)
-    mean_speed_s = mean_speed / 1000
+    mean_inference = np.mean(inference_times)
+    fps = 1000 / mean_speed if mean_speed > 0 else 0  # Convert ms to s and calculate FPS
 
-    # Calculate median FPS (frames per second)
-    mean_fps = 1 / mean_speed_s
-
-    return mean_speed, mean_fps, mean_inference
+    return mean_speed, fps, mean_inference
 
 
 def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
@@ -319,7 +328,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute FLOPs of a model.')
     parser.add_argument('--bs', type=int, default=1, help='batch size')
     parser.add_argument('--channels', type=int, default=3, help='batch size')
-    parser.add_argument('--device', type=str, default='cuda', help='device')
+    parser.add_argument('--device', type=str, default='mps', help='device')
     parser.add_argument('--num-frames', type=int, default=32, help='temporal clip length.')
     parser.add_argument('--imgsz', type=int, default=640,
                         help='size of the input image size. default is 224')
