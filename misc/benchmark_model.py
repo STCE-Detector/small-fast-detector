@@ -234,7 +234,7 @@ def inference_yolo_hard(cfg, yolo, config, num_images=100):
         results = yolo.predict(image, device=0, half=config.get('args', {}).get('half', False), int8=config.get('args', {}).get('int8', False))
 
         # Collect inference speed
-        speeds.append(results[0].speed['inference'] + results[0].speed['postprocess'])
+        speeds.append(results[0].speed['preprocess'] + results[0].speed['inference'] + results[0].speed['postprocess'])
         inference_list.append(results[0].speed['inference'])
 
     # Calculate the median inference speed

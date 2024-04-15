@@ -9,7 +9,7 @@
 
   "save_dir": "./outputs/",
   "save_results": false,
-  "display": false,
+  "display": true,
 
   "img_size": 640,
   "conf_threshold": 0.1,
