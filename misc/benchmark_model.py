@@ -273,7 +273,6 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
         {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
         {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
-        {'format': 'onnx', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': True, 'simplify': True}},
         {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False, 'workspace': 4}},
         {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}},
         {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}},
@@ -328,7 +327,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute FLOPs of a model.')
     parser.add_argument('--bs', type=int, default=1, help='batch size')
     parser.add_argument('--channels', type=int, default=3, help='batch size')
-    parser.add_argument('--device', type=str, default='mps', help='device')
+    parser.add_argument('--device', type=str, default='cuda', help='device')
     parser.add_argument('--num-frames', type=int, default=32, help='temporal clip length.')
     parser.add_argument('--imgsz', type=int, default=640,
                         help='size of the input image size. default is 224')

@@ -4,11 +4,11 @@
   "source_weights_path": "./models/8sp2_150.pt",
   "source_video_path": "./data/test1.mp4",
 
-  "device": "mps",
+  "device": "cuda",
   "video_stride": 1,
 
   "save_dir": "./outputs/",
-  "save_results": true,
+  "save_results": false,
   "save_frame": false,
   "display": false,
 

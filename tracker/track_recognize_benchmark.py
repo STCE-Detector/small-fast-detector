@@ -110,7 +110,6 @@ class VideoBenchmark:
                 print(f"Modelo {arch} exportado como {export_filename} a {export_path}")
                 model_path = export_path if os.path.exists(export_path) else f"{export_path}.{config_export['format']}"
                 self.model = YOLO(model_path, task='detect')
-                self.model.to(self.device)
         except Exception as e:
             print(f"Error exporting model {arch} to format {config_export['format']}: {e}")
             pass
@@ -366,19 +365,6 @@ if __name__ == "__main__":
 
     config = ConfigParser.from_args(parser)
     export_configs = [
-        {'format': 'pytorch', 'args': {'half': False}},
-        {'format': 'pytorch', 'args': {'half': True}},
-        {'format': 'torchscript', 'args': {'imgsz': config["img_size"], 'optimize': False}},
-        {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
-        {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
-        {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
-        {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': True, 'simplify': True}},
-        {'format': 'engine',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'simplify': False, 'workspace': 4}},
         {'format': 'engine',
          'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'simplify': True, 'workspace': 4}},
         {'format': 'engine',
