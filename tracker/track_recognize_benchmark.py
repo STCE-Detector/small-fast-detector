@@ -292,12 +292,13 @@ class VideoBenchmark:
             int8=config_export.get('args', {}).get('int8', False)
         )[0]
         # MODEL INFERENCE TIME
+        model_speed_preprocess = results.speed['preprocess']
         model_speed_inference = results.speed['inference']
         model_speed_postprocess = results.speed['postprocess']
         start_time_post_processing = time.perf_counter()
         detections = sv.Detections.from_ultralytics(results)
         postprocessing_time = time.perf_counter() - start_time_post_processing
-        model_speed_postprocess = model_speed_inference + model_speed_postprocess + postprocessing_time
+        model_speed_postprocess = model_speed_preprocess + model_speed_inference + model_speed_postprocess + postprocessing_time
 
         # TRACKER TIME HERE
         start_time_tracker = time.perf_counter()
