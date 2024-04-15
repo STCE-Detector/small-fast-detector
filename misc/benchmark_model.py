@@ -238,14 +238,14 @@ def inference_yolo_hard(cfg, yolo, config, num_images=100):
         inference_list.append(results[0].speed['inference'])
 
     # Calculate the median inference speed
-    median_speed = np.median(speeds)
-    median_inference = np.median(inference_list)
-    median_speed_s = median_speed / 1000
+    mean_speed = np.mean(speeds)
+    mean_inference = np.mean(inference_list)
+    mean_speed_s = mean_speed / 1000
 
     # Calculate median FPS (frames per second)
-    median_fps = 1 / median_speed_s
+    mean_fps = 1 / mean_speed_s
 
-    return median_speed, median_fps, median_inference
+    return mean_speed, mean_fps, mean_inference
 
 
 def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):

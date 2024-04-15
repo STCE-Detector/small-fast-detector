@@ -16,43 +16,36 @@
 # https://github.com/NVIDIA/TensorRT/blob/release/10.0/samples/python/efficientdet/build_engine.py
 
 import os
-import sys
+
 import tensorrt as trt
+
 from ultralytics.utils import LOGGER
 
-sys.path.insert(1, os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
 
-from ultralytics.engine.tensorrt_int8.image_batcher import ImageBatcher
-
-log = LOGGER
-
-
+# https://docs.nvidia.com/deeplearning/tensorrt/api/python_api/infer/Int8/MinMaxCalibrator.html#tensorrt.IInt8MinMaxCalibrator
 # class EngineCalibrator(trt.IInt8EntropyCalibrator2):
 class EngineCalibrator(trt.IInt8MinMaxCalibrator):
     # class EngineCalibrator(trt.IInt8EntropyCalibrator):
     # class EngineCalibrator(trt.IInt8LegacyCalibrator):
     """Implements the INT8 Entropy Calibrator 2 or IInt8MinMaxCalibrator."""
 
-    def __init__(self, cache_file, device="cuda:0"):
+    def __init__(self, cache_file, args, yolo_model):
         """
         :param cache_file: The location of the cache file.
         """
         super().__init__()
+        trt.IInt8MinMaxCalibrator.__init__(self)
         self.cache_file = cache_file
-        self.image_batcher = None
-        self.batch_allocation = None
         self.batch_generator = None
-        self.device = device
+        from ultralytics import YOLO
 
-    def set_image_batcher(self, image_batcher: ImageBatcher):
-        """
-        Define the image batcher to use, if any.
-
-        If using only the cache file, an image batcher doesn't need to be defined.
-        :param image_batcher: The ImageBatcher object
-        """
-        self.image_batcher = image_batcher
-        self.batch_generator = self.image_batcher.get_batch()
+        if cache_file is None or not os.path.exists(cache_file):
+            self.BasePredictor = YOLO()._smart_load(key="predictor")(overrides=args, _callbacks=None)
+            self.BasePredictor.setup_model(yolo_model)
+            self.BasePredictor.args.batch = self.BasePredictor.batch = args.calib_batch
+            self.BasePredictor.setup_source(args.source)
+            self.BasePredictor.fp16 = self.BasePredictor.model.fp16 = False
+            self.batch_generator = iter(self.BasePredictor.dataset)
 
     def get_batch_size(self):
         """
@@ -61,8 +54,8 @@ class EngineCalibrator(trt.IInt8MinMaxCalibrator):
         Get the batch size to use for calibration.
         :return: Batch size.
         """
-        if self.image_batcher:
-            return self.image_batcher.batch_size
+        if self.batch_generator:
+            return self.batch_generator.bs
         return 1
 
     def get_batch(self, names):
@@ -73,17 +66,13 @@ class EngineCalibrator(trt.IInt8MinMaxCalibrator):
         :param names: The names of the inputs, if useful to define the order of inputs.
         :return: A list of int-casted memory pointers.
         """
-        if not self.image_batcher:
+        if not self.batch_generator:
             return None
         try:
-            batch = next(self.batch_generator)
-            LOGGER.info(
-                "Calibrating image {} / {}".format(self.image_batcher.image_index, self.image_batcher.num_images)
-            )
-            # common.memcpy_host_to_device(self.batch_allocation, np.ascontiguousarray(batch))
-            # return [int(self.batch_allocation)]
-            return [int(batch.data_ptr())]
-            # return [batch.data_ptr()]
+            batchimg = next(self.batch_generator)
+            batchimg = self.BasePredictor.preprocess(batchimg[1])
+            LOGGER.info("Calibrating image {} / {}".format(self.batch_generator.count, self.batch_generator.ni))
+            return [int(batchimg.data_ptr())]
         except StopIteration:
             LOGGER.info("Finished calibration batches")
             return None
