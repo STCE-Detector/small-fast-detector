@@ -244,9 +244,9 @@ def inference_yolo_hard(cfg, yolo, config, num_test_images=100, num_warmup_image
         results = yolo.predict(image, device=0, half=config.get('args', {}).get('half', False),
                                int8=config.get('args', {}).get('int8', False))
 
-        total_speed = sum(results[
-                              0].speed.values())  # Assuming results[0].speed contains 'preprocess', 'inference', 'postprocess' times
+        total_speed = sum(results[0].speed.values())  # Assuming results[0].speed contains 'preprocess', 'inference', 'postprocess' times
         speeds.append(total_speed)
+        inference_times.append(results[0].speed['inference'])
         inference_times.append(results[0].speed['inference'])
 
     # Calculate mean speeds and convert to seconds for FPS calculation
@@ -303,7 +303,7 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
                 else:
                     yolo.export(format=config['format'], device=cfg.device, **config['args'], project='./models/')
                     print(f"Modelo {arch} exportado como {export_filename} a {export_path}")
-                    model_path = export_path if os.path.exists(export_path) else f"{export_path}.{config['format']}"
+                    model_path = export_path if os.path.exists(export_path) else f"{export_path}"
                     yolo = YOLO(model_path, task='detect')
             except Exception as e:
                 print(f"Error exporting model {arch} to format {config['format']}: {e}")

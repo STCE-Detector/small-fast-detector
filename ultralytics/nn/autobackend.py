@@ -129,6 +129,8 @@ class AutoBackend(nn.Module):
 
         # Set device
         cuda = torch.cuda.is_available() and device.type != "cpu"  # use CUDA
+        mps = torch.backends.mps.is_available() and device.type != "cpu"  # use MPS
+
         if cuda and not any([nn_module, pt, jit, engine, onnx]):  # GPU dataloader formats
             device = torch.device("cpu")
             cuda = False
@@ -186,6 +188,7 @@ class AutoBackend(nn.Module):
             import onnxruntime
 
             providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if cuda else ["CPUExecutionProvider"]
+            providers = providers.append('CoreMLExecutionProvider') if mps else providers
             session = onnxruntime.InferenceSession(w, providers=providers)
             output_names = [x.name for x in session.get_outputs()]
             metadata = session.get_modelmeta().custom_metadata_map
