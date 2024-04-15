@@ -4,7 +4,7 @@
   "source_weights_path": "./models/8sp2_150.pt",
   "source_video_path": "./data/test1.mp4",
 
-  "device": "mps",
+  "device": "cuda",
   "video_stride": 1,
 
   "save_dir": "./outputs/",
@@ -14,7 +14,7 @@
   "img_size": 640,
   "conf_threshold": 0.1,
   "iou_threshold": 0.7,
-  "max_det": 50,
+  "max_det": 300,
 
   "track_high_thresh": 0.4,
   "track_low_thresh": 0.1,
