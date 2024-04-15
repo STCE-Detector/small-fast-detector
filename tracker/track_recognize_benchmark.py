@@ -141,20 +141,25 @@ class VideoBenchmark:
         self.tracker_times = []
         self.action_recognition_times = []
         self.annotated_frame_times = []
+        self.loaded_video_times = []
+        self.write_video_time_list = []
+        self.timer_load_frame_list = []
         self.video_fps = None
         self.time_taken = None
 
     def run_benchmark(self, archs, videos, export_configs, path_model='./models/', path_videos='./videos/'):
         file_exists = os.path.isfile("./benchmark_tracker.csv")
-        results = []  # Inicializar resultados fuera de los bucles de arquitectura y config.
+        results = []  # Initialize results outside architecture and config loops
 
         for arch in archs:
+            all_arch_results = []  # This will store results from all videos for the current architecture
+
             for config_export in export_configs:
-                all_video_results = []
                 self.load_model(path_model, arch)
-                n_l, n_p, n_g, flops = model_info(self.model.model)  # Obtenemos información del modelo
+                n_l, n_p, n_g, flops = model_info(self.model.model)  # Obtain model info
 
                 export_filename = self.export_model(arch, config_export)
+                all_video_results = []
 
                 for video in videos:
                     self.initialize_video(video, path_videos)
@@ -167,6 +172,10 @@ class VideoBenchmark:
                         'latency_tracker_ms': np.mean(self.tracker_times),
                         'action_recognition_ms': np.mean(self.action_recognition_times),
                         'inference_ms': np.mean(self.model_times),
+                        'annotated_frame_times': np.mean(self.annotated_frame_times),
+                        'loaded_video_times': np.mean(self.loaded_video_times),
+                        'write_video_time_list': np.mean(self.write_video_time_list),
+                        'timer_load_frame_list': np.mean(self.timer_load_frame_list),
                         'FPS_model': 1 / (np.mean(self.model_times) / 1000),
                         'FPS_video': self.video_fps,
                         'time_taken': self.time_taken,
@@ -174,29 +183,31 @@ class VideoBenchmark:
                     all_video_results.append(video_results)
                     self.reset_times()
 
-                # Calcular medias de todas las métricas de todos los videos
+                # Calculate the averages across all videos for each metric
                 avg_results = {
                     'model_name': export_filename,
                     'parameters_count': "{:,.0f}".format(n_p),
                     'GFLOPs': "{:,.2f}".format(flops),
                 }
-                # Calcular promedio para cada métrica que depende de los videos
                 for key in ['latency_total_ms', 'latency_tracker_ms', 'action_recognition_ms', 'inference_ms',
-                            'FPS_model']:
+                            'annotated_frame_times', 'loaded_video_times', 'write_video_time_list',
+                            'timer_load_frame_list', 'FPS_model']:
                     avg_results[key] = np.mean([vr[key] for vr in all_video_results])
 
                 avg_results['FPS_video'] = np.mean([float(vr['FPS_video']) for vr in all_video_results])
+                time_seconds = [int(min_sec.split(':')[0]) * 60 + int(min_sec.split(':')[1]) for min_sec in
+                                (vr['time_taken'] for vr in all_video_results)]
+                avg_results['time_taken'] = f"{np.mean(time_seconds) // 60}:{int(np.mean(time_seconds) % 60):02}"
 
-                # Convertir 'time_taken' de formato 'mm:ss' a segundos y calcular el promedio
-                avg_results['time_taken'] = np.mean(
-                    [int(min_sec.split(':')[0]) * 60 + int(min_sec.split(':')[1]) for min_sec in
-                     (vr['time_taken'] for vr in all_video_results)])
+                all_arch_results.append(avg_results)
 
-                results.append(avg_results)
+            # Calculate the final average for the architecture across all configurations if needed
+            final_arch_avg = {key: np.mean([res[key] for res in all_arch_results]) for key in all_arch_results[0]}
+            results.append(final_arch_avg)
 
         df = pd.DataFrame(results)
         df.to_csv("./benchmark_tracker.csv", mode='a', index=False, header=not file_exists)
-        file_exists = True
+
 
     def process_video(self, config_export):
         print(f"Processing video: {os.path.basename(self.source_video_path)} ...")
