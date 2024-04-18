@@ -165,7 +165,6 @@ class VideoBenchmark:
 
                 export_filename = self.export_model(arch, config_export)
                 all_video_results = []
-
                 for video in videos:
                     self.initialize_video(video, path_videos)
                     self.process_video(config_export)
@@ -173,8 +172,9 @@ class VideoBenchmark:
                         'model_name': export_filename,
                         'parameters_count': "{:,.0f}".format(n_p),
                         'GFLOPs': "{:,.2f}".format(flops),
-                        'latency_total_ms': np.mean(self.post_processing_times),
                         'latency_tracker_ms': np.mean(self.tracker_times),
+                        'latency_total_ms': np.mean(self.post_processing_times_total),
+                        'post_processing_times': np.mean(self.post_processing_times),
                         'action_recognition_ms': np.mean(self.action_recognition_times),
                         'inference_ms': np.mean(self.model_times),
                         'annotated_frame_times': np.mean(self.annotated_frame_times),
@@ -195,7 +195,7 @@ class VideoBenchmark:
                     'GFLOPs': "{:,.2f}".format(flops),
                 }
                 avg_keys = [
-                    'latency_total_ms', 'latency_tracker_ms', 'action_recognition_ms',
+                    'latency_total_ms', 'post_processing_times', 'latency_tracker_ms', 'action_recognition_ms',
                     'inference_ms', 'annotated_frame_times', 'loaded_video_times',
                     'write_video_time_list', 'timer_load_frame_list', 'FPS_model'
                 ]
@@ -388,21 +388,21 @@ if __name__ == "__main__":
     export_configs = [
         {'format': 'pytorch', 'args': {'half': False}},
         {'format': 'pytorch', 'args': {'half': True}},
-        {'format': 'torchscript', 'args': {'imgsz': config.img_size, 'optimize': False}},
+        {'format': 'torchscript', 'args': {'imgsz': config["img_size"], 'optimize': False}},
         {'format': 'onnx',
-         'args': {'imgsz': config.img_size, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
         {'format': 'onnx',
-         'args': {'imgsz': config.img_size, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'onnx',
-         'args': {'imgsz': config.img_size, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
+         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'engine',
-         'args': {'imgsz': config.img_size, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False,
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False,
                   'workspace': 4}},
         {'format': 'engine',
-         'args': {'imgsz': config.img_size, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True,
+         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True,
                   'workspace': 4}},
         {'format': 'engine',
-         'args': {'imgsz': config.img_size, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}}
+         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}}
     ]
     benchmark = VideoBenchmark(config)
     benchmark.run_benchmark(model_names, videos, export_configs)
