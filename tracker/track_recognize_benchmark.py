@@ -388,24 +388,21 @@ if __name__ == "__main__":
     export_configs = [
         {'format': 'pytorch', 'args': {'half': False}},
         {'format': 'pytorch', 'args': {'half': True}},
-        {'format': 'torchscript', 'args': {'imgsz': config.imgsz, 'optimize': False}},
+        {'format': 'torchscript', 'args': {'imgsz': config.img_size, 'optimize': False}},
         {'format': 'onnx',
-         'args': {'imgsz': config.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
+         'args': {'imgsz': config.img_size, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
         {'format': 'onnx',
-         'args': {'imgsz': config.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
+         'args': {'imgsz': config.img_size, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'onnx',
-         'args': {'imgsz': config.imgsz, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
+         'args': {'imgsz': config.img_size, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'engine',
-         'args': {'imgsz': config.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False,
+         'args': {'imgsz': config.img_size, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False,
                   'workspace': 4}},
         {'format': 'engine',
-         'args': {'imgsz': config.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True,
+         'args': {'imgsz': config.img_size, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True,
                   'workspace': 4}},
         {'format': 'engine',
-         'args': {'imgsz': config.imgsz, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}},
-        {'format': 'engine',
-         'args': {'imgsz': config.imgsz, 'half': True, 'dynamic': False, 'int8': True, 'simplify': True,
-                  'workspace': 4}},
+         'args': {'imgsz': config.img_size, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}}
     ]
     benchmark = VideoBenchmark(config)
     benchmark.run_benchmark(model_names, videos, export_configs)
