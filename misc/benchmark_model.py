@@ -276,6 +276,7 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
         {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False, 'workspace': 4}},
         {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}},
         {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}},
+        {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': True, 'dynamic': False, 'int8': True, 'simplify': True, 'workspace': 4}},
     ]
 
     for arch in archs:

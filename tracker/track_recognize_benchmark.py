@@ -59,6 +59,7 @@ class VideoBenchmark:
         self.action_recognizer = None
         self.model_times = []
         self.post_processing_times = []
+        self.post_processing_times_total = []
         self.tracker_times = []
         self.action_recognition_times = []
         self.annotated_frame_times = []
@@ -141,6 +142,7 @@ class VideoBenchmark:
     def reset_times(self):
         self.model_times = []
         self.post_processing_times = []
+        self.post_processing_times_total = []
         self.tracker_times = []
         self.action_recognition_times = []
         self.annotated_frame_times = []
@@ -192,10 +194,18 @@ class VideoBenchmark:
                     'parameters_count': "{:,.0f}".format(n_p),
                     'GFLOPs': "{:,.2f}".format(flops),
                 }
-                for key in ['latency_total_ms', 'latency_tracker_ms', 'action_recognition_ms', 'inference_ms',
-                            'annotated_frame_times', 'loaded_video_times', 'write_video_time_list',
-                            'timer_load_frame_list', 'FPS_model', 'time_taken_seconds']:
+                avg_keys = [
+                    'latency_total_ms', 'latency_tracker_ms', 'action_recognition_ms',
+                    'inference_ms', 'annotated_frame_times', 'loaded_video_times',
+                    'write_video_time_list', 'timer_load_frame_list', 'FPS_model'
+                ]
+
+                # Calculate averages for specified metrics
+                for key in avg_keys:
                     avg_results[key] = np.mean([vr[key] for vr in all_video_results])
+
+                # Calculate the total sum for time_taken_seconds
+                avg_results['time_taken_seconds'] = sum(vr['time_taken_seconds'] for vr in all_video_results)
 
                 avg_results['FPS_video'] = np.mean([float(vr['FPS_video']) for vr in all_video_results])
 
@@ -316,7 +326,7 @@ class VideoBenchmark:
         start_time_post_processing = time.perf_counter()
         detections = sv.Detections.from_ultralytics(results)
         postprocessing_time = time.perf_counter() - start_time_post_processing
-        model_speed_postprocess = model_speed_preprocess + model_speed_inference + model_speed_postprocess + postprocessing_time
+        model_speed_postprocess_total = model_speed_preprocess + model_speed_inference + model_speed_postprocess + postprocessing_time
 
         # TRACKER TIME HERE
         start_time_tracker = time.perf_counter()
@@ -333,6 +343,7 @@ class VideoBenchmark:
 
         self.model_times.append(model_speed_inference)
         self.post_processing_times.append(model_speed_postprocess)
+        self.post_processing_times_total.append(model_speed_postprocess_total)
         self.tracker_times.append(tracker_update_time)
         self.action_recognition_times.append(action_recognition_time)
         self.annotated_frame_times.append(annotated_frame_time)
@@ -375,10 +386,26 @@ if __name__ == "__main__":
 
     config = ConfigParser.from_args(parser)
     export_configs = [
+        {'format': 'pytorch', 'args': {'half': False}},
+        {'format': 'pytorch', 'args': {'half': True}},
+        {'format': 'torchscript', 'args': {'imgsz': config.imgsz, 'optimize': False}},
+        {'format': 'onnx',
+         'args': {'imgsz': config.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
+        {'format': 'onnx',
+         'args': {'imgsz': config.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
+        {'format': 'onnx',
+         'args': {'imgsz': config.imgsz, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'engine',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'simplify': True, 'workspace': 4}},
+         'args': {'imgsz': config.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False,
+                  'workspace': 4}},
         {'format': 'engine',
-         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'simplify': True, 'workspace': 4}},
+         'args': {'imgsz': config.imgsz, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True,
+                  'workspace': 4}},
+        {'format': 'engine',
+         'args': {'imgsz': config.imgsz, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}},
+        {'format': 'engine',
+         'args': {'imgsz': config.imgsz, 'half': True, 'dynamic': False, 'int8': True, 'simplify': True,
+                  'workspace': 4}},
     ]
     benchmark = VideoBenchmark(config)
     benchmark.run_benchmark(model_names, videos, export_configs)

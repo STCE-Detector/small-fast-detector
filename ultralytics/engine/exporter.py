@@ -50,6 +50,7 @@ TensorFlow.js:
     $ npm start
 """
 
+import gc
 import json
 import os
 import shutil
@@ -531,8 +532,9 @@ class Exporter:
             )
             system = "macos" if MACOS else "windows" if WINDOWS else "linux-aarch64" if ARM64 else "linux"
             try:
-                _, assets = get_github_assets(repo="pnnx/pnnx", retry=True)
+                _, assets = get_github_assets(repo="pnnx/pnnx")
                 url = [x for x in assets if f"{system}.zip" in x][0]
+                assert url, "Unable to retrieve PNNX repo assets"
             except Exception as e:
                 url = f"https://github.com/pnnx/pnnx/releases/download/20240410/pnnx-20240410-{system}.zip"
                 LOGGER.warning(f"{prefix} WARNING ⚠️ PNNX GitHub assets not found: {e}, using default {url}")
@@ -708,37 +710,8 @@ class Exporter:
 
         half = builder.platform_has_fast_fp16 and self.args.half
         int8 = builder.platform_has_fast_int8 and self.args.int8
-        mix_precision = half and int8
-        if mix_precision:
-            # https://github.com/NVIDIA/TensorRT/tree/main/samples/python/efficientdet
-            """
-            Experimental precision mode.
-
-            Enable mixed-precision mode. When set, the layers defined here will be forced to FP16 to maximize INT8
-            inference accuracy, while having minimal impact on latency.
-            """
-            config.set_flag(trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
-            config.set_flag(trt.BuilderFlag.DIRECT_IO)
-            config.set_flag(trt.BuilderFlag.REJECT_EMPTY_ALGORITHMS)
-
-            # All convolution operations in the first two convolution and last one covolution of the graph
-            # are pinned to FP16. These layers have been manually chosen as they give a good middle-point between int8 and fp16
-            # accuracy in COCO, while maintining almost the same latency as a normal int8 engine.
-            # To experiment with other datasets, or a different balance between accuracy/latency, you may
-            # add or remove blocks.
-            first_conv = 0
-            last_conv = 0
-            for i in range(network.num_layers):
-                layer = network.get_layer(i)
-                if layer.type == trt.LayerType.CONVOLUTION:
-                    if first_conv < 2:
-                        first_conv += 1
-                        network.get_layer(i).precision = trt.DataType.HALF
-                        LOGGER.info("Mixed-Precision Layer {} set to HALF STRICT data type".format(layer.name))
-                    last_conv = layer
-            last_conv.precision = trt.DataType.HALF
-            LOGGER.info("Mixed-Precision Layer {} set to HALF STRICT data type".format(last_conv.name))
-            LOGGER.info(f"{prefix} building a Mix Precision with FP16 and INT8 engine as {f}")
+        if half and int8:
+            raise NotImplementedError(f"Can not {prefix} building FP16 and INT8 engine in the same time")
         if half:
             LOGGER.info(f"{prefix} building FP16 engine as {f}")
             config.set_flag(trt.BuilderFlag.FP16)
@@ -758,6 +731,7 @@ class Exporter:
 
         # Free CUDA memory
         del self.model
+        gc.collect()
         torch.cuda.empty_cache()
 
         # Write file
