@@ -502,7 +502,7 @@ class FasterEMABottleneck(nn.Module):
         """
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
-        self.pconv = PConv2d(c1, 3)
+        self.pconv = PConv2d(c1, 3, n_div=2)
         self.cv1 = Conv(c1, c_, k=1, act=nn.ReLU)
         self.cv2 = nn.Conv2d(c_, c2, kernel_size=1, stride=1)
         self.ema = EMA(c2)
@@ -522,7 +522,7 @@ class FasterSimAMBottleneck(nn.Module):
         """
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
-        self.pconv = PConv2d(c1, 3)
+        self.pconv = PConv2d(c1, 3, n_div=2)
         self.cv1 = Conv(c1, c_, k=1, act=nn.ReLU)
         self.cv2 = nn.Conv2d(c_, c2, kernel_size=1, stride=1)
         self.simam = SimAM()

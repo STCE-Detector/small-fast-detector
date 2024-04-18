@@ -169,12 +169,16 @@ if __name__ == '__main__':
         'yolov8s-p2',
         'yolov8s-p234',
         'yolov8s-p2-c2fsum',
-        'yolov8s-p2-late_decoup',
-        'yolov8s-p2-late_decoupV2',
-        'yolov8s-p2-pconv_neck',
-        'yolov8s-p2-pconv_bone',
-        'yolov8s-p2-pconvema_bone',
-        'yolov8s-p2-pconvsimam_bone',
+        #'yolov8s-p2-late_decoup',
+        #'yolov8s-p2-late_decoupV2',
+        #'yolov8s-p2-pconv_neck',
+        #'yolov8s-p2-pconv_bone',
+        #'yolov8s-p2-pconvema_bone',
+        #'yolov8s-p2-pconvsimam_bone',
+        'yolov8s-p2-hyb',
+        #'yolov8s-p2-ghost',
+        #'yolov8s-p2-ghostv2',
+        #'yolov8s-p2-ghost_dynamic'
     ]
 
     args = parser.parse_args()

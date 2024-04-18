@@ -34,6 +34,7 @@ from ultralytics.nn.modules import (
     DetectLateDecoup,
     DetectLateDecoupV2,
     DWConv,
+    PConv,
     DWConvTranspose2d,
     Focus,
     GhostBottleneck,
@@ -184,7 +185,7 @@ class BaseModel(nn.Module):
         """
         if not self.is_fused():
             for m in self.model.modules():
-                if isinstance(m, (Conv, Conv2, DWConv)) and hasattr(m, "bn"):
+                if isinstance(m, (Conv, Conv2, DWConv, PConv)) and hasattr(m, "bn"):
                     if isinstance(m, Conv2):
                         m.fuse_convs()
                     m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
@@ -779,6 +780,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 SPP,
                 SPPF,
                 DWConv,
+                PConv,
                 Focus,
                 BottleneckCSP,
                 C1,
@@ -816,7 +818,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 args.insert(2, n)  # number of repeats
                 n = 1
             if m in {Conv, GhostConv, Bottleneck, GhostBottleneck, GhostModuleV2, GhostBottleneckV2, DWConv,
-                     Focus, BottleneckCSP, C3, C3TR, GhostBottleneckV2_orig,
+                     Focus, BottleneckCSP, C3, C3TR, GhostBottleneckV2_orig, PConv,
                      GhostModuleV2_orig, GhostConv2_orig}:
                 if 'act' in d.keys():
                     args_dict = {"act": d['act']}

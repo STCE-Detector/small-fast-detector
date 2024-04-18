@@ -54,6 +54,7 @@ from .conv import (
     GhostConv,
     LightConv,
     RepConv,
+    PConv,
     SpatialAttention,
     EMA,
     SimAM
@@ -75,6 +76,7 @@ from .transformer import (
 __all__ = (
     "Conv",
     "Conv2",
+    "PConv",
     "LightConv",
     "RepConv",
     "DWConv",
