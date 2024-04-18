@@ -42,7 +42,10 @@ class VideoBenchmark:
         self.slow_factor = 1
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.display = False
-        self.save_frame = self.config["save_frame"]
+        self.save_video = self.config["save_video"]
+        if self.save_video and self.display:
+            raise ValueError("Cannot display and save video at the same time")
+
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
                                                  thickness=2)
         self.save_results = self.config["save_results"]
@@ -205,7 +208,6 @@ class VideoBenchmark:
         df = pd.DataFrame(results)
         df.to_csv("./benchmark_tracker.csv", mode='a', index=False, header=not file_exists)
 
-
     def process_video(self, config_export):
         print(f"Processing video: {os.path.basename(self.source_video_path)} ...")
         print(f"Original video size: {self.video_info.resolution_wh}")
@@ -224,7 +226,7 @@ class VideoBenchmark:
         }
         timer_load_frame_end = 0
         timer_load_frame_start = 0
-        video_sink = sv.VideoSink(self.target_video_path, self.video_info) if not self.display else nullcontext()
+        video_sink = sv.VideoSink(self.target_video_path, self.video_info) if self.save_video else nullcontext()
         with video_sink as sink:
             fps_counter = FrameRateCounter()
             timer = Timer()
@@ -238,7 +240,7 @@ class VideoBenchmark:
                     annotated_frame = self.process_frame(frame, i, fps_counter.value(), config_export)
                     fps_counter.step() # here
 
-                    if self.save_frame:
+                    if self.save_video:
                         start_time_write_video = time.perf_counter()
                         sink.write_frame(annotated_frame)
                         write_video_time = time.perf_counter() - start_time_write_video

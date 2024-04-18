@@ -9,7 +9,7 @@
 
   "save_dir": "./outputs/",
   "save_results": false,
-  "save_frame": false,
+  "save_video": false,
   "display": false,
 
   "img_size": 640,
