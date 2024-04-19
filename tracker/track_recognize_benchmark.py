@@ -24,6 +24,39 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 COLORS = sv.ColorPalette.default()
 
 
+def is_numeric(value):
+    """ Check if the value can be converted to a float. """
+    try:
+        float(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def compute_averages(all_arch_results):
+    """ Compute averages for numeric keys and concatenate unique values for non-numeric keys """
+    if not all_arch_results:
+        return pd.DataFrame()
+
+    data = {}
+    numeric_keys = [key for key in all_arch_results[0] if
+                    all(is_numeric(res.get(key, 'NaN')) for res in all_arch_results)]
+
+    for key in numeric_keys:
+        valid_values = [float(res[key]) for res in all_arch_results if
+                        res.get(key) is not None and not np.isnan(float(res[key]))]
+        if valid_values:
+            data[key] = np.mean(valid_values)
+        else:
+            data[key] = np.nan  # Handle cases where no valid numeric data is present
+
+    non_numeric_keys = set(all_arch_results[0]) - set(numeric_keys)
+    for key in non_numeric_keys:
+        unique_values = set(res[key] for res in all_arch_results if key in res)
+        data[key] = ', '.join(unique_values)  # Join all unique non-numeric values into a single string
+
+    return pd.DataFrame([data])
+
 class VideoBenchmark:
     def __init__(self, config) -> None:
 
@@ -41,7 +74,7 @@ class VideoBenchmark:
         self.wait_time = 1
         self.slow_factor = 1
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
-        self.display = False
+        self.display = self.config["display"]
         self.save_video = self.config["save_video"]
         if self.save_video and self.display:
             raise ValueError("Cannot display and save video at the same time")
@@ -153,70 +186,56 @@ class VideoBenchmark:
         self.time_taken = None
 
     def run_benchmark(self, archs, videos, export_configs, path_model='./models/', path_videos='./videos/'):
-        file_exists = os.path.isfile("./benchmark_tracker.csv")
-        results = []  # Initialize results outside architecture and config loops
+        results = []  # List to store final averaged results
 
         for arch in archs:
-            all_arch_results = []  # This will store results from all videos for the current architecture
-
             for config_export in export_configs:
                 self.load_model(path_model, arch)
-                n_l, n_p, n_g, flops = model_info(self.model.model)  # Obtain model info
-
+                _, n_p, _, flops = model_info(self.model.model)  # Get model info
                 export_filename = self.export_model(arch, config_export)
-                all_video_results = []
+
+                all_video_results = []  # Store results for each video for the current configuration
                 for video in videos:
                     self.initialize_video(video, path_videos)
-                    self.process_video(config_export)
+                    self.process_video(config_export)  # Process each video and gather data
+
                     video_results = {
-                        'model_name': export_filename,
-                        'parameters_count': "{:,.0f}".format(n_p),
-                        'GFLOPs': "{:,.2f}".format(flops),
-                        'latency_tracker_ms': np.mean(self.tracker_times),
-                        'latency_total_ms': np.mean(self.post_processing_times_total),
-                        'post_processing_times': np.mean(self.post_processing_times),
-                        'action_recognition_ms': np.mean(self.action_recognition_times),
-                        'inference_ms': np.mean(self.model_times),
-                        'annotated_frame_times': np.mean(self.annotated_frame_times),
-                        'loaded_video_times': np.mean(self.loaded_video_times),
-                        'write_video_time_list': np.mean(self.write_video_time_list),
-                        'timer_load_frame_list': np.mean(self.timer_load_frame_list),
-                        'FPS_model': 1 / (np.mean(self.model_times) / 1000),
-                        'FPS_video': self.video_fps,
-                        'time_taken_seconds': int(self.time_taken.split(':')[0]) * 60 + int(self.time_taken.split(':')[1])
+                        'latency_tracker_ms': self.tracker_times,
+                        'latency_total_ms': self.post_processing_times_total,
+                        'post_processing_times': self.post_processing_times,
+                        'inference_ms': self.model_times,
+                        'action_recognition_ms': self.action_recognition_times,
+                        'annotated_frame_times': self.annotated_frame_times,
+                        'loaded_video_times': self.loaded_video_times,
+                        'write_video_time_list': self.write_video_time_list,
+                        'timer_load_frame_list': self.timer_load_frame_list,
+                        'FPS_model': [1 / (x / 1000) if x != 0 else 1 for x in self.model_times],
+                        'FPS_video': [self.video_fps],
+                        'time_taken_seconds': self.time_taken
                     }
                     all_video_results.append(video_results)
                     self.reset_times()
 
-                # Calculate the averages across all videos for each metric
-                avg_results = {
+                # Compute averages of all metrics across videos for the current model configuration
+                averaged_results = {
                     'model_name': export_filename,
                     'parameters_count': "{:,.0f}".format(n_p),
-                    'GFLOPs': "{:,.2f}".format(flops),
+                    'GFLOPs': "{:,.2f}".format(flops)
                 }
-                avg_keys = [
-                    'latency_total_ms', 'post_processing_times', 'latency_tracker_ms', 'action_recognition_ms',
-                    'inference_ms', 'annotated_frame_times', 'loaded_video_times',
-                    'write_video_time_list', 'timer_load_frame_list', 'FPS_model'
-                ]
 
-                # Calculate averages for specified metrics
-                for key in avg_keys:
-                    avg_results[key] = np.mean([vr[key] for vr in all_video_results])
+                # Add the averages of all metrics across videos for the current model configuration
+                averaged_results.update({
+                    key: np.nanmean(
+                        [np.nanmean([x for x in v[key] if isinstance(x, (int, float))]) for v in all_video_results if
+                         v[key]])
+                    for key in all_video_results[0] if
+                    any(isinstance(item, (int, float)) for sublist in all_video_results for item in sublist[key])
+                })
 
-                # Calculate the total sum for time_taken_seconds
-                avg_results['time_taken_seconds'] = sum(vr['time_taken_seconds'] for vr in all_video_results)
-
-                avg_results['FPS_video'] = np.mean([float(vr['FPS_video']) for vr in all_video_results])
-
-                all_arch_results.append(avg_results)
-
-                # Calculate the final average for the architecture across all configurations if needed
-            final_arch_avg = {key: np.mean([res[key] for res in all_arch_results]) for key in all_arch_results[0]}
-            results.append(final_arch_avg)
+                results.append(averaged_results)  # Append the averaged results for the current model configuration
 
         df = pd.DataFrame(results)
-        df.to_csv("./benchmark_tracker.csv", mode='a', index=False, header=not file_exists)
+        df.to_csv("./benchmark_tracker.csv", index=False)
 
     def process_video(self, config_export):
         print(f"Processing video: {os.path.basename(self.source_video_path)} ...")
@@ -388,21 +407,24 @@ if __name__ == "__main__":
     export_configs = [
         {'format': 'pytorch', 'args': {'half': False}},
         {'format': 'pytorch', 'args': {'half': True}},
-        {'format': 'torchscript', 'args': {'imgsz': config["img_size"], 'optimize': False}},
+        {'format': 'torchscript', 'args': {'imgsz': config['img_size'], 'optimize': False}},
         {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
+         'args': {'imgsz': config['img_size'], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
         {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
+         'args': {'imgsz': config['img_size'], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'onnx',
-         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
+         'args': {'imgsz': config['img_size'], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'engine',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False,
+         'args': {'imgsz': config['img_size'], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False,
                   'workspace': 4}},
         {'format': 'engine',
-         'args': {'imgsz': config["img_size"], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True,
+         'args': {'imgsz': config['img_size'], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True,
                   'workspace': 4}},
         {'format': 'engine',
-         'args': {'imgsz': config["img_size"], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}}
+         'args': {'imgsz': config['img_size'], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}},
+        {'format': 'engine',
+         'args': {'imgsz': config['img_size'], 'half': False, 'dynamic': False, 'int8': True, 'calib_batch': 20,
+                  'simplify': True, 'workspace': 4}},
     ]
     benchmark = VideoBenchmark(config)
     benchmark.run_benchmark(model_names, videos, export_configs)
