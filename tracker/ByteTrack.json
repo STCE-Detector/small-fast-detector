@@ -5,7 +5,7 @@
   "source_video_path": "./data/test1.mp4",
 
   "device": "cuda",
-  "video_stride": 2,
+  "video_stride": 1,
 
   "save_dir": "./outputs/",
   "save_results": false,
