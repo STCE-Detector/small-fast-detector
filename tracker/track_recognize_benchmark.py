@@ -422,7 +422,7 @@ if __name__ == "__main__":
                   'workspace': 6}},
         {'format': 'engine',
          'args': {'imgsz': config['img_size'], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 6}},
-        {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': True, 'int8': True, 'simplify': True, 'workspace': 6}},
+        {'format': 'engine', 'args': {'imgsz': config['img_size'], 'half': False, 'dynamic': True, 'int8': True, 'simplify': True, 'workspace': 6}},
     ]
     benchmark = VideoBenchmark(config)
     benchmark.run_benchmark(model_names, videos, export_configs)
