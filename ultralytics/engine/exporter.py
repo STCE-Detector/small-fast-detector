@@ -59,7 +59,9 @@ import time
 import warnings
 from copy import deepcopy
 from datetime import datetime
+from functools import partial
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import torch
@@ -203,13 +205,6 @@ class Exporter:
             assert self.device.type == "cpu", "optimize=True not compatible with cuda devices, i.e. use device='cpu'"
         if edgetpu and not LINUX:
             raise SystemError("Edge TPU export only supported on Linux. See https://coral.ai/docs/edgetpu/compiler/")
-        if isinstance(model, WorldModel):
-            LOGGER.warning(
-                "WARNING ⚠️ YOLOWorld (original version) export is not supported to any format.\n"
-                "WARNING ⚠️ YOLOWorldv2 models (i.e. 'yolov8s-worldv2.pt') only support export to "
-                "(torchscript, onnx, openvino, engine, coreml) formats. "
-                "See https://docs.ultralytics.com/models/yolo-world for details."
-            )
 
         # Input
         im = torch.zeros(self.args.batch, 3, *self.imgsz).to(self.device)
@@ -217,8 +212,7 @@ class Exporter:
             getattr(model, "pt_path", None) or getattr(model, "yaml_file", None) or model.yaml.get("yaml_file", "")
         )
         if file.suffix in {".yaml", ".yml"}:
-            # file = Path(file.name)
-            file = Path(self.args.project + '/' + file.name if self.args.project is not None else file.name)
+            file = Path(file.name)
 
         # Update model
         model = deepcopy(model).to(self.device)
@@ -696,38 +690,118 @@ class Exporter:
         for out in outputs:
             LOGGER.info(f'{prefix} output "{out.name}" with shape{out.shape} {out.dtype}')
 
-        if self.args.dynamic:
+        half = builder.platform_has_fast_fp16 and self.args.half
+        int8 = builder.platform_has_fast_int8 and self.args.int8
+
+        if self.args.dynamic or int8:  # always use dynamic with int8
             shape = self.im.shape
             if shape[0] <= 1:
                 LOGGER.warning(f"{prefix} WARNING ⚠️ 'dynamic=True' model requires max batch size, i.e. 'batch=16'")
             profile = builder.create_optimization_profile()
             min_shape = (1, shape[1], 32, 32)  # minimum input shape
-            opt_shape = (max(1, shape[0] // 2), *shape[1:])  # optimal input shape
+            opt_shape = tuple(shape)  # optimal input shape
             max_shape = (*shape[:2], *(max(1, self.args.workspace) * d for d in shape[2:]))  # max input shape
             for inp in inputs:
                 profile.set_shape(inp.name, min_shape, opt_shape, max_shape)
             config.add_optimization_profile(profile)
 
-        half = builder.platform_has_fast_fp16 and self.args.half
-        int8 = builder.platform_has_fast_int8 and self.args.int8
-        if half and int8:
-            raise NotImplementedError(f"Can not {prefix} building FP16 and INT8 engine in the same time")
-        if half:
+        if int8:
+            from ultralytics.data import load_inference_source
+            from ultralytics.data.loaders import infer_preprocess
+
+            preprocessor = partial(
+                infer_preprocess,
+                imgsz=self.imgsz,
+                device=self.device,
+                half=False,  # enforce FP32
+                is_pt=True,  # export only for PyTorch models
+            )
+
+            class EngineCalibrator(trt.IInt8Calibrator):
+                TRT_INT8_CAL_ALGOS = {
+                    "LEGACY_CALIBRATION",
+                    "ENTROPY_CALIBRATION",
+                    "ENTROPY_CALIBRATION_2",
+                    "MINMAX_CALIBRATION",
+                }
+
+                def __init__(
+                    self,
+                    dataset,  # ultralytics.data.loaders.LoadImagesAndVideos
+                    batch: int,
+                    preprocess: Callable,
+                    calibration_algo: str = "ENTROPY_CALIBRATION_2",
+                    cache: str = "",
+                ) -> None:
+                    trt.IInt8Calibrator.__init__(self)
+                    self.dataset = dataset
+                    self.data_iter = iter(dataset)
+                    self.algo = self.fetch_algo(calibration_algo)
+                    self.batch = batch
+                    self.preprocess = preprocess
+                    self.cache = Path(cache)
+
+                def fetch_algo(self, algo: str = "ENTROPY_CALIBRATION_2") -> trt.CalibrationAlgoType:
+                    """Fetch the calibration algorithm to use."""
+                    if algo not in self.TRT_INT8_CAL_ALGOS:
+                        LOGGER.warning(f"Invalid calibration algorithm: {algo}, using 'ENTROPY_CALIBRATION_2' instead")
+                        self.algo = "ENTROPY_CALIBRATION_2"
+                    else:
+                        self.algo = algo
+                    return getattr(trt.CalibrationAlgoType, self.algo)
+
+                def get_algorithm(self) -> trt.CalibrationAlgoType:
+                    """Get the calibration algorithm to use."""
+                    return self.algo
+
+                def get_batch_size(self) -> int:
+                    """Get the batch size to use for calibration."""
+                    return self.batch or 1
+
+                def get_batch(self, names) -> list[int] | None:
+                    """Get the next batch to use for calibration, as a list of device memory pointers."""
+                    try:
+                        _, im0s, _ = next(self.data_iter)
+                        return [int(self.preprocess(im0s).data_ptr())]
+                    except StopIteration:
+                        # Return [] or None, signal to TensorRT there is no calibration data remaining
+                        return None
+
+                def read_calibration_cache(self) -> None:
+                    """
+                    If there is a cache, use it instead of calibrating again.
+
+                    Otherwise, implicitly return None.
+                    """
+                    if self.cache.exists() and self.cache.suffix == ".cache":
+                        _ = self.cache.read_bytes()
+
+                def write_calibration_cache(self, cache) -> None:
+                    """Write calibration cache to disk."""
+                    _ = self.cache.write_bytes(cache)
+
+            LOGGER.info(f"{prefix} building INT8 engine as {f}")
+            data = check_det_dataset(self.args.data)
+
+            bsize = int(2 * self.args.batch)  # int8 calibration should use at least 2x batch size
+            dataset = load_inference_source(data["val"], batch=bsize)
+            n = len(dataset) * bsize
+            if n < 500:
+                LOGGER.warning(f"{prefix} WARNING ⚠️ >=500 images recommended for INT8 calibration, found {n} images.")
+            cache_file = self.file.with_suffix(".cache")
+
+            config.set_flag(trt.BuilderFlag.INT8)
+            config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
+            config.int8_calibrator = EngineCalibrator(
+                dataset,
+                bsize,
+                preprocessor,
+                str(self.args.trt_quant_algo).upper(),
+                cache_file,
+            )
+        elif half:
             LOGGER.info(f"{prefix} building FP16 engine as {f}")
             config.set_flag(trt.BuilderFlag.FP16)
-        if int8:
-            # https://github.com/NVIDIA/TensorRT/tree/main/samples/python/efficientdet
-            LOGGER.info(f"{prefix} building INT8 engine as {f}")
-            from ultralytics.nn.calibrator import EngineCalibrator
-
-            """
-            https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/#enable_int8_c
-            To avoid this issue, calibrate with as large a single batch as possible, 
-            and ensure that calibration batches are well randomized and have similar distribution.
-            """
-            cache_file = str(self.file.with_suffix(".cache"))
-            config.set_flag(trt.BuilderFlag.INT8)
-            config.int8_calibrator = EngineCalibrator(cache_file, self.args, self.model)
 
         # Free CUDA memory
         del self.model
