@@ -416,15 +416,13 @@ if __name__ == "__main__":
          'args': {'imgsz': config['img_size'], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
         {'format': 'engine',
          'args': {'imgsz': config['img_size'], 'half': False, 'dynamic': False, 'int8': False, 'simplify': False,
-                  'workspace': 4}},
+                  'workspace': 6}},
         {'format': 'engine',
          'args': {'imgsz': config['img_size'], 'half': False, 'dynamic': False, 'int8': False, 'simplify': True,
-                  'workspace': 4}},
+                  'workspace': 6}},
         {'format': 'engine',
-         'args': {'imgsz': config['img_size'], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 4}},
-        {'format': 'engine',
-         'args': {'imgsz': config['img_size'], 'half': False, 'dynamic': False, 'int8': True, 'calib_batch': 20,
-                  'simplify': True, 'workspace': 4}},
+         'args': {'imgsz': config['img_size'], 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 6}},
+        {'format': 'engine', 'args': {'imgsz': cfg.imgsz, 'half': False, 'dynamic': True, 'int8': True, 'simplify': True, 'workspace': 6}},
     ]
     benchmark = VideoBenchmark(config)
     benchmark.run_benchmark(model_names, videos, export_configs)
