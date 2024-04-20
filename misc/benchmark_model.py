@@ -301,7 +301,7 @@ def perform_benchmark(cfg, archs, path='../ultralytics/cfg/models/v8/'):
                 if config['format'] == 'pytorch':
                     pass
                 else:
-                    yolo.export(format=config['format'], device=cfg.device, **config['args'], project='./models/')
+                    yolo.export(format=config['format'], data="custom_dataset.yaml", device=cfg.device, **config['args'], project='./models/')
                     print(f"Modelo {arch} exportado como {export_filename} a {export_path}")
                     model_path = export_path if os.path.exists(export_path) else f"{export_path}"
                     yolo = YOLO(model_path, task='detect')
