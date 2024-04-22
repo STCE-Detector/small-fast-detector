@@ -15,10 +15,10 @@ os.environ['NUMEXPR_NUM_THREADS'] = N_THREADS
 comet_ml.init()
 
 # Initialize model and load matching weights
-model = YOLO('yolov8s-p2-hyb.yaml', task='detect').load('./../models/yolov8s.pt')
+model = YOLO('yolov8s.yaml', task='detect').load('./../models/yolov8s.pt')
 
-epochs = 300
-batch = 64
+epochs = 150
+batch = 32
 optimizer = 'auto'
 
 model.train(
@@ -33,7 +33,8 @@ model.train(
     plots=True,
     device=[0,1,2,3],
     project='fine-tune-cdv3',
-    name=f'8sp2hyb3-{epochs}e-{batch}b',
+    imgsz=1280,
+    name=f'8s-{epochs}e-{batch}b-1280px',
     verbose=True,
     patience=25,
     cache=False,
