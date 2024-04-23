@@ -10,14 +10,14 @@ from ultralytics import YOLO
 # Better not to change these parameters
 dataset_root = './../../ultralytics/cfg/datasets/custom_dataset.yaml' #'./data/client_test/data.yaml'
 #dataset_root = './data/client_test/data.yaml'
-model_path = './models/v3/8s_300e_128b.pt'
+model_path = './models/v3/8sp2_150e_64b.pt'
 outputs_root = './outputs'
-#experiment_name = 'cdv3_8s_150e_128b'
-experiment_name = time.strftime("%Y%m%d-%H%M%S")
+experiment_name = '8sp2_150e_64b@1280'
+#experiment_name = time.strftime("%Y%m%d-%H%M%S")
 # Can be changed
-imgsz = 640
+imgsz = 1280
 batch = 32
-device = [7]
+device = [0]
 
 
 #  START OF EVALUATION

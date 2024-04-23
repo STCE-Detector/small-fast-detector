@@ -20,7 +20,7 @@ import os
 from PIL import Image
 
 # Set the paths for the input and output directories
-input_dir = '/data-fast/128-data1/ierregue/datasets/custom_dataset_v3'
+input_dir = '/data-fast/128-data1/ierregue/datasets/cdv3_hd_val_top2000_F1'
 #input_dir = '/Users/inaki-eab/Desktop/small-fast-detector/evaluation_tools/data/testing_data'
 output_dir = input_dir
 """
