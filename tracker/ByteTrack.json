@@ -11,7 +11,7 @@
 
   "save_dir": "./outputs/",
   "save_results": false,
-  "save_video": true,
+  "save_video": false,
   "compression_mode": true,
   "display": false,
 
