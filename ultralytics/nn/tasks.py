@@ -341,9 +341,9 @@ class DetectionModel(BaseModel):
     def _clip_augmented(self, y):
         """Clip YOLO augmented inference tails."""
         nl = self.model[-1].nl  # number of detection layers (P3-P5)
-        g = sum(4 ** x for x in range(nl))  # grid points
+        g = sum(4**x for x in range(nl))  # grid points
         e = 1  # exclude layer count
-        i = (y[0].shape[-1] // g) * sum(4 ** x for x in range(e))  # indices
+        i = (y[0].shape[-1] // g) * sum(4**x for x in range(e))  # indices
         y[0] = y[0][..., :-i]  # large
         i = (y[-1].shape[-1] // g) * sum(4 ** (nl - 1 - x) for x in range(e))  # indices
         y[-1] = y[-1][..., i:]  # small
@@ -641,11 +641,11 @@ def torch_safe_load(weight):
     file = attempt_download_asset(weight)  # search online if missing locally
     try:
         with temporary_modules(
-                {
-                    "ultralytics.yolo.utils": "ultralytics.utils",
-                    "ultralytics.yolo.v8": "ultralytics.models.yolo",
-                    "ultralytics.yolo.data": "ultralytics.data",
-                }
+            {
+                "ultralytics.yolo.utils": "ultralytics.utils",
+                "ultralytics.yolo.v8": "ultralytics.models.yolo",
+                "ultralytics.yolo.data": "ultralytics.data",
+            }
         ):  # for legacy 8.0 Classify and Pose models
             return torch.load(file, map_location="cpu"), file  # load
 
