@@ -80,6 +80,12 @@ class VideoProcessor(QObject):
         }
 
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
+        if self.save_video:
+            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
+                                            compression_mode=config["compression_mode"],
+                                            logging=config["logging"],
+                                            fps=self.frame_capture.get_fps())
+            self.video_writer.start()
 
 
     def process_video(self):
@@ -87,13 +93,6 @@ class VideoProcessor(QObject):
         print(f"Original video size: {self.video_info.resolution_wh}")
         print(f"Original video FPS: {self.video_info.fps}")
         print(f"Original video number of frames: {self.video_info.total_frames}\n")
-
-        if self.save_video:
-            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
-                                            compression_mode=config["compression_mode"],
-                                            logging=config["logging"],
-                                            fps=self.frame_capture.get_fps())
-            self.video_writer.start()
 
         fps_counter = FrameRateCounter()
         timer = Timer()
@@ -137,8 +136,6 @@ class VideoProcessor(QObject):
                         data_dict["x2"].append(track.tlbr[2])
                         data_dict["y2"].append(track.tlbr[3])
                 pbar.update(1)
-            if self.save_video:
-                self.video_writer.stop()
 
             if self.save_results:
                 # Write the collected data to a CSV file
@@ -152,6 +149,7 @@ class VideoProcessor(QObject):
         print(f"Total time: {timer.elapsed():.2f} seconds")
         avg_fps = self.video_info.total_frames / timer.elapsed()
         print(f"Average FPS: {avg_fps:.2f}")
+        self.cleanup()
 
     def process_frame(self, frame: np.ndarray, frame_number: int, fps: float) -> np.ndarray:
         results = self.model.predict(
@@ -179,8 +177,9 @@ class VideoProcessor(QObject):
         annotated_frame = self.trace_annotator.annotate(annotated_frame, detections)
         annotated_frame = self.box_annotator.annotate(annotated_frame, detections, labels)
         annotated_frame = self.action_recognizer.annotate(annotated_frame, ar_results)
-        # cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        # cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        if self.save_video:
+            cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         return annotated_frame
 
     def toggle_pause(self):

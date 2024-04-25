@@ -1,7 +1,7 @@
 {
   "name": "qualitative",
   "source_weights_path": "./models/8s_300e_128b.pt",
-  "source_stream_path": "./videos/13.mp4",
+  "source_stream_path": "./videos/MOT16-01-raw.mp4",
   "stabilize": false,
   "logging": false,
   "stream_mode": false,
@@ -11,7 +11,7 @@
 
   "save_dir": "./outputs/",
   "save_results": false,
-  "save_video": false,
+  "save_video": true,
   "compression_mode": true,
   "display": false,
 

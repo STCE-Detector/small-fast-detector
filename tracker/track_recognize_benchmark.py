@@ -14,7 +14,8 @@ import supervision as sv
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 from tqdm import tqdm
-
+import warnings
+warnings.filterwarnings("ignore")
 from tracker import ByteTrack
 from tracker.action_recognition import ActionRecognizer
 from tracker.gui.GUI import VideoDisplay
@@ -122,6 +123,12 @@ class VideoBenchmark(QObject):
             4: "airplane",
             5: "boat",
         }
+        if self.save_video:
+            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
+                                            compression_mode=config["compression_mode"],
+                                            logging=config["logging"],
+                                            fps=self.frame_capture.get_fps())
+            self.video_writer.start()
 
     def load_model(self, model_path, model_format):
         def check_file_exists(path, arch):
@@ -184,7 +191,8 @@ class VideoBenchmark(QObject):
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
         # TODO : CHECK TO PUT IN A THREAD
-        self.box_annotator = sv.BoxAnnotator(color=COLORS)
+        self.box_annotator = sv.BoundingBoxAnnotator(color=COLORS)
+        self.label_annotator = sv.LabelAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
                                                  thickness=2)
 
@@ -270,13 +278,6 @@ class VideoBenchmark(QObject):
         print(f"Original video FPS: {self.video_info.fps}")
         print(f"Original video number of frames: {self.video_info.total_frames}\n")
 
-        if self.save_video:
-            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
-                                            compression_mode=config["compression_mode"],
-                                            logging=config["logging"],
-                                            fps=self.frame_capture.get_fps())
-            self.video_writer.start()
-
         fps_counter = FrameRateCounter()
         timer = Timer()
         self.frame_capture.start()
@@ -341,6 +342,7 @@ class VideoBenchmark(QObject):
 
         pbar.close()
         print(f"\nTracking complete over {self.video_info.total_frames} frames.")
+        print(f"\nTracking complete over {self.video_info.total_frames} frames.")
         print(f"Total time: {timer.elapsed():.2f} seconds")
         avg_fps = self.video_info.total_frames / timer.elapsed()
         print(f"Average FPS: {avg_fps:.2f}")
@@ -396,8 +398,10 @@ class VideoBenchmark(QObject):
         labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
                   zip(detections.tracker_id, detections.class_id, detections.confidence)]
+
         annotated_frame = self.trace_annotator.annotate(annotated_frame, detections)
-        annotated_frame = self.box_annotator.annotate(annotated_frame, detections, labels)
+        annotated_frame = self.box_annotator.annotate(annotated_frame, detections)
+        annotated_frame = self.label_annotator.annotate(annotated_frame, labels)
         annotated_frame = self.action_recognizer.annotate(annotated_frame, ar_results)
         # cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         # cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
