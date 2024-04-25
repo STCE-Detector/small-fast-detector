@@ -16,6 +16,7 @@
   "conf_threshold": 0.1,
   "iou_threshold": 0.7,
   "max_det": 50,
+  "agnostic_nms": true,
 
   "track_high_thresh": 0.4,
   "track_low_thresh": 0.1,

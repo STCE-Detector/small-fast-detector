@@ -27,6 +27,7 @@ class VideoProcessor:
         self.iou_threshold = config["iou_threshold"]
         self.img_size = config["img_size"]
         self.max_det = config["max_det"]
+        self.agnostic_nms = config["agnostic_nms"]
 
         self.source_video_path = config["source_video_path"]
 
@@ -161,8 +162,10 @@ class VideoProcessor:
             iou=self.iou_threshold,
             imgsz=self.img_size,
             device=self.device,
-            max_det=self.max_det
+            max_det=self.max_det,
+            agnostic_nms=self.agnostic_nms,
         )[0]
+        # TODO: compare the results with the results from the ByteTrack tracker, losing detections
         detections = sv.Detections.from_ultralytics(results)
         detections, tracks = self.tracker.update(detections, frame)
 
