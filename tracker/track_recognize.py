@@ -50,8 +50,11 @@ class VideoProcessor:
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
 
         self.display = config["display"]
+        self.save_video = config["save_video"]
         self.save_results = config["save_results"]
         self.csv_path = str(self.output_dir) + "/track_data.csv"
+        if self.save_video and self.display:
+            raise ValueError("Cannot display and save video at the same time")
 
         self.class_names = {
             0: "person",
@@ -84,7 +87,7 @@ class VideoProcessor:
             "y2": [],
         }
 
-        video_sink = sv.VideoSink(self.target_video_path, self.video_info) if not self.display else nullcontext()
+        video_sink = sv.VideoSink(self.target_video_path, self.video_info) if self.save_video else nullcontext()
         with video_sink as sink:
             fps_counter = FrameRateCounter()
             timer = Timer()
@@ -99,9 +102,9 @@ class VideoProcessor:
                     fps_counter.step()
                     frame_count -= self.frame_skip_interval
 
-                    if not self.display:
+                    if self.save_video:
                         sink.write_frame(annotated_frame)
-                    else:
+                    elif self.display:
                         cv2.imshow("Processed Video", annotated_frame)
 
                         k = cv2.waitKey(int(self.wait_time * self.slow_factor))  # dd& 0xFF
