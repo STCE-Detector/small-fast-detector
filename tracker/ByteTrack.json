@@ -4,8 +4,8 @@
   "source_weights_path": "./models/8sp2_150.pt",
   "source_video_path": "./data/test1.mp4",
 
-  "device": "cpu",
-  "video_stride": 1,
+  "device": "mps",
+  "fps_reduction": 20,
 
   "save_dir": "./outputs/",
   "save_results": false,

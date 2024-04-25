@@ -34,7 +34,8 @@ class VideoProcessor:
         self.target_video_path = str(self.output_dir / "annotated_video.mp4")
 
         self.device = config["device"]
-        self.video_stride = config["video_stride"]
+        fps_reduction = config["fps_reduction"]
+        self.frame_skip_interval = 100/(100-fps_reduction)
         self.wait_time = 1
         self.slow_factor = 1
 
@@ -87,12 +88,16 @@ class VideoProcessor:
         with video_sink as sink:
             fps_counter = FrameRateCounter()
             timer = Timer()
+            frame_count = 0
 
             for i, frame in enumerate(pbar := tqdm(frame_generator, total=self.video_info.total_frames)):
                 pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
-                if i % self.video_stride == 0:
+                frame_count += 1
+
+                if frame_count >= self.frame_skip_interval:
                     annotated_frame = self.process_frame(frame, i, fps_counter.value())
-                    fps_counter.step() # here
+                    fps_counter.step()
+                    frame_count -= self.frame_skip_interval
 
                     if not self.display:
                         sink.write_frame(annotated_frame)
@@ -125,6 +130,8 @@ class VideoProcessor:
                             data_dict["y1"].append(track.tlbr[1])
                             data_dict["x2"].append(track.tlbr[2])
                             data_dict["y2"].append(track.tlbr[3])
+                else:
+                    fps_counter.step()
 
             if self.display:
                 cv2.destroyAllWindows()
