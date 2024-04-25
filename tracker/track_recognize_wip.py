@@ -53,7 +53,7 @@ class VideoProcessor(QObject):
         self.paused = False
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
         self.tracker = ByteTrack(config, frame_rate=self.video_info.fps)
-        self.box_annotator = sv.BoundingBoxAnnotator(color=COLORS)
+        self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
         self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
                                           stream_mode=config["stream_mode"], logging=config["logging"])

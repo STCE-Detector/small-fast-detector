@@ -189,7 +189,7 @@ class VideoBenchmark(QObject):
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
         # TODO : CHECK TO PUT IN A THREAD
-        self.box_annotator = sv.BoundingBoxAnnotator(color=COLORS)
+        self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.label_annotator = sv.LabelAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
                                                  thickness=2)
@@ -398,8 +398,8 @@ class VideoBenchmark(QObject):
                   zip(detections.tracker_id, detections.class_id, detections.confidence)]
 
         annotated_frame = self.trace_annotator.annotate(annotated_frame, detections)
-        annotated_frame = self.box_annotator.annotate(annotated_frame, detections)
-        annotated_frame = self.label_annotator.annotate(annotated_frame, labels)
+        annotated_frame = self.box_annotator.annotate(annotated_frame, detections, labels)
+        # annotated_frame = self.label_annotator.annotate(annotated_frame, labels)
         annotated_frame = self.action_recognizer.annotate(annotated_frame, ar_results)
         # cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         # cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
