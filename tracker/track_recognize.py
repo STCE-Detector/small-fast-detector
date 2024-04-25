@@ -13,7 +13,6 @@ import supervision as sv
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 from tqdm import tqdm
-from contextlib import nullcontext
 
 from tracker import ByteTrack
 from tracker.action_recognition import ActionRecognizer
