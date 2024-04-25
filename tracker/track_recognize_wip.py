@@ -116,7 +116,7 @@ class VideoProcessor(QObject):
             else:
                 pbar.update()
 
-        self.cleanup()
+        self.cleanup(data_dict)
         pbar.close()
         print(f"\nTracking complete over {self.video_info.total_frames} frames.")
         print(f"Total time: {timer.elapsed():.2f} seconds")
@@ -158,7 +158,7 @@ class VideoProcessor(QObject):
         cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         return annotated_frame
 
-    def cleanup(self):
+    def cleanup(self, data_dict=None):
         self.frame_capture.stop()
         if self.save_video:
             self.video_writer.stop()
