@@ -2,7 +2,8 @@ import sys
 import os
 import argparse
 import csv
-from asyncio import Queue
+import threading
+from queue import Queue
 from threading import Thread
 from PIL.ImageQt import QImage
 import cv2
@@ -77,21 +78,26 @@ class VideoProcessor(QObject):
                                             logging=self.config["logging"],
                                             fps=self.frame_capture.get_fps())
             self.video_writer.start()
+
+        self.detector_running = threading.Event()
+        self.detector_running.set()
+
     def run_detector(self):
-        while True:
+        while self.detector_running.is_set() or not self.input_queue.empty():
             frame = self.input_queue.get()
-            if frame is None:  # Use None as a signal to stop the thread
-                break
+            if frame is None:
+                self.detector_running.clear()  # Indica que no se enviarán más frames
+                continue
             results = self.model.predict(frame, conf=self.conf_threshold, iou=self.iou_threshold,
                                          imgsz=self.img_size, device=self.device, max_det=self.max_det)[0]
             detections = sv.Detections.from_ultralytics(results)
             self.output_queue.put((frame, detections))
-
     def process_video(self):
         print(f"Processing video: {self.source_video_path} ...")
         fps_counter = FrameRateCounter()
         timer = Timer()
         self.frame_capture.start()
+        self.detector_thread.start()
         pbar = tqdm(total=self.video_info.total_frames, desc="Processing Frames", unit="frame")
 
         data_dict = {
@@ -115,13 +121,12 @@ class VideoProcessor(QObject):
                 pbar.update(1)
             else:
                 pbar.update()
-
-        self.cleanup(data_dict)
         pbar.close()
         print(f"\nTracking complete over {self.video_info.total_frames} frames.")
         print(f"Total time: {timer.elapsed():.2f} seconds")
         average_fps = self.video_info.total_frames / timer.elapsed()
         print(f"Average FPS: {average_fps:.2f}")
+        self.cleanup(data_dict)
 
     def handle_output(self, annotated_frame, fps, data_dict):
         if self.save_video and not self.display:
@@ -168,24 +173,10 @@ class VideoProcessor(QObject):
                 writer.writerow(data_dict.keys())
                 writer.writerows(zip(*data_dict.values()))
 
-    if __name__ == "__main__":
-        parser = argparse.ArgumentParser(description="YOLO and ByteTrack")
-        parser.add_argument("-c", "--config", default="./ByteTrack.json", type=str,
-                            help="config file path (default: None)")
-        config = ConfigParser.from_args(parser)
-
-        if config["display"]:
-            app = QApplication(sys.argv)
-            video_display = VideoDisplay(processor=VideoProcessor(config))
-            video_display.show()
-            sys.exit(app.exec())
-        else:
-            video_processor = VideoProcessor(config)
-            video_processor.process_video()
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YOLO and ByteTrack")
-    parser.add_argument("-c", "--config", default="./ByteTrack.json", type=str, help="config file path (default: None)")
+    parser.add_argument("-c", "--config", default="./ByteTrack.json", type=str,
+                        help="config file path (default: None)")
     config = ConfigParser.from_args(parser)
 
     if config["display"]:
