@@ -71,7 +71,7 @@ from ultralytics.data.dataset import YOLODataset
 from ultralytics.data.utils import check_det_dataset
 from ultralytics.nn.autobackend import check_class_names, default_class_names
 from ultralytics.nn.modules import C2f, Detect, RTDETRDecoder
-from ultralytics.nn.tasks import DetectionModel, SegmentationModel, WorldModel
+from ultralytics.nn.tasks import DetectionModel, SegmentationModel
 from ultralytics.utils import (
     ARM64,
     DEFAULT_CFG,
@@ -212,7 +212,8 @@ class Exporter:
             getattr(model, "pt_path", None) or getattr(model, "yaml_file", None) or model.yaml.get("yaml_file", "")
         )
         if file.suffix in {".yaml", ".yml"}:
-            file = Path(file.name)
+            # file = Path(file.name)
+            file = Path(self.args.project + '/' + file.name if self.args.project is not None else file.name)
 
         # Update model
         model = deepcopy(model).to(self.device)
