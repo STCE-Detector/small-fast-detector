@@ -371,10 +371,10 @@ class ByteTrack:
         cls = results.class_id
         # TODO: features = results.features?
 
-        remain_inds = scores > self.track_high_thresh   # Select indices with high scores for first association
-        inds_low = scores > self.track_low_thresh
+        remain_inds = scores >= self.track_high_thresh   # Select indices with high scores for first association
+        inds_low = scores >= self.track_low_thresh
         inds_high = scores < self.track_high_thresh
-        inds_second = np.logical_and(inds_low, inds_high) # Select indices with low scores for second association
+        inds_second = inds_low & inds_high   # Select indices with low scores for second association
 
         dets_second = bboxes[inds_second]
         dets = bboxes[remain_inds]
