@@ -52,6 +52,7 @@ class VideoDisplay(QGraphicsView):
         self.setScene(self.scene)
         self.pixmap_item = QGraphicsPixmapItem()
         self.scene.addItem(self.pixmap_item)
+        self.setMinimumSize(640, 360)
         self.sync_fps = sync_fps
 
         self.thread = QThread()
