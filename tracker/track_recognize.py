@@ -1,13 +1,13 @@
 import sys
-from PIL.ImageQt import QImage
 import argparse
 import csv
 
 import cv2
 import numpy as np
 import supervision as sv
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QApplication
+from PyQt5.QtGui import QImage
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtWidgets import QApplication
 from tqdm import tqdm
 
 
@@ -24,7 +24,17 @@ COLORS = sv.ColorPalette.default()
 import os
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-
+os.environ["QT_DEBUG_PLUGINS"] = "1"
+ci_build_and_not_headless = False
+try:
+    from cv2.version import ci_build, headless
+    ci_and_not_headless = ci_build and not headless
+except:
+    pass
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_FONTDIR")
 
 class VideoProcessor(QObject):
     frame_ready = pyqtSignal(QImage, float)

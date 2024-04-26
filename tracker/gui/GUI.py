@@ -6,9 +6,8 @@ from time import time
 
 import os
 
-from PIL.ImageQt import QPixmap
 from PyQt5.QtCore import (Qt, pyqtSignal, QObject, QThread, QTimer)
-from PyQt5.QtGui import QImage, QPainter, QFont, QColor, QKeyEvent
+from PyQt5.QtGui import QImage, QPainter, QFont, QColor, QKeyEvent, QPixmap
 from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
