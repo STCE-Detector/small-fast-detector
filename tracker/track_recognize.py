@@ -24,7 +24,7 @@ COLORS = sv.ColorPalette.default()
 import os
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-os.environ["QT_DEBUG_PLUGINS"] = "1"
+# os.environ["QT_DEBUG_PLUGINS"] = "1"
 ci_build_and_not_headless = False
 try:
     from cv2.version import ci_build, headless
