@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 from PIL import Image
 
-from ultralytics.utils import ARM64, LINUX, LOGGER, ROOT, yaml_load
+from ultralytics.utils import ARM64, IS_JETSON, IS_RASPBERRYPI, LINUX, LOGGER, ROOT, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_version, check_yaml
 from ultralytics.utils.downloads import attempt_download_asset, is_url
 
@@ -129,8 +129,6 @@ class AutoBackend(nn.Module):
 
         # Set device
         cuda = torch.cuda.is_available() and device.type != "cpu"  # use CUDA
-        mps = torch.backends.mps.is_available() and device.type != "cpu"  # use MPS
-
         if cuda and not any([nn_module, pt, jit, engine, onnx]):  # GPU dataloader formats
             device = torch.device("cpu")
             cuda = False
@@ -185,8 +183,11 @@ class AutoBackend(nn.Module):
         elif onnx:
             LOGGER.info(f"Loading {w} for ONNX Runtime inference...")
             check_requirements(("onnx", "onnxruntime-gpu" if cuda else "onnxruntime"))
+            if IS_RASPBERRYPI or IS_JETSON:
+                # Fix error: module 'numpy.linalg._umath_linalg' has no attribute '_ilp64' when exporting to Tensorflow SavedModel on RPi and Jetson
+                check_requirements("numpy==1.26.4")
             import onnxruntime
-            mps = torch.backends.mps.is_available()
+
             providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if cuda else ["CPUExecutionProvider"]
             session = onnxruntime.InferenceSession(w, providers=providers)
             output_names = [x.name for x in session.get_outputs()]
@@ -233,8 +234,11 @@ class AutoBackend(nn.Module):
             logger = trt.Logger(trt.Logger.INFO)
             # Read file
             with open(w, "rb") as f, trt.Runtime(logger) as runtime:
-                meta_len = int.from_bytes(f.read(4), byteorder="little")  # read metadata length
-                metadata = json.loads(f.read(meta_len).decode("utf-8"))  # read metadata
+                try:
+                    meta_len = int.from_bytes(f.read(4), byteorder="little")  # read metadata length
+                    metadata = json.loads(f.read(meta_len).decode("utf-8"))  # read metadata
+                except UnicodeDecodeError:
+                    f.seek(0)  # engine file may lack embedded Ultralytics metadata
                 model = runtime.deserialize_cuda_engine(f.read())  # read engine
 
             # Model context
@@ -542,7 +546,8 @@ class AutoBackend(nn.Module):
             mat_in = self.pyncnn.Mat(im[0].cpu().numpy())
             with self.net.create_extractor() as ex:
                 ex.input(self.net.input_names()[0], mat_in)
-                y = [np.array(ex.extract(x)[1])[None] for x in self.net.output_names()]
+                # WARNING: 'output_names' sorted as a temporary fix for https://github.com/pnnx/pnnx/issues/130
+                y = [np.array(ex.extract(x)[1])[None] for x in sorted(self.net.output_names())]
 
         # NVIDIA Triton Inference Server
         elif self.triton:

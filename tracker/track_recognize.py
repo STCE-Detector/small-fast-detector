@@ -1,59 +1,102 @@
+import sys
 import argparse
 import csv
 import os
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 import cv2
 import numpy as np
+import supervision as sv
+from PyQt5.QtGui import QImage
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtWidgets import QApplication
 from tqdm import tqdm
-from contextlib import nullcontext
 
-from tracker.byte_track import ByteTrack
 from tracker.action_recognition import ActionRecognizer
+from tracker.gui.GUI import VideoDisplay
+from tracker.gui.frameCapture import FrameCapture
+from tracker.gui.frameProcessing import VideoWriter
 from tracker.utils.cfg.parse_config import ConfigParser
 from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
-import supervision as sv
+
+import tracker.trackers as trackers
 
 COLORS = sv.ColorPalette.default()
 
+ci_build_and_not_headless = False
+try:
+    from cv2.version import ci_build, headless
+    ci_and_not_headless = ci_build and not headless
+except:
+    pass
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_FONTDIR")
 
-class VideoProcessor:
+
+class VideoProcessor(QObject):
+    frame_ready = pyqtSignal(QImage, float)
+
     def __init__(self, config) -> None:
+        super(VideoProcessor, self).__init__()
 
-        # Initialize the YOLO parameters
+        # Read the YOLO detector parameters
         self.conf_threshold = config["conf_threshold"]
         self.iou_threshold = config["iou_threshold"]
         self.img_size = config["img_size"]
         self.max_det = config["max_det"]
+        self.agnostic_nms = config["agnostic_nms"]
 
-        self.source_video_path = config["source_video_path"]
-
+        self.source_video_path = config["source_stream_path"]
         self.output_dir = config.save_dir
         self.target_video_path = str(self.output_dir / "annotated_video.mp4")
 
         self.device = config["device"]
-        self.video_stride = config["video_stride"]
-        self.wait_time = 1
-        self.slow_factor = 1
 
+        # Load the YOLO model
         self.model = YOLO(config["source_weights_path"])
-        self.model.fuse()
 
+        # TODO: CHECK IF MAINTAIN THIS
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
-        self.tracker = ByteTrack(config, frame_rate=self.video_info.fps)
+        # TODO : CHECK TO PUT IN A THREAD
+        self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.video_info)
 
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
 
+        self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
+                                          stream_mode=config["stream_mode"], logging=config["logging"])
+        self.paused = False
+
+        self.frame_skip_interval = 100/(100-config["fps_reduction"])
+
         self.display = config["display"]
         self.save_video = config["save_video"]
         self.save_results = config["save_results"]
-        self.csv_path = str(self.output_dir) + "/track_data.csv"
         if self.save_video and self.display:
             raise ValueError("Cannot display and save video at the same time")
+        if self.save_results:
+            self.csv_path = str(self.output_dir) + "/track_data.csv"
+            self.data_dict = {
+                "frame_id": [],
+                "tracker_id": [],
+                "class_id": [],
+                "x1": [],
+                "y1": [],
+                "x2": [],
+                "y2": []
+            }
+        if self.save_video:
+            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
+                                            compression_mode=config["compression_mode"],
+                                            logging=config["logging"],
+                                            fps=self.frame_capture.get_fps())
+            self.video_writer.start()
 
         self.class_names = {
             0: "person",
@@ -67,105 +110,90 @@ class VideoProcessor:
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
 
     def process_video(self):
-        print(f"Processing video: {os.path.basename(self.source_video_path)} ...")
+        print(f"Processing video: {self.source_video_path} ...")
         print(f"Original video size: {self.video_info.resolution_wh}")
         print(f"Original video FPS: {self.video_info.fps}")
         print(f"Original video number of frames: {self.video_info.total_frames}\n")
 
-        #TODO: use get_stream_frames_generator instead of get_video_frames_generator for real-time processing
-        # https://www.youtube.com/watch?v=hAWpsIuem10
-        frame_generator = sv.get_video_frames_generator(source_path=self.source_video_path)
+        pbar = tqdm(total=self.video_info.total_frames, desc="Processing Frames", unit="frame")
+        fps_counter = FrameRateCounter()
+        timer = Timer()
+        frame_count = 0
+        self.frame_capture.start()
 
-        data_dict = {
-            "frame_id": [],
-            "tracker_id": [],
-            "class_id": [],
-            "x1": [],
-            "y1": [],
-            "x2": [],
-            "y2": [],
-        }
+        while True:
+            if not self.paused:
+                frame = self.frame_capture.read()
+                frame_count += 1
+                if frame is None:
+                    break
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        video_sink = sv.VideoSink(self.target_video_path, self.video_info) if self.save_video else nullcontext()
-        with video_sink as sink:
-            fps_counter = FrameRateCounter()
-            timer = Timer()
+                if frame_count >= self.frame_skip_interval:
+                    annotated_frame = self.process_frame(frame_rgb, self.frame_capture.get_frame_count(), fps_counter.value())
+                    fps_counter.step()
+                    frame_count -= self.frame_skip_interval
 
-            for i, frame in enumerate(pbar := tqdm(frame_generator, total=self.video_info.total_frames)):
-                pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
-                if i % self.video_stride == 0:
-                    annotated_frame = self.process_frame(frame, i, fps_counter.value())
-                    fps_counter.step() # here
+                    if self.save_video and not self.display:
+                        self.video_writer.write_frame(annotated_frame)
 
-                    if self.save_video:
-                        sink.write_frame(annotated_frame)
-                    elif self.display:
-                        cv2.imshow("Processed Video", annotated_frame)
+                    if self.display:
+                        height, width, channel = annotated_frame.shape
+                        bytes_per_line = 3 * width
+                        q_image = QImage(annotated_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
+                        self.frame_ready.emit(q_image, fps_counter.value())
 
-                        k = cv2.waitKey(int(self.wait_time * self.slow_factor))  # dd& 0xFF
-
-                        if cv2.waitKey(1) & 0xFF == ord("q"):
-                            break
-                        elif k == ord('p'):  # pause the video
-                            cv2.waitKey(-1)  # wait until any key is pressed
-                        elif k == ord('r'):  # resume the video
-                            continue
-                        elif k == ord('d'):
-                            slow_factor = self.slow_factor - 1
-                            print(slow_factor)
-                        elif k == ord('i'):
-                            slow_factor = self.slow_factor + 1
-                            print(slow_factor)
-                            break
-
-                    # Store results
                     if self.save_results:
-                        for track in self.tracker.tracked_stracks:
-                            data_dict["frame_id"].append(track.frame_id)
-                            data_dict["tracker_id"].append(track.track_id)
-                            data_dict["class_id"].append(track.class_ids)
-                            data_dict["x1"].append(track.tlbr[0])
-                            data_dict["y1"].append(track.tlbr[1])
-                            data_dict["x2"].append(track.tlbr[2])
-                            data_dict["y2"].append(track.tlbr[3])
+                        for track in self.tracker.active_tracks:
+                            self.data_dict["frame_id"].append(self.frame_capture.get_frame_count())
+                            self.data_dict["tracker_id"].append(track.track_id)
+                            self.data_dict["class_id"].append(track.class_id)
+                            self.data_dict["x1"].append(track.tlbr[0])
+                            self.data_dict["y1"].append(track.tlbr[1])
+                            self.data_dict["x2"].append(track.tlbr[2])
+                            self.data_dict["y2"].append(track.tlbr[3])
+                else:
+                    # TODO: when static skipping is > 0, video not generated, solve this (skipping should start by true)
+                    if self.save_video and not self.display:
+                        #self.video_writer.write_frame(annotated_frame)
+                        px=0
+                    fps_counter.step()
 
-            if self.display:
-                cv2.destroyAllWindows()
+                pbar.update(1)
 
-        # Print time and fps
-        time_taken = f"{int(timer.elapsed() / 60)} min {int(timer.elapsed() % 60)} sec"
-        avg_fps = self.video_info.total_frames / timer.elapsed()
+            if self.save_results:
+                with open(self.csv_path, 'w', newline='') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(self.data_dict.keys())
+                    writer.writerows(zip(*self.data_dict.values()))
+
+        pbar.close()
         print(f"\nTracking complete over {self.video_info.total_frames} frames.")
-        print(f"Total time: {time_taken}")
+        print(f"Total time: {timer.elapsed():.2f} seconds")
+        avg_fps = self.video_info.total_frames / timer.elapsed()
         print(f"Average FPS: {avg_fps:.2f}")
-
-        # Save datadict in csv
-        if self.save_results:
-            with open(self.csv_path, "w") as f:
-                w = csv.writer(f)
-                w.writerow(data_dict.keys())
-                w.writerows(zip(*data_dict.values()))
+        self.cleanup()
 
     def process_frame(self, frame: np.ndarray, frame_number: int, fps: float) -> np.ndarray:
-        results = self.model(
+        results = self.model.predict(
             frame,
             verbose=False,
             conf=self.conf_threshold,
             iou=self.iou_threshold,
             imgsz=self.img_size,
             device=self.device,
-            max_det=self.max_det
+            max_det=self.max_det,
+            agnostic_nms=self.agnostic_nms,
         )[0]
+        # TODO: compare the results with the results from the ByteTrack tracker, losing detections
         detections = sv.Detections.from_ultralytics(results)
         detections, tracks = self.tracker.update(detections, frame)
 
         ar_results = self.action_recognizer.recognize_frame(tracks)
+        return self.annotate_frame(frame, detections, ar_results, frame_number, fps)
 
-        return self.annotate_frame(frame, detections, ar_results,  frame_number, fps)
-
-    def annotate_frame(self, frame: np.ndarray, detections: sv.Detections, ar_results: None, frame_number: int,
-                       fps: float) -> np.ndarray:
-        annotated_frame = frame.copy()
+    def annotate_frame(self, annotated_frame: np.ndarray, detections: sv.Detections, ar_results: None,
+                       frame_number: int, fps: float) -> np.ndarray:
 
         labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
@@ -173,10 +201,18 @@ class VideoProcessor:
         annotated_frame = self.trace_annotator.annotate(annotated_frame, detections)
         annotated_frame = self.box_annotator.annotate(annotated_frame, detections, labels)
         annotated_frame = self.action_recognizer.annotate(annotated_frame, ar_results)
-        cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
+        if self.save_video:
+            cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         return annotated_frame
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+
+    def cleanup(self):
+        self.frame_capture.stop()
+        if self.save_video:
+            self.video_writer.stop()
 
 
 if __name__ == "__main__":
@@ -184,10 +220,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--config",
-        default="./ByteTrack.json",
+        default="./cfg/ByteTrack.json",
         type=str,
         help="config file path (default: None)",
     )
     config = ConfigParser.from_args(parser)
-    processor = VideoProcessor(config)
-    processor.process_video()
+    if config["display"]:
+        app = QApplication(sys.argv)
+        video_display = VideoDisplay(processor=VideoProcessor(config))
+        video_display.show()
+        sys.exit(app.exec())
+    else:
+        video_processor = VideoProcessor(config)
+        video_processor.process_video()

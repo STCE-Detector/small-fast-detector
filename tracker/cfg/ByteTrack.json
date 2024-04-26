@@ -1,35 +1,43 @@
 {
   "name": "qualitative",
 
-  "source_weights_path": "./models/8sp2_150.pt",
-  "source_video_path": "./data/test1.mp4",
+  "tracker_name": "ByteTrack",
 
-  "device": "cuda",
-  "video_stride": 1,
+  "source_weights_path": "./detectors/8sp2_150.pt",
+  "source_stream_path": "/Users/inaki-eab/Desktop/TAR_data/selection/11.mp4",
+
+  "device": "mps",
+  "fps_reduction": 20,
 
   "save_dir": "./outputs/",
   "save_results": false,
-  "save_video": false,
+  "save_video": true,
   "display": false,
+  "stabilize": false,
+  "logging": false,
+  "stream_mode": false,
+  "compression_mode": true,
 
   "img_size": 640,
   "conf_threshold": 0.1,
   "iou_threshold": 0.7,
-  "max_det": 300,
+  "max_det": 50,
+  "agnostic_nms": true,
 
-  "track_high_thresh": 0.4,
-  "track_low_thresh": 0.1,
-  "new_track_thresh": 0.25,
-  "track_buffer": 200,
-  "match_thresh": 0.9,
-
-  "proximity_thresh": 0.9,
-  "appearance_thresh": 0.8,
-  "with_reid": false,
-  "reid_default": true,
-  "weight_path": "ver12.pt",
-
-  "gmc_method": null,
+  "tracker_args": {
+    "track_high_thresh": 0.4,
+    "track_low_thresh": 0.1,
+    "new_track_thresh": 0.25,
+    "track_buffer": 200,
+    "match_thresh": 0.9,
+    "proximity_thresh": 0.9,
+    "appearance_thresh": 0.8,
+    "with_reid": false,
+    "reid_default": true,
+    "weight_path": "ver12.pt",
+    "gmc_method": null,
+    "device": "cuda"
+  },
 
   "action_recognition": {
     "enabled": true,
@@ -38,6 +46,7 @@
 
     "gather": {
       "enabled": true,
+      "min_people": 2,
       "distance_threshold": 1.0,
       "area_threshold": 0.5,
       "_comment": ""

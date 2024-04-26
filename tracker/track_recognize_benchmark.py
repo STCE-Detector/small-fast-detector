@@ -1,27 +1,45 @@
-import argparse
-import csv
+import cProfile
 import json
-import os
-import time
+import sys
 
 import pandas as pd
 import torch
-# os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+import argparse
+import csv
+
 import cv2
 import numpy as np
+import supervision as sv
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtGui import QImage
 from tqdm import tqdm
-from contextlib import nullcontext
-
-from tracker.byte_track import ByteTrack
+import warnings
+warnings.filterwarnings("ignore")
+from tracker import ByteTrack
 from tracker.action_recognition import ActionRecognizer
+from tracker.gui.frameCapture import FrameCapture
+from tracker.gui.frameProcessing import VideoWriter
 from tracker.utils.cfg.parse_config import ConfigParser
 from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
-import supervision as sv
 from ultralytics.utils.torch_utils import model_info
+import time
 
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 COLORS = sv.ColorPalette.default()
+import os
+
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+ci_build_and_not_headless = False
+try:
+    from cv2.version import ci_build, headless
+    ci_and_not_headless = ci_build and not headless
+except:
+    pass
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_FONTDIR")
 
 
 def is_numeric(value):
@@ -57,34 +75,37 @@ def compute_averages(all_arch_results):
 
     return pd.DataFrame([data])
 
-class VideoBenchmark:
-    def __init__(self, config) -> None:
 
+class VideoBenchmark(QObject):
+    frame_ready = pyqtSignal(QImage, float)
+
+    def __init__(self, config) -> None:
+        super(VideoBenchmark, self).__init__()
         # Initialize the YOLO parameters
         self.config = config
+        self.device = self.config["device"]
         self.conf_threshold = self.config["conf_threshold"]
         self.iou_threshold = self.config["iou_threshold"]
         self.img_size = self.config["img_size"]
         self.max_det = self.config["max_det"]
+
+        self.source_video_path = self.config["source_stream_path"]
+
         self.output_dir = self.config.save_dir
         self.target_video_path = str(self.output_dir / "annotated_video.mp4")
 
-        self.device = self.config["device"]
         self.video_stride = self.config["video_stride"]
-        self.wait_time = 1
-        self.slow_factor = 1
-        self.box_annotator = sv.BoxAnnotator(color=COLORS)
+        self.paused = False
+
+        # TODO: CHECK IF MAINTAIN THIS
+
         self.display = self.config["display"]
         self.save_video = self.config["save_video"]
+        self.save_results = self.config["save_results"]
+        self.csv_path = str(self.output_dir) + "/track_data.csv"
         if self.save_video and self.display:
             raise ValueError("Cannot display and save video at the same time")
 
-        self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
-                                                 thickness=2)
-        self.save_results = self.config["save_results"]
-        self.csv_path = str(self.output_dir) + "/track_data.csv"
-
-        # change to function
         self.model = None
         self.source_video_path = None
         self.video_info = None
@@ -110,6 +131,12 @@ class VideoBenchmark:
             4: "airplane",
             5: "boat",
         }
+        if self.save_video:
+            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
+                                            compression_mode=config["compression_mode"],
+                                            logging=config["logging"],
+                                            fps=self.frame_capture.get_fps())
+            self.video_writer.start()
 
     def load_model(self, model_path, model_format):
         def check_file_exists(path, arch):
@@ -143,7 +170,8 @@ class VideoBenchmark:
             if config_export['format'] == 'pytorch':
                 pass
             else:
-                self.model.export(format=config_export['format'], device=self.device, **config_export['args'], project='./models/')
+                self.model.export(format=config_export['format'], device=self.device, **config_export['args'],
+                                  project='./models/')
                 print(f"Modelo {arch} exportado como {export_filename} a {export_path}")
                 model_path = export_path if os.path.exists(export_path) else f"{export_path}.{config_export['format']}"
                 self.model = YOLO(model_path, task='detect')
@@ -152,7 +180,6 @@ class VideoBenchmark:
             pass
         return export_filename
 
-    # get info video
     def initialize_video(self, video, video_path):
         def check_file_exists(path, arch):
             """
@@ -169,6 +196,16 @@ class VideoBenchmark:
 
         self.source_video_path = check_file_exists(video_path, video)
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
+        self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
+
+        # TODO : CHECK TO PUT IN A THREAD
+        self.box_annotator = sv.BoxAnnotator(color=COLORS)
+        self.label_annotator = sv.LabelAnnotator(color=COLORS)
+        self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
+                                                 thickness=2)
+
+        self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
+                                          stream_mode=config["stream_mode"], logging=config["logging"])
         self.tracker = ByteTrack(self.config, frame_rate=self.video_info.fps)
         self.action_recognizer = ActionRecognizer(self.config["action_recognition"], self.video_info)
 
@@ -191,7 +228,7 @@ class VideoBenchmark:
         for arch in archs:
             for config_export in export_configs:
                 self.load_model(path_model, arch)
-                _, n_p, _, flops = model_info(self.model.model)  # Get model info
+                n_l, n_p, n_g, flops = model_info(self.model.model)  # Get model info
                 export_filename = self.export_model(arch, config_export)
 
                 all_video_results = []  # Store results for each video for the current configuration
@@ -209,8 +246,8 @@ class VideoBenchmark:
                         'loaded_video_times': self.loaded_video_times,
                         'write_video_time_list': self.write_video_time_list,
                         'timer_load_frame_list': self.timer_load_frame_list,
-                        'FPS_model': [1 / (x / 1000) if x != 0 else 1 for x in self.model_times],
-                        'FPS_video': [self.video_fps],
+                        'FPS_model': np.mean([1 / (x / 1000) if x != 0 else 1 for x in self.model_times]),
+                        'FPS_video': self.video_fps,
                         'time_taken_seconds': self.time_taken
                     }
                     all_video_results.append(video_results)
@@ -225,11 +262,17 @@ class VideoBenchmark:
 
                 # Add the averages of all metrics across videos for the current model configuration
                 averaged_results.update({
-                    key: np.nanmean(
-                        [np.nanmean([x for x in v[key] if isinstance(x, (int, float))]) for v in all_video_results if
-                         v[key]])
-                    for key in all_video_results[0] if
-                    any(isinstance(item, (int, float)) for sublist in all_video_results for item in sublist[key])
+                    key: np.nanmean([
+                        np.nanmean([x for x in v[key] if isinstance(x, (int, float))])
+                        for v in all_video_results
+                        if isinstance(v[key], (list, tuple)) and v[key]  # Ensure v[key] is iterable and not empty
+                    ])
+                    for key in all_video_results[0]
+                    if any(
+                        isinstance(item, (int, float)) for sublist in all_video_results
+                        if isinstance(sublist[key], (list, tuple))  # Additional check for iterability
+                        for item in sublist[key]
+                    )
                 })
 
                 results.append(averaged_results)  # Append the averaged results for the current model configuration
@@ -238,93 +281,81 @@ class VideoBenchmark:
         df.to_csv("./benchmark_tracker.csv", index=False)
 
     def process_video(self, config_export):
-        print(f"Processing video: {os.path.basename(self.source_video_path)} ...")
+        print(f"Processing video: {self.source_video_path} ...")
         print(f"Original video size: {self.video_info.resolution_wh}")
         print(f"Original video FPS: {self.video_info.fps}")
         print(f"Original video number of frames: {self.video_info.total_frames}\n")
-        frame_generator = sv.get_video_frames_generator(source_path=self.source_video_path)
-        data_dict = {
-            "frame_id": [],
-            "tracker_id": [],
-            "class_id": [],
-            "x1": [],
-            "y1": [],
-            "x2": [],
-            "y2": [],
-            "write_video_time": []
-        }
-        timer_load_frame_end = 0
+
+        fps_counter = FrameRateCounter()
+        timer = Timer()
+        self.frame_capture.start()
+
+        pbar = tqdm(total=self.video_info.total_frames, desc="Processing Frames", unit="frame")
+
+        # Data dictionary to accumulate CSV data
+        if self.save_results:
+            data_dict = {
+                "frame_id": [],
+                "tracker_id": [],
+                "class_id": [],
+                "x1": [],
+                "y1": [],
+                "x2": [],
+                "y2": []
+            }
         timer_load_frame_start = 0
-        video_sink = sv.VideoSink(self.target_video_path, self.video_info) if self.save_video else nullcontext()
-        with video_sink as sink:
-            fps_counter = FrameRateCounter()
-            timer = Timer()
-            for i, frame in enumerate(pbar := tqdm(frame_generator, total=self.video_info.total_frames)):
-                if i != 0:
-                    timer_load_frame_end = time.perf_counter()
+        while True:
+            if not self.paused:
+                frame = self.frame_capture.read()
+                timer_load_frame_end = time.perf_counter() if self.frame_capture.get_frame_count() != 0 else 0
                 timer_load_frame = timer_load_frame_end - timer_load_frame_start
                 self.timer_load_frame_list.append(timer_load_frame)
                 pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
-                if i % self.video_stride == 0:
-                    annotated_frame = self.process_frame(frame, i, fps_counter.value(), config_export)
-                    fps_counter.step() # here
-
-                    if self.save_video:
-                        start_time_write_video = time.perf_counter()
-                        sink.write_frame(annotated_frame)
-                        write_video_time = time.perf_counter() - start_time_write_video
-                        self.write_video_time_list.append(write_video_time)
-                    elif self.display:
-                        cv2.imshow("Processed Video", annotated_frame)
-
-                        k = cv2.waitKey(int(self.wait_time * self.slow_factor))  # dd& 0xFF
-
-                        if cv2.waitKey(1) & 0xFF == ord("q"):
-                            break
-                        elif k == ord('p'):  # pause the video
-                            cv2.waitKey(-1)  # wait until any key is pressed
-                        elif k == ord('r'):  # resume the video
-                            continue
-                        elif k == ord('d'):
-                            slow_factor = self.slow_factor - 1
-                            print(slow_factor)
-                        elif k == ord('i'):
-                            slow_factor = self.slow_factor + 1
-                            print(slow_factor)
-                            break
-                    else:
-                        pass
-
-                    # Store results
-                    if self.save_results:
-                        for track in self.tracker.tracked_stracks:
-                            data_dict["frame_id"].append(track.frame_id)
-                            data_dict["tracker_id"].append(track.track_id)
-                            data_dict["class_id"].append(track.class_ids)
-                            data_dict["x1"].append(track.tlbr[0])
-                            data_dict["y1"].append(track.tlbr[1])
-                            data_dict["x2"].append(track.tlbr[2])
-                            data_dict["y2"].append(track.tlbr[3])
-                            # data_dict["write_video_time"].append(write_video_time)
+                if frame is None:
+                    break
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                annotated_frame = self.process_frame(frame_rgb, self.frame_capture.get_frame_count(),
+                                                     fps_counter.value(), config_export)
+                fps_counter.step()
+                if self.save_video and not self.display:
+                    start_time_write_video = time.perf_counter()
+                    self.video_writer.write_frame(annotated_frame)
+                    write_video_time = time.perf_counter() - start_time_write_video
+                    self.write_video_time_list.append(write_video_time)
+                if self.display:
+                    height, width, channel = annotated_frame.shape
+                    bytes_per_line = 3 * width
+                    q_image = QImage(annotated_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
+                    self.frame_ready.emit(q_image, fps_counter.value())
+                if self.save_results:
+                    for track in self.tracker.tracked_stracks:
+                        data_dict["frame_id"].append(self.frame_capture.get_frame_count())
+                        data_dict["tracker_id"].append(track.track_id)
+                        data_dict["class_id"].append(track.class_id)
+                        data_dict["x1"].append(track.tlbr[0])
+                        data_dict["y1"].append(track.tlbr[1])
+                        data_dict["x2"].append(track.tlbr[2])
+                        data_dict["y2"].append(track.tlbr[3])
+                pbar.update(1)
                 timer_load_frame_start = time.perf_counter()
-            if self.display:
-                cv2.destroyAllWindows()
+            if self.save_video:
+                self.video_writer.stop()
 
-        # Print time and fps
-        time_taken = f"{int(timer.elapsed() / 60)} min {int(timer.elapsed() % 60)} sec"
-        avg_fps = self.video_info.total_frames / timer.elapsed()
+            if self.save_results:
+                # Write the collected data to a CSV file
+                with open(self.csv_path, 'w', newline='') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(data_dict.keys())
+                    writer.writerows(zip(*data_dict.values()))
+
+        pbar.close()
         print(f"\nTracking complete over {self.video_info.total_frames} frames.")
-        print(f"Total time: {time_taken}")
+        print(f"\nTracking complete over {self.video_info.total_frames} frames.")
+        print(f"Total time: {timer.elapsed():.2f} seconds")
+        avg_fps = self.video_info.total_frames / timer.elapsed()
         print(f"Average FPS: {avg_fps:.2f}")
-        self.video_fps = str(avg_fps).format("{:.2f}")
-        self.time_taken = f"{int(timer.elapsed() / 60)}:{int(timer.elapsed() % 60)}"
-
-        # Save datadict in csv
-        """if self.save_results:
-            with open(self.csv_path, "w") as f:
-                w = csv.writer(f)
-                w.writerow(data_dict.keys())
-                w.writerows(zip(*data_dict.values()))"""
+        self.video_fps = avg_fps
+        self.time_taken = timer.elapsed()
 
     def process_frame(self, frame: np.ndarray, frame_number: int, fps: float, config_export) -> np.ndarray:
         results = self.model.predict(
@@ -332,7 +363,7 @@ class VideoBenchmark:
             verbose=False,
             conf=self.conf_threshold,
             iou=self.iou_threshold,
-            imgsz=config_export.get('args', {}).get('imgsz', False),
+            imgsz=config_export.get('args', {}).get('imgsz'),
             device=self.device,
             max_det=self.max_det,
             half=config_export.get('args', {}).get('half', False),
@@ -357,7 +388,7 @@ class VideoBenchmark:
         ar_results = self.action_recognizer.recognize_frame(tracks)
         action_recognition_time = time.perf_counter() - start_time_action_recognition
         start_time_annotated_frame = time.perf_counter()
-        annotated_frame = self.annotate_frame(frame, detections, ar_results,  frame_number, fps)
+        annotated_frame = self.annotate_frame(frame, detections, ar_results, frame_number, fps)
         annotated_frame_time = time.perf_counter() - start_time_annotated_frame
 
         self.model_times.append(model_speed_inference)
@@ -368,21 +399,29 @@ class VideoBenchmark:
         self.annotated_frame_times.append(annotated_frame_time)
 
         return annotated_frame
-
-    def annotate_frame(self, frame: np.ndarray, detections: sv.Detections, ar_results: None, frame_number: int,
+    def annotate_frame(self, annotated_frame: np.ndarray, detections: sv.Detections, ar_results: None,
+                       frame_number: int,
                        fps: float) -> np.ndarray:
-        annotated_frame = frame.copy()
 
         labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
                   zip(detections.tracker_id, detections.class_id, detections.confidence)]
+
         annotated_frame = self.trace_annotator.annotate(annotated_frame, detections)
         annotated_frame = self.box_annotator.annotate(annotated_frame, detections, labels)
+        # annotated_frame = self.label_annotator.annotate(annotated_frame, labels)
         annotated_frame = self.action_recognizer.annotate(annotated_frame, ar_results)
-        cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
+        # cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        # cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         return annotated_frame
+
+    def toggle_pause(self):
+        self.paused = not self.paused
+
+    def cleanup(self):
+        self.frame_capture.stop()
+        if self.save_video:
+            self.video_writer.stop()
 
 
 if __name__ == "__main__":
@@ -436,5 +475,3 @@ if __name__ == "__main__":
     ]
     benchmark = VideoBenchmark(config)
     benchmark.run_benchmark(model_names, videos, export_configs)
-
-
