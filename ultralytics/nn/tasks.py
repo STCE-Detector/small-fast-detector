@@ -19,6 +19,10 @@ from ultralytics.nn.modules import (
     Bottleneck,
     BottleneckCSP,
     C2f,
+    C2fSum,
+    C2fPConv,
+    C2fPConvEMA,
+    C2fPConvSimAM,
     C3Ghost,
     C3x,
     Classify,
@@ -27,7 +31,10 @@ from ultralytics.nn.modules import (
     Conv2,
     ConvTranspose,
     Detect,
+    DetectLateDecoup,
+    DetectLateDecoupV2,
     DWConv,
+    PConv,
     DWConvTranspose2d,
     Focus,
     GhostBottleneck,
@@ -55,6 +62,15 @@ from ultralytics.utils.torch_utils import (
     scale_img,
     time_sync,
 )
+from ultralytics.nn.modules.backbone.repghost import C2f_repghost
+from ultralytics.nn.modules.backbone.ghostnetv2 import C2fGhostV2, GhostModuleV2, GhostBottleneckV2
+from ultralytics.nn.modules.backbone.gghostnet import C2f_g_ghostBottleneck
+from ultralytics.nn.modules.backbone.vanillanet import VanillaBlock
+from ultralytics.nn.modules.headv2.goldyolo import IFM, SimFusion_3in, SimFusion_4in, InjectionMultiSum_Auto_pool, \
+    PyramidPoolAgg, TopBasicLayer, AdvPoolFusion
+from ultralytics.nn.modules.headv2.cbam import ResBlock_CBAM
+from ultralytics.nn.modules.backbone.dynamic_ghost import C2f_GhostDynamicConv
+from ultralytics.nn.modules.backbone.ghostnetv2_orig import GhostBottleneckV2_orig, GhostModuleV2_orig, GhostConv2_orig
 
 try:
     import thop
@@ -169,7 +185,7 @@ class BaseModel(nn.Module):
         """
         if not self.is_fused():
             for m in self.model.modules():
-                if isinstance(m, (Conv, Conv2, DWConv)) and hasattr(m, "bn"):
+                if isinstance(m, (Conv, Conv2, DWConv, PConv)) and hasattr(m, "bn"):
                     if isinstance(m, Conv2):
                         m.fuse_convs()
                     m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
@@ -222,7 +238,7 @@ class BaseModel(nn.Module):
         """
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Segment)):
+        if isinstance(m, (Detect, Segment, DetectLateDecoup, DetectLateDecoupV2)):
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
             m.strides = fn(m.strides)
@@ -281,7 +297,7 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Segment, Pose, OBB)):
+        if isinstance(m, (Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2)):
             s = 256  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, Pose, OBB)) else self.forward(x)
@@ -677,7 +693,7 @@ def attempt_load_weights(weights, device=None, inplace=True, fuse=False):
     # Module updates
     for m in ensemble.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -713,7 +729,7 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     # Module updates
     for m in model.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -755,36 +771,68 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
 
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         if m in (
-            Classify,
-            Conv,
-            ConvTranspose,
-            GhostConv,
-            Bottleneck,
-            GhostBottleneck,
-            SPP,
-            SPPF,
-            DWConv,
-            Focus,
-            BottleneckCSP,
-            C1,
-            C2,
-            C2f,
-            C3,
-            C3TR,
-            C3Ghost,
-            nn.ConvTranspose2d,
-            DWConvTranspose2d,
-            C3x,
-            RepC3,
+                Classify,
+                Conv,
+                ConvTranspose,
+                GhostConv,
+                Bottleneck,
+                GhostBottleneck,
+                SPP,
+                SPPF,
+                DWConv,
+                PConv,
+                Focus,
+                BottleneckCSP,
+                C1,
+                C2,
+                C2f,
+                C2fSum,
+                C2fPConv,
+                C2fPConvEMA,
+                C2fPConvSimAM,
+                C3,
+                C3TR,
+                C3Ghost,
+                nn.ConvTranspose2d,
+                DWConvTranspose2d,
+                C3x,
+                RepC3,
+                C2fGhostV2,
+                C2f_repghost,
+                C2f_g_ghostBottleneck,
+                VanillaBlock,
+                ResBlock_CBAM,
+                C2f_GhostDynamicConv,
+                GhostBottleneckV2_orig,
+                GhostModuleV2_orig,
+                GhostConv2_orig
         ):
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
 
             args = [c1, c2, *args[1:]]
-            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3):
+
+            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3, C2fGhostV2, C2f_repghost,
+                     C2f_g_ghostBottleneck, C2f_GhostDynamicConv, VanillaBlock, C2fPConv, C2fPConvEMA, C2fPConvSimAM, C2fSum):
                 args.insert(2, n)  # number of repeats
                 n = 1
+            if m in {Conv, GhostConv, Bottleneck, GhostBottleneck, GhostModuleV2, GhostBottleneckV2, DWConv,
+                     Focus, BottleneckCSP, C3, C3TR, GhostBottleneckV2_orig, PConv,
+                     GhostModuleV2_orig, GhostConv2_orig}:
+                if 'act' in d.keys():
+                    args_dict = {"act": d['act']}
+
+        elif m is GhostBottleneckV2_orig:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            if len(args) >= 3:
+                dw_kernel_size, s, se_ratio, layer_id, act, downscale = args[1:]
+                args = [c1, c2, dw_kernel_size, s, se_ratio, layer_id, act, downscale]
+            else:
+                args = [c1, c2, *args[1:]]
+
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in (HGStem, HGBlock):
@@ -799,12 +847,34 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             args = [ch[f]]
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
-        elif m in (Detect, Segment, Pose, OBB):
+        elif m in (Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2):
             args.append([ch[x] for x in f])
             if m is Segment:
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
+        #####################gold-yolo##################
+        elif m in {SimFusion_4in, AdvPoolFusion}:
+            c2 = sum(ch[x] for x in f)
+        elif m is SimFusion_3in:
+            c2 = args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [[ch[f_] for f_ in f], c2]
+        elif m is IFM:
+            c1 = ch[f]
+            c2 = sum(args[0])
+            args = [c1, *args]
+        elif m is InjectionMultiSum_Auto_pool:
+            c1 = ch[f[0]]
+            c2 = args[0]
+            args = [c1, *args]
+        elif m is PyramidPoolAgg:
+            c2 = args[0]
+            args = [sum([ch[f_] for f_ in f]), *args]
+        elif m is TopBasicLayer:
+            c2 = sum(args[1])
+        #####################gold-yolo##################
         else:
             c2 = ch[f]
 
@@ -902,7 +972,7 @@ def guess_model_task(model):
                 return cfg2task(eval(x))
 
         for m in model.modules():
-            if isinstance(m, Detect):
+            if isinstance(m, Detect, DetectLateDecoup, DetectLateDecoupV2):
                 return "detect"
             elif isinstance(m, Segment):
                 return "segment"

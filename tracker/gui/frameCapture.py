@@ -21,6 +21,7 @@ class FrameCapture:
         self.frame_count = 0
         self.frame_size = (width, height)
         self.stopped = False
+
     def start(self):
         self.stopped = False
         self.vcap.start()

@@ -28,6 +28,10 @@ from .block import (
     Bottleneck,
     BottleneckCSP,
     C2f,
+    C2fSum,
+    C2fPConv,
+    C2fPConvEMA,
+    C2fPConvSimAM,
     C3Ghost,
     C3x,
     GhostBottleneck,
@@ -50,9 +54,12 @@ from .conv import (
     GhostConv,
     LightConv,
     RepConv,
+    PConv,
     SpatialAttention,
+    EMA,
+    SimAM
 )
-from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment
+from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, DetectLateDecoup, DetectLateDecoupV2
 from .transformer import (
     AIFI,
     MLP,
@@ -69,6 +76,7 @@ from .transformer import (
 __all__ = (
     "Conv",
     "Conv2",
+    "PConv",
     "LightConv",
     "RepConv",
     "DWConv",
@@ -93,6 +101,10 @@ __all__ = (
     "C2",
     "C3",
     "C2f",
+    "C2fSum",
+    "C2fPConv",
+    "C2fPConvEMA",
+    "C2fPConvSimAM",
     "C3x",
     "C3TR",
     "C3Ghost",
@@ -101,6 +113,8 @@ __all__ = (
     "BottleneckCSP",
     "Proto",
     "Detect",
+    "DetectLateDecoup",
+    "DetectLateDecoupV2",
     "Segment",
     "Pose",
     "Classify",
@@ -114,4 +128,6 @@ __all__ = (
     "MLP",
     "ResNetLayer",
     "OBB",
+    "EMA",
+    "SimAM"
 )

@@ -47,4 +47,8 @@ head:
   - [[-1, 12], 1, Concat, [1]]  # cat head P4
   - [-1, 3, C2f, [512]]  # 24 (P4/16-medium)
 
-  - [[18, 21, 24], 1, Detect, [nc]]  # Detect(P2, P3, P4)
+  - [-1, 1, Conv, [512, 3, 2]]
+  - [[-1, 9], 1, Concat, [1]]  # cat head P5
+  - [-1, 3, C2f, [1024]]  # 27 (P5/32-large)
+
+  - [[18, 21, 24, 27], 1, DetectLateDecoup, [nc]]  # Detect(P2, P3, P4, P5)

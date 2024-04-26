@@ -1,6 +1,10 @@
 import sys
 import argparse
 import csv
+import os
+
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 import cv2
 import numpy as np
@@ -10,8 +14,6 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication
 from tqdm import tqdm
 
-
-from tracker import ByteTrack
 from tracker.action_recognition import ActionRecognizer
 from tracker.gui.GUI import VideoDisplay
 from tracker.gui.frameCapture import FrameCapture
@@ -20,11 +22,10 @@ from tracker.utils.cfg.parse_config import ConfigParser
 from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
 
-COLORS = sv.ColorPalette.default()
-import os
+import tracker.trackers as trackers
 
-os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-# os.environ["QT_DEBUG_PLUGINS"] = "1"
+COLORS = sv.ColorPalette.default()
+
 ci_build_and_not_headless = False
 try:
     from cv2.version import ci_build, headless
@@ -36,47 +37,66 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_FONTDIR")
 
+
 class VideoProcessor(QObject):
     frame_ready = pyqtSignal(QImage, float)
 
     def __init__(self, config) -> None:
         super(VideoProcessor, self).__init__()
-        # Initialize the YOLO parameters
+
+        # Read the YOLO detector parameters
         self.conf_threshold = config["conf_threshold"]
         self.iou_threshold = config["iou_threshold"]
         self.img_size = config["img_size"]
         self.max_det = config["max_det"]
+        self.agnostic_nms = config["agnostic_nms"]
 
         self.source_video_path = config["source_stream_path"]
-
         self.output_dir = config.save_dir
         self.target_video_path = str(self.output_dir / "annotated_video.mp4")
 
         self.device = config["device"]
-        self.video_stride = config["video_stride"]
 
+        # Load the YOLO model
         self.model = YOLO(config["source_weights_path"])
-        self.paused = False
 
         # TODO: CHECK IF MAINTAIN THIS
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
         # TODO : CHECK TO PUT IN A THREAD
-        self.tracker = ByteTrack(config, frame_rate=self.video_info.fps)
+        self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.video_info)
 
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
-        self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
-                                                 thickness=2)
+        self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
 
         self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
                                           stream_mode=config["stream_mode"], logging=config["logging"])
+        self.paused = False
+
+        self.frame_skip_interval = 100/(100-config["fps_reduction"])
 
         self.display = config["display"]
         self.save_video = config["save_video"]
         self.save_results = config["save_results"]
-        self.csv_path = str(self.output_dir) + "/track_data.csv"
         if self.save_video and self.display:
             raise ValueError("Cannot display and save video at the same time")
+        if self.save_results:
+            self.csv_path = str(self.output_dir) + "/track_data.csv"
+            self.data_dict = {
+                "frame_id": [],
+                "tracker_id": [],
+                "class_id": [],
+                "x1": [],
+                "y1": [],
+                "x2": [],
+                "y2": []
+            }
+        if self.save_video:
+            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
+                                            compression_mode=config["compression_mode"],
+                                            logging=config["logging"],
+                                            fps=self.frame_capture.get_fps())
+            self.video_writer.start()
 
         self.class_names = {
             0: "person",
@@ -88,13 +108,6 @@ class VideoProcessor(QObject):
         }
 
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
-        if self.save_video:
-            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
-                                            compression_mode=config["compression_mode"],
-                                            logging=config["logging"],
-                                            fps=self.frame_capture.get_fps())
-            self.video_writer.start()
-
 
     def process_video(self):
         print(f"Processing video: {self.source_video_path} ...")
@@ -102,55 +115,57 @@ class VideoProcessor(QObject):
         print(f"Original video FPS: {self.video_info.fps}")
         print(f"Original video number of frames: {self.video_info.total_frames}\n")
 
+        pbar = tqdm(total=self.video_info.total_frames, desc="Processing Frames", unit="frame")
         fps_counter = FrameRateCounter()
         timer = Timer()
+        frame_count = 0
         self.frame_capture.start()
 
-        pbar = tqdm(total=self.video_info.total_frames, desc="Processing Frames", unit="frame")
-
-        # Data dictionary to accumulate CSV data
-        if self.save_results:
-            data_dict = {
-                "frame_id": [],
-                "tracker_id": [],
-                "class_id": [],
-                "x1": [],
-                "y1": [],
-                "x2": [],
-                "y2": []
-            }
         while True:
             if not self.paused:
                 frame = self.frame_capture.read()
+                frame_count += 1
                 if frame is None:
                     break
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                annotated_frame = self.process_frame(frame_rgb, self.frame_capture.get_frame_count(), fps_counter.value())
-                fps_counter.step()
-                if self.save_video and not self.display:
-                    self.video_writer.write_frame(annotated_frame)
-                if self.display:
-                    height, width, channel = annotated_frame.shape
-                    bytes_per_line = 3 * width
-                    q_image = QImage(annotated_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
-                    self.frame_ready.emit(q_image, fps_counter.value())
-                if self.save_results:
-                    for track in self.tracker.tracked_stracks:
-                        data_dict["frame_id"].append(self.frame_capture.get_frame_count())
-                        data_dict["tracker_id"].append(track.track_id)
-                        data_dict["class_id"].append(track.class_id)
-                        data_dict["x1"].append(track.tlbr[0])
-                        data_dict["y1"].append(track.tlbr[1])
-                        data_dict["x2"].append(track.tlbr[2])
-                        data_dict["y2"].append(track.tlbr[3])
+
+                if frame_count >= self.frame_skip_interval:
+                    annotated_frame = self.process_frame(frame_rgb, self.frame_capture.get_frame_count(), fps_counter.value())
+                    fps_counter.step()
+                    frame_count -= self.frame_skip_interval
+
+                    if self.save_video and not self.display:
+                        self.video_writer.write_frame(annotated_frame)
+
+                    if self.display:
+                        height, width, channel = annotated_frame.shape
+                        bytes_per_line = 3 * width
+                        q_image = QImage(annotated_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
+                        self.frame_ready.emit(q_image, fps_counter.value())
+
+                    if self.save_results:
+                        for track in self.tracker.active_tracks:
+                            self.data_dict["frame_id"].append(self.frame_capture.get_frame_count())
+                            self.data_dict["tracker_id"].append(track.track_id)
+                            self.data_dict["class_id"].append(track.class_id)
+                            self.data_dict["x1"].append(track.tlbr[0])
+                            self.data_dict["y1"].append(track.tlbr[1])
+                            self.data_dict["x2"].append(track.tlbr[2])
+                            self.data_dict["y2"].append(track.tlbr[3])
+                else:
+                    # TODO: when static skipping is > 0, video not generated, solve this (skipping should start by true)
+                    if self.save_video and not self.display:
+                        #self.video_writer.write_frame(annotated_frame)
+                        px=0
+                    fps_counter.step()
+
                 pbar.update(1)
 
             if self.save_results:
-                # Write the collected data to a CSV file
                 with open(self.csv_path, 'w', newline='') as file:
                     writer = csv.writer(file)
-                    writer.writerow(data_dict.keys())
-                    writer.writerows(zip(*data_dict.values()))
+                    writer.writerow(self.data_dict.keys())
+                    writer.writerows(zip(*self.data_dict.values()))
 
         pbar.close()
         print(f"\nTracking complete over {self.video_info.total_frames} frames.")
@@ -168,7 +183,9 @@ class VideoProcessor(QObject):
             imgsz=self.img_size,
             device=self.device,
             max_det=self.max_det,
+            agnostic_nms=self.agnostic_nms,
         )[0]
+        # TODO: compare the results with the results from the ByteTrack tracker, losing detections
         detections = sv.Detections.from_ultralytics(results)
         detections, tracks = self.tracker.update(detections, frame)
 
@@ -176,8 +193,7 @@ class VideoProcessor(QObject):
         return self.annotate_frame(frame, detections, ar_results, frame_number, fps)
 
     def annotate_frame(self, annotated_frame: np.ndarray, detections: sv.Detections, ar_results: None,
-                       frame_number: int,
-                       fps: float) -> np.ndarray:
+                       frame_number: int, fps: float) -> np.ndarray:
 
         labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
@@ -204,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--config",
-        default="./ByteTrack.json",
+        default="./cfg/ByteTrack.json",
         type=str,
         help="config file path (default: None)",
     )
