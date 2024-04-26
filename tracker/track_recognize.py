@@ -118,7 +118,7 @@ class VideoProcessor(QObject):
         pbar = tqdm(total=self.video_info.total_frames, desc="Processing Frames", unit="frame")
         fps_counter = FrameRateCounter()
         timer = Timer()
-        frame_count = 0
+        frame_count = 1
         self.frame_capture.start()
 
         while True:
@@ -135,6 +135,7 @@ class VideoProcessor(QObject):
                     frame_count -= self.frame_skip_interval
 
                     if self.save_video and not self.display:
+                        annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                         self.video_writer.write_frame(annotated_frame)
 
                     if self.display:
@@ -155,8 +156,7 @@ class VideoProcessor(QObject):
                 else:
                     # TODO: when static skipping is > 0, video not generated, solve this (skipping should start by true)
                     if self.save_video and not self.display:
-                        #self.video_writer.write_frame(annotated_frame)
-                        px=0
+                        self.video_writer.write_frame(annotated_frame)
                     fps_counter.step()
 
                 pbar.update(1)
