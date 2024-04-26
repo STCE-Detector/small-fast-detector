@@ -22,6 +22,7 @@ class ActionRecognizer:
         self.speed_projection = np.array(config["speed_projection"])
         # Gathering parameters
         self.g_enabled = config["gather"]["enabled"]
+        self.g_min_people = config["gather"]["min_people"]
         self.g_distance_threshold = config["gather"]["distance_threshold"]
         self.g_area_threshold = config["gather"]["area_threshold"]
         # Standing still parameters
@@ -180,7 +181,7 @@ class ActionRecognizer:
                         pairs.append([i, j])
 
         # Find independent chains in the graph
-        crowds = self.get_independent_chains(pairs)
+        crowds = self.get_independent_chains(pairs, self.g_min_people)
 
         # For each crowd, compute the bounding box and store it in the results dictionary
         if len(crowds) > 0:
@@ -214,7 +215,7 @@ class ActionRecognizer:
         return distance/np.sqrt(mean_area), a1, a2
 
     @staticmethod
-    def get_independent_chains(pairs):
+    def get_independent_chains(pairs, min_people=3):
         """
         Finds the independent chains in a graph, where each node is a detection and each edge is a pair of detections
         linked by the distance threshold.
@@ -229,7 +230,7 @@ class ActionRecognizer:
         # Find connected components
         independent_chains = list(nx.connected_components(g))
         # Filter out chains having less than 3 elements
-        valid_chains = [chain for chain in independent_chains if len(chain) > 2]
+        valid_chains = [chain for chain in independent_chains if len(chain) > (min_people-1)]
         return valid_chains
 
     @staticmethod
