@@ -45,6 +45,9 @@ class FrameCapture:
     def get_frame_size(self):
         return self.frame_size
 
+    def get_stop(self):
+        return self.stopped
+
     def stop(self):
         # Safely close the video stream
         self.frame_count = 0

@@ -138,6 +138,7 @@ class VideoProcessor(QObject):
                         self.video_writer.write_frame(annotated_frame)
 
                     if self.display:
+                        print(annotated_frame)
                         height, width, channel = annotated_frame.shape
                         bytes_per_line = 3 * width
                         q_image = QImage(annotated_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
@@ -210,6 +211,7 @@ class VideoProcessor(QObject):
         self.paused = not self.paused
 
     def cleanup(self):
+        print("Cleaning up...")
         self.frame_capture.stop()
         if self.save_video:
             self.video_writer.stop()

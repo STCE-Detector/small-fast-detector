@@ -65,7 +65,6 @@ class VideoDisplay(QGraphicsView):
         self.timer.start(0 if not self.sync_fps else int(1000 / self.worker.frame_capture.get_fps()))
 
     def update_display(self, q_image, fps):
-        # Draw FPS on the image using QPainter
         painter = QPainter(q_image)
         painter.setFont(QFont("Arial", 32))
         painter.setPen(QColor("yellow"))
@@ -77,6 +76,11 @@ class VideoDisplay(QGraphicsView):
         self.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
         if self.sync_fps:
             self.timer.start(0 if not self.sync_fps else int(1000 / 30))
+
+        if self.worker.frame_capture.get_stop():
+            self.timer.stop()
+            self.thread.quit()
+            self.close()
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key.Key_P:
