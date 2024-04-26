@@ -14,7 +14,6 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 from tqdm import tqdm
 
-from tracker import ByteTrack
 from tracker.action_recognition import ActionRecognizer
 from tracker.gui.GUI import VideoDisplay
 from tracker.gui.frameCapture import FrameCapture
@@ -22,6 +21,8 @@ from tracker.gui.frameProcessing import VideoWriter
 from tracker.utils.cfg.parse_config import ConfigParser
 from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
+
+import tracker.trackers as trackers
 
 COLORS = sv.ColorPalette.default()
 
@@ -54,7 +55,7 @@ class VideoProcessor(QObject):
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
         # TODO : CHECK TO PUT IN A THREAD
-        self.tracker = ByteTrack(config, frame_rate=self.video_info.fps)
+        self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.video_info)
 
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,thickness=2)
@@ -134,7 +135,7 @@ class VideoProcessor(QObject):
                         self.frame_ready.emit(q_image, fps_counter.value())
 
                     if self.save_results:
-                        for track in self.tracker.tracked_stracks:
+                        for track in self.tracker.active_tracks:
                             self.data_dict["frame_id"].append(self.frame_capture.get_frame_count())
                             self.data_dict["tracker_id"].append(track.track_id)
                             self.data_dict["class_id"].append(track.class_id)
@@ -204,7 +205,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--config",
-        default="./ByteTrack.json",
+        default="./cfg/SFSORT.json",
         type=str,
         help="config file path (default: None)",
     )
