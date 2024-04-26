@@ -13,7 +13,8 @@ import supervision as sv
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtGui import QImage
 from tqdm import tqdm
-
+import warnings
+warnings.filterwarnings("ignore")
 from tracker import ByteTrack
 from tracker.action_recognition import ActionRecognizer
 from tracker.gui.frameCapture import FrameCapture
@@ -28,7 +29,17 @@ COLORS = sv.ColorPalette.default()
 import os
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+ci_build_and_not_headless = False
+try:
+    from cv2.version import ci_build, headless
+    ci_and_not_headless = ci_build and not headless
+except:
+    pass
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_FONTDIR")
 
 
 def is_numeric(value):
@@ -120,6 +131,12 @@ class VideoBenchmark(QObject):
             4: "airplane",
             5: "boat",
         }
+        if self.save_video:
+            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
+                                            compression_mode=config["compression_mode"],
+                                            logging=config["logging"],
+                                            fps=self.frame_capture.get_fps())
+            self.video_writer.start()
 
     def load_model(self, model_path, model_format):
         def check_file_exists(path, arch):
@@ -183,6 +200,7 @@ class VideoBenchmark(QObject):
 
         # TODO : CHECK TO PUT IN A THREAD
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
+        self.label_annotator = sv.LabelAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
                                                  thickness=2)
 
@@ -268,13 +286,6 @@ class VideoBenchmark(QObject):
         print(f"Original video FPS: {self.video_info.fps}")
         print(f"Original video number of frames: {self.video_info.total_frames}\n")
 
-        if self.save_video:
-            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
-                                            compression_mode=config["compression_mode"],
-                                            logging=config["logging"],
-                                            fps=self.frame_capture.get_fps())
-            self.video_writer.start()
-
         fps_counter = FrameRateCounter()
         timer = Timer()
         self.frame_capture.start()
@@ -339,6 +350,7 @@ class VideoBenchmark(QObject):
 
         pbar.close()
         print(f"\nTracking complete over {self.video_info.total_frames} frames.")
+        print(f"\nTracking complete over {self.video_info.total_frames} frames.")
         print(f"Total time: {timer.elapsed():.2f} seconds")
         avg_fps = self.video_info.total_frames / timer.elapsed()
         print(f"Average FPS: {avg_fps:.2f}")
@@ -394,8 +406,10 @@ class VideoBenchmark(QObject):
         labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
                   zip(detections.tracker_id, detections.class_id, detections.confidence)]
+
         annotated_frame = self.trace_annotator.annotate(annotated_frame, detections)
         annotated_frame = self.box_annotator.annotate(annotated_frame, detections, labels)
+        # annotated_frame = self.label_annotator.annotate(annotated_frame, labels)
         annotated_frame = self.action_recognizer.annotate(annotated_frame, ar_results)
         # cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         # cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
@@ -430,26 +444,8 @@ if __name__ == "__main__":
 
     config = ConfigParser.from_args(parser)
     export_configs = [
-        {'format': 'pytorch', 'args': {'imgsz': 640, 'half': False}},
-        {'format': 'pytorch', 'args': {'imgsz': 1280, 'half': False}},
-        {'format': 'pytorch', 'args': {'imgsz': 640, 'half': True}},
-        {'format': 'pytorch', 'args': {'imgsz': 1280, 'half': True}},
-        {'format': 'torchscript', 'args': {'imgsz': 640, 'optimize': False}},
-        {'format': 'torchscript', 'args': {'imgsz': 1280, 'optimize': False}},
-        {'format': 'onnx','args': {'imgsz': 640, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
-        {'format': 'onnx','args': {'imgsz': 1280, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False}},
-        {'format': 'onnx','args': {'imgsz': 640, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
-        {'format': 'onnx','args': {'imgsz': 1280, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True}},
-        {'format': 'onnx', 'args': {'imgsz': 640, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
-        {'format': 'onnx', 'args': {'imgsz': 1280, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True}},
-        {'format': 'engine', 'args': {'imgsz': 640, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False, 'workspace': 6}},
-        {'format': 'engine', 'args': {'imgsz': 1280, 'half': False, 'dynamic': False, 'int8': False, 'simplify': False, 'workspace': 6}},
-        {'format': 'engine','args': {'imgsz': 640, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 6}},
-        {'format': 'engine','args': {'imgsz': 1280, 'half': False, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 6}},
+
         {'format': 'engine', 'args': {'imgsz': 640, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 6}},
-        {'format': 'engine', 'args': {'imgsz': 1280, 'half': True, 'dynamic': False, 'int8': False, 'simplify': True, 'workspace': 6}},
-        {'format': 'engine', 'args': {'imgsz': 640, 'half': False, 'dynamic': True, 'int8': True, 'simplify': True, 'workspace': 6}},
-        {'format': 'engine', 'args': {'imgsz': 1280, 'half': False, 'dynamic': True, 'int8': True, 'simplify': True, 'workspace': 6}},
     ]
     benchmark = VideoBenchmark(config)
     benchmark.run_benchmark(model_names, videos, export_configs)

@@ -53,11 +53,11 @@ class VideoWriter:
 
 # Usage example
 if __name__ == "__main__":
-    cap = cv2.VideoCapture(0)  # Adjust the source as needed
+    cap = cv2.VideoCapture("../videos/MOT16-01-raw.mp4")  # Adjust the source as needed
     ret, test_frame = cap.read()
     if ret:  # Make sure the capture is successful to get the frame dimensions
         frame_size = (test_frame.shape[1], test_frame.shape[0])
-        writer = VideoWriter('output.mp4', frame_size, 30)
+        writer = VideoWriter('output.mp4', frame_size, False, 30)
         writer.start()
 
         while True:

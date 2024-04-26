@@ -1,5 +1,4 @@
 import sys
-from PIL.ImageQt import QImage
 import argparse
 import csv
 import os
@@ -10,8 +9,9 @@ os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 import cv2
 import numpy as np
 import supervision as sv
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QApplication
+from PyQt5.QtGui import QImage
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtWidgets import QApplication
 from tqdm import tqdm
 
 from tracker.action_recognition import ActionRecognizer
@@ -25,6 +25,17 @@ from ultralytics import YOLO
 import tracker.trackers as trackers
 
 COLORS = sv.ColorPalette.default()
+
+ci_build_and_not_headless = False
+try:
+    from cv2.version import ci_build, headless
+    ci_and_not_headless = ci_build and not headless
+except:
+    pass
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
+if sys.platform.startswith("linux") and ci_and_not_headless:
+    os.environ.pop("QT_QPA_FONTDIR")
 
 
 class VideoProcessor(QObject):
@@ -48,8 +59,6 @@ class VideoProcessor(QObject):
 
         # Load the YOLO model
         self.model = YOLO(config["source_weights_path"])
-        self.model.fuse()
-        self.model.to(self.device)
 
         # TODO: CHECK IF MAINTAIN THIS
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
@@ -58,7 +67,7 @@ class VideoProcessor(QObject):
         self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.video_info)
 
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
-        self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,thickness=2)
+        self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
 
         self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
                                           stream_mode=config["stream_mode"], logging=config["logging"])
@@ -144,12 +153,13 @@ class VideoProcessor(QObject):
                             self.data_dict["x2"].append(track.tlbr[2])
                             self.data_dict["y2"].append(track.tlbr[3])
                 else:
+                    # TODO: when static skipping is > 0, video not generated, solve this (skipping should start by true)
+                    if self.save_video and not self.display:
+                        #self.video_writer.write_frame(annotated_frame)
+                        px=0
                     fps_counter.step()
 
                 pbar.update(1)
-
-            if self.save_video:
-                self.video_writer.stop()
 
             if self.save_results:
                 with open(self.csv_path, 'w', newline='') as file:
@@ -162,6 +172,7 @@ class VideoProcessor(QObject):
         print(f"Total time: {timer.elapsed():.2f} seconds")
         avg_fps = self.video_info.total_frames / timer.elapsed()
         print(f"Average FPS: {avg_fps:.2f}")
+        self.cleanup()
 
     def process_frame(self, frame: np.ndarray, frame_number: int, fps: float) -> np.ndarray:
         results = self.model.predict(
@@ -179,16 +190,20 @@ class VideoProcessor(QObject):
         detections, tracks = self.tracker.update(detections, frame)
 
         ar_results = self.action_recognizer.recognize_frame(tracks)
+        return self.annotate_frame(frame, detections, ar_results, frame_number, fps)
 
-        return self.annotate_frame(frame, detections, ar_results)
+    def annotate_frame(self, annotated_frame: np.ndarray, detections: sv.Detections, ar_results: None,
+                       frame_number: int, fps: float) -> np.ndarray:
 
-    def annotate_frame(self, annotated_frame: np.ndarray, detections: sv.Detections, ar_results: None) -> np.ndarray:
         labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
                   zip(detections.tracker_id, detections.class_id, detections.confidence)]
         annotated_frame = self.trace_annotator.annotate(annotated_frame, detections)
         annotated_frame = self.box_annotator.annotate(annotated_frame, detections, labels)
         annotated_frame = self.action_recognizer.annotate(annotated_frame, ar_results)
+        if self.save_video:
+            cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         return annotated_frame
 
     def toggle_pause(self):
@@ -205,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--config",
-        default="./cfg/SFSORT.json",
+        default="./cfg/ByteTrack.json",
         type=str,
         help="config file path (default: None)",
     )

@@ -21,15 +21,20 @@ class FrameCapture:
         self.frame_count = 0
         self.frame_size = (width, height)
         self.stopped = False
+
     def start(self):
         self.stopped = False
         self.vcap.start()
 
     def read(self):
-        # Simply read from the VidGear capture
         if not self.stopped:
+            frame = self.vcap.read()
+            if frame is None:
+                self.stop()
+                return None
             self.frame_count += 1
-            return self.vcap.read()
+            return frame
+        return None
 
     def get_frame_count(self):
         return self.frame_count
