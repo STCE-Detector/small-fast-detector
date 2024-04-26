@@ -6,12 +6,12 @@ import torch
 
 from supervision import Detections
 from ultralytics.utils.downloads import safe_download
-from .basetrack import BaseTrack, TrackState
-from .utils import matching
-from .utils.gmc import GMC
-from .utils.kalman_filter import KalmanFilterXYAH
-from .utils.preprocessing import extract_image_patches
-from .utils.slm import load_model
+from tracker.trackers.bytetrack.basetrack import BaseTrack, TrackState
+from tracker.utils import matching
+from tracker.utils.gmc import GMC
+from tracker.utils.kalman_filter import KalmanFilterXYAH
+from tracker.utils.preprocessing import extract_image_patches
+from tracker.utils.slm import load_model
 
 
 class STrack(BaseTrack):
@@ -310,9 +310,10 @@ class ByteTrack:
         remove_duplicate_stracks(stracksa, stracksb): Removes duplicate stracks based on IOU.
     """
 
-    def __init__(self, args, frame_rate=30):
+    def __init__(self, args, video_info):
         """Initialize a YOLOv8 object to track objects with given arguments and frame rate."""
 
+        self.active_tracks = []     # Only for csv writing
         self.tracked_stracks = []  # type: list[STrack]
         self.lost_stracks = []  # type: list[STrack]
         self.removed_stracks = []  # type: list[STrack]
@@ -325,7 +326,7 @@ class ByteTrack:
         self.track_low_thresh = args["track_low_thresh"]
         self.new_track_thresh = args["new_track_thresh"]
 
-        self.buffer_size = np.int8(frame_rate / 30.0 * args["track_buffer"])
+        self.buffer_size = np.int8(video_info.fps / 30.0 * args["track_buffer"])
         self.max_time_lost = self.buffer_size
         self.kalman_filter = self.get_kalmanfilter()
 
@@ -510,7 +511,7 @@ class ByteTrack:
         if len(self.removed_stracks) > 1000:
             self.removed_stracks = self.removed_stracks[-999:]  # clip remove stracks to 1000 maximum
         # Filter activated tracks
-        activated_tracks = [track for track in self.tracked_stracks if track.is_activated]
+        self.active_tracks = [track for track in self.tracked_stracks if track.is_activated]
 
 
         # STEP 6: Process detection information of activated tracks so that it can be used for further visualization
@@ -521,7 +522,7 @@ class ByteTrack:
         confidences = []
 
         # Prepare data for Detections and tracks in a single loop
-        for track in activated_tracks:
+        for track in self.active_tracks:
             xyxy.append(track.tlbr)
             class_ids.append(int(track.class_ids))
             tracker_ids.append(int(track.track_id))
@@ -536,7 +537,7 @@ class ByteTrack:
         # Create Detections object
         detections = Detections(xyxy=xyxy, class_id=class_ids, tracker_id=tracker_ids, confidence=confidences)
 
-        return detections, activated_tracks
+        return detections, self.active_tracks
 
     def get_kalmanfilter(self):
         """Returns a Kalman filter object for tracking bounding boxes."""
