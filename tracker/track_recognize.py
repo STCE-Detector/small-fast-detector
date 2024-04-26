@@ -138,7 +138,6 @@ class VideoProcessor(QObject):
                         self.video_writer.write_frame(annotated_frame)
 
                     if self.display:
-                        print(annotated_frame)
                         height, width, channel = annotated_frame.shape
                         bytes_per_line = 3 * width
                         q_image = QImage(annotated_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
