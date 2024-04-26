@@ -56,8 +56,6 @@ class VideoProcessor(QObject):
         self.video_stride = config["video_stride"]
 
         self.model = YOLO(config["source_weights_path"])
-        self.model.fuse()
-        self.model.to(self.device)
         self.paused = False
 
         # TODO: CHECK IF MAINTAIN THIS
