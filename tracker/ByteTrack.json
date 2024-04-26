@@ -1,6 +1,6 @@
 {
   "name": "qualitative",
-  "source_weights_path": "./models/8s_300e_128b.engine",
+  "source_weights_path": "./models/8sp2_150e_64b.engine",
   "source_stream_path": "./videos/MOT16-01-raw.mp4",
   "stabilize": false,
   "logging": false,
@@ -13,12 +13,12 @@
   "save_results": false,
   "save_video": false,
   "compression_mode": true,
-  "display": true,
+  "display": false,
 
   "img_size": 640,
   "conf_threshold": 0.1,
   "iou_threshold": 0.7,
-  "max_det": 50,
+  "max_det": 300,
 
   "track_high_thresh": 0.4,
   "track_low_thresh": 0.1,
@@ -35,7 +35,7 @@
   "gmc_method": null,
 
   "action_recognition": {
-    "enabled": true,
+    "enabled": false,
     "speed_projection": [0.7, 1.5],
     "_comment": "",
 
