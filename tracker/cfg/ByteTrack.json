@@ -3,10 +3,10 @@
 
   "tracker_name": "ByteTrack",
 
-  "source_weights_path": "./detectors/8sp2_150.pt",
-  "source_stream_path": "/Users/inaki-eab/Desktop/TAR_data/selection/11.mp4",
+  "source_weights_path": "./detectors/8sp2_150e_64b.pt",
+  "source_stream_path": "./videos/demo.mp4",
 
-  "device": "cuda",
+  "device": "mps",
   "fps_reduction": 20,
 
   "save_dir": "./outputs/",

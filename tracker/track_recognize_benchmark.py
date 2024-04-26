@@ -14,6 +14,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtGui import QImage
 from tqdm import tqdm
 import warnings
+
 warnings.filterwarnings("ignore")
 import tracker.trackers as trackers
 from tracker.action_recognition import ActionRecognizer
@@ -33,6 +34,7 @@ os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 ci_build_and_not_headless = False
 try:
     from cv2.version import ci_build, headless
+
     ci_and_not_headless = ci_build and not headless
 except:
     pass
@@ -90,8 +92,6 @@ class VideoBenchmark(QObject):
         self.max_det = self.config["max_det"]
         self.agnostic_nms = config["agnostic_nms"]
 
-        self.source_video_path = self.config["source_stream_path"]
-
         self.output_dir = self.config.save_dir
         self.target_video_path = str(self.output_dir / "annotated_video.mp4")
         self.paused = False
@@ -130,12 +130,6 @@ class VideoBenchmark(QObject):
             4: "airplane",
             5: "boat",
         }
-        if self.save_video:
-            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
-                                            compression_mode=config["compression_mode"],
-                                            logging=config["logging"],
-                                            fps=self.frame_capture.get_fps())
-            self.video_writer.start()
 
     def load_model(self, model_path, model_format):
         def check_file_exists(path, arch):
@@ -202,11 +196,18 @@ class VideoBenchmark(QObject):
         self.label_annotator = sv.LabelAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100,
                                                  thickness=2)
-
-        self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
-                                          stream_mode=config["stream_mode"], logging=config["logging"])
         self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.video_info)
         self.action_recognizer = ActionRecognizer(self.config["action_recognition"], self.video_info)
+        self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
+                                          stream_mode=config["stream_mode"], logging=config["logging"])
+
+        self.frame_capture.start()
+        if self.save_video:
+            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
+                                            compression_mode=config["compression_mode"],
+                                            logging=config["logging"],
+                                            fps=self.frame_capture.get_fps())
+            self.video_writer.start()
 
     def reset_times(self):
         self.model_times = []
@@ -251,6 +252,7 @@ class VideoBenchmark(QObject):
                     }
                     all_video_results.append(video_results)
                     self.reset_times()
+                    self.cleanup()
 
                 # Compute averages of all metrics across videos for the current model configuration
                 averaged_results = {
@@ -278,6 +280,7 @@ class VideoBenchmark(QObject):
 
         df = pd.DataFrame(results)
         df.to_csv("./benchmark_tracker.csv", index=False)
+        self.cleanup()
 
     def process_video(self, config_export):
         print(f"Processing video: {self.source_video_path} ...")
@@ -287,7 +290,7 @@ class VideoBenchmark(QObject):
 
         fps_counter = FrameRateCounter()
         timer = Timer()
-        self.frame_capture.start()
+        # self.frame_capture.start()
 
         pbar = tqdm(total=self.video_info.total_frames, desc="Processing Frames", unit="frame")
 
@@ -398,6 +401,7 @@ class VideoBenchmark(QObject):
         self.annotated_frame_times.append(annotated_frame_time)
 
         return annotated_frame
+
     def annotate_frame(self, annotated_frame: np.ndarray, detections: sv.Detections, ar_results: None,
                        frame_number: int,
                        fps: float) -> np.ndarray:
