@@ -3,6 +3,7 @@
 
 # Base ----------------------------------------
 cmake
+lapx
 matplotlib>=3.8.4
 numpy>=1.26.4 # pinned by Snyk to avoid a vulnerability
 # opencv-python>=4.9.0.80
@@ -35,8 +36,8 @@ onnxruntime-silicon>=1.16.3; sys_platform == 'darwin' and platform_machine == 'a
 onnxsim>=0.4.36
 onnxoptimizer>=0.3.13
 
-nvidia-pyindex; sys_platform != 'darwin' # TensorRT export
-nvidia-tensorrt; sys_platform != 'darwin'  # TensorRT export
+# nvidia-pyindex; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+# nvidia-tensorrt; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
 # scikit-learn==0.19.2  # CoreML quantization
 # tensorflow>=2.4.1  # TF exports (-cpu, -aarch64, -macos)
 # tflite-support
