@@ -6,15 +6,17 @@ from time import time
 
 import os
 
-from PyQt5.QtCore import (Qt, pyqtSignal, QObject, QThread, QTimer)
-from PyQt5.QtGui import QImage, QPainter, QFont, QColor, QKeyEvent, QPixmap
-from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
+from PySide6.QtCore import QObject, QThread, QTimer
+from PySide6.QtGui import QImage, QPainter, QFont, QColor, Qt, QPixmap, QKeyEvent
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
+from PySide6.QtCore import Signal
+
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 
 class FrameWorker(QObject):
-    frame_ready = pyqtSignal(QImage, float)  # Emit both the QImage and the calculated FPS
+    frame_ready = Signal(QImage, float)  # Emit both the QImage and the calculated FPS
 
     def __init__(self, video_path):
         super(FrameWorker, self).__init__()

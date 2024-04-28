@@ -3,15 +3,17 @@ import argparse
 import csv
 import os
 
+from PySide6.QtCore import QObject
+from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Signal
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 import cv2
 import numpy as np
 import supervision as sv
-from PyQt5.QtGui import QImage
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtWidgets import QApplication
 from tqdm import tqdm
 
 from tracker.action_recognition import ActionRecognizer
@@ -39,7 +41,7 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 
 
 class VideoProcessor(QObject):
-    frame_ready = pyqtSignal(QImage, float)
+    frame_ready = Signal(QImage, float)
 
     def __init__(self, config) -> None:
         super(VideoProcessor, self).__init__()

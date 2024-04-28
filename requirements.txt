@@ -51,5 +51,7 @@ pycocotools>=2.0.7  # COCO mAP
 hub-sdk>=0.0.4  # PyTorch Hub
 vidgear[asyncio]
 simplejpeg
+timm
+einops
 
 # roboflow
