@@ -2,6 +2,7 @@
 # Example: pip install -r requirements.txt
 
 # Base ----------------------------------------
+cmake
 matplotlib>=3.8.4
 numpy>=1.26.4 # pinned by Snyk to avoid a vulnerability
 # opencv-python>=4.9.0.80
