@@ -10,8 +10,8 @@ import csv
 import cv2
 import numpy as np
 import supervision as sv
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtGui import QImage
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QImage
 from tqdm import tqdm
 import warnings
 
@@ -79,7 +79,7 @@ def compute_averages(all_arch_results):
 
 
 class VideoBenchmark(QObject):
-    frame_ready = pyqtSignal(QImage, float)
+    frame_ready = Signal(QImage, float)
 
     def __init__(self, config) -> None:
         super(VideoBenchmark, self).__init__()
