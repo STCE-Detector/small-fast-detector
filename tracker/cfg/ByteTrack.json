@@ -6,13 +6,14 @@
   "source_weights_path": "./detectors/8sp2_150e_64b.pt",
   "source_stream_path": "./videos/demo.mp4",
 
-  "device": "cuda",
+  "device": "mps",
   "fps_reduction": 0,
 
   "save_dir": "./outputs/",
   "save_results": false,
   "save_video": false,
   "display": true,
+  "sync_fps": false,
   "stabilize": false,
   "logging": false,
   "stream_mode": false,

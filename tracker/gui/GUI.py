@@ -65,11 +65,11 @@ class VideoDisplay(QGraphicsView):
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.worker.process_video)
-        self.timer.start(0 if not self.sync_fps else int(1000 / self.worker.frame_capture.get_fps()))
+        self.timer.start(int(1000 / self.worker.frame_capture.get_fps() if self.sync_fps else 0))
 
     def update_display(self, q_image, fps):
         painter = QPainter(q_image)
-        painter.setFont(QFont("Arial", 32))
+        painter.setFont(QFont("Arial", 38))
         painter.setPen(QColor("yellow"))
         painter.drawText(q_image.rect(), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, f"FPS: {fps:.2f}")
         painter.end()
@@ -77,8 +77,6 @@ class VideoDisplay(QGraphicsView):
         pixmap = QPixmap.fromImage(q_image)
         self.pixmap_item.setPixmap(pixmap)
         self.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
-        if self.sync_fps:
-            self.timer.start(0 if not self.sync_fps else int(1000 / 30))
 
         if self.worker.frame_capture.get_stop():
             self.timer.stop()
@@ -90,7 +88,7 @@ class VideoDisplay(QGraphicsView):
             self.worker.toggle_pause()
         elif event.key() == Qt.Key.Key_F:
             self.sync_fps = not self.sync_fps
-            self.timer.start(0 if not self.sync_fps else int(1000 / self.worker.frame_capture.get_fps()))
+            self.timer.start(int(1000 / self.worker.frame_capture.get_fps() if self.sync_fps else 0))
         elif event.key() == Qt.Key.Key_Q:
             self.close()
             self.worker.cleanup()
