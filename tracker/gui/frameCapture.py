@@ -11,12 +11,12 @@ class FrameCapture:
         self.source = source
         if isinstance(self.source, int):
             # Use CamGear for optimized live stream handling
-            self.vcap = CamGear(source=self.source, stream_mode=stream_mode, logging=logging)
+            self.vcap = CamGear(source=self.source, stream_mode=stream_mode, logging=logging, time_delay=2)
             height, width, _ = self.vcap.frame.shape
             self.fps = self.vcap.framerate
         else:
             # Use VideoGear for general video file handling
-            self.vcap = VideoGear(source=self.source, stabilize=stabilize, stream_mode=stream_mode, logging=logging)
+            self.vcap = VideoGear(source=self.source, stabilize=stabilize, stream_mode=stream_mode, logging=logging, time_delay=2)
             height, width, _ = self.vcap.stream.frame.shape
             self.fps = self.vcap.stream.framerate
         self.video_info = sv.VideoInfo.from_video_path(self.source)
