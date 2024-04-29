@@ -65,7 +65,7 @@ class VideoDisplay(QGraphicsView):
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.worker.process_video)
-        self.timer.start(int(1000 / self.worker.frame_capture.get_fps() if self.sync_fps else 0))
+        self.timer.start(int(1000 / self.worker.frame_capture.get_fps() if not self.sync_fps else 0))
 
     def update_display(self, q_image, fps):
         painter = QPainter(q_image)
@@ -88,7 +88,7 @@ class VideoDisplay(QGraphicsView):
             self.worker.toggle_pause()
         elif event.key() == Qt.Key.Key_F:
             self.sync_fps = not self.sync_fps
-            self.timer.start(int(1000 / self.worker.frame_capture.get_fps() if self.sync_fps else 0))
+            self.timer.start(int(1000 / self.worker.frame_capture.get_fps() if not self.sync_fps else 0))
         elif event.key() == Qt.Key.Key_Q:
             self.close()
             self.worker.cleanup()

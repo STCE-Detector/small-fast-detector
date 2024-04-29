@@ -73,6 +73,7 @@ class VideoProcessor(QObject):
 
         self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
                                           stream_mode=config["stream_mode"], logging=config["logging"])
+        self.frame_capture.start()
         self.paused = False
 
         self.frame_skip_interval = 100/(100-config["fps_reduction"])
@@ -121,8 +122,6 @@ class VideoProcessor(QObject):
         fps_counter = FrameRateCounter()
         timer = Timer()
         frame_count = 0
-        self.frame_capture.start()
-
         while True:
             if not self.paused:
                 frame = self.frame_capture.read()
