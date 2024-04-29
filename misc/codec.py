@@ -1,39 +1,61 @@
-import time
+# import the necessary packages
 from deffcode import FFdecoder
+import cv2
 
-# Path to the video file
-video_path = "/Users/johnny/Projects/small-fast-detector/tracker/videos/demo.mp4"
+# define suitable FFmpeg parameter
+ffparams = {
+    "-vcodec": None,  # skip source decoder and let FFmpeg chose
+    "-enforce_cv_patch": True, # enable OpenCV patch for YUV(NV12) frames
+    "-ffprefixes": [
+        "-vsync",
+        "0",  # prevent duplicate frames
+        "-hwaccel",
+        "cuda",  # accelerator
+        "-hwaccel_output_format",
+        "cuda",  # output accelerator
+    ],
+    "-custom_resolution": "null",  # discard source `-custom_resolution`
+    "-framerate": "null",  # discard source `-framerate`
+    "-vf": "scale_cuda=640:360,"  # scale to 640x360 in GPU memory
+    + "fps=60.0,"  # framerate 60.0fps in GPU memory
+    + "hwdownload,"  # download hardware frames to system memory
+    + "format=nv12",  # convert downloaded frames to NV12 pixel format
+}
 
-# Initialize and formulate the decoder
-decoder = FFdecoder(video_path).formulate()
+# initialize and formulate the decoder with `foo.mp4` source
+decoder = FFdecoder(
+    "/home/johnny/Projects/small-fast-detector/tracker/videos/demo.mp4",
+    frame_format="null",  # discard source frame pixel format
+    verbose=True, # enable verbose output
+    **ffparams # apply various params and custom filters
+)
 
-# Initialize a list to store frame timestamps
-frame_times = []
+decoder = decoder.formulate()
 
-# Generate and process frames
-try:
-    start_time = time.time()  # Record the start time of the frame processing
+# grab the NV12 frame from the decoder
+for frame in decoder.generateFrame():
 
-    for frame in decoder.generateFrame():
-        if frame is None:
-            break
+    # check if frame is None
+    if frame is None:
+        break
 
-        # Process the frame (e.g., display or analyze)
-        # {do something with the frame here}
-        print(frame.shape)  # For example, print the shape of the frame (1080, 1920, 3)
+    # convert it to `BGR` pixel format,
+    # since imshow() method only accepts `BGR` frames
+    frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_NV12)
 
-        # Record the timestamp after processing each frame
-        frame_times.append(time.time())
+    # {do something with the BGR frame here}
 
-finally:
-    # Always ensure the decoder is properly terminated
-    decoder.terminate()
+    # Show output window
+    cv2.imshow("Output", frame)
 
-# Calculate and print the FPS
-if frame_times:
-    total_time = frame_times[-1] - start_time
-    num_frames = len(frame_times)
-    fps = num_frames / total_time
-    print(f"Processed {num_frames} frames in {total_time:.2f} seconds, resulting in an FPS of {fps:.2f}")
-else:
-    print("No frames were processed.")
+    # check for 'q' key if pressed
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord("q"):
+        break
+
+
+# close output window
+cv2.destroyAllWindows()
+
+# terminate the decoder
+decoder.terminate()
