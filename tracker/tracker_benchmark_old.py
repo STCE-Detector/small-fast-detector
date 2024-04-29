@@ -212,8 +212,8 @@ class VideoBenchmark:
                         'write_video_time_list': self.write_video_time_list,
                         'timer_load_frame_list': self.timer_load_frame_list,
                         'FPS_model': [1 / (x / 1000) if x != 0 else 1 for x in self.model_times],
-                        'FPS_video': [self.video_fps],
-                        'time_taken_seconds': self.time_taken
+                        'FPS_video': [float(self.video_fps)],
+                        'time_taken_seconds': [float(self.time_taken)]
                     }
                     all_video_results.append(video_results)
                     self.reset_times()
@@ -318,8 +318,8 @@ class VideoBenchmark:
         print(f"\nTracking complete over {self.video_info.total_frames} frames.")
         print(f"Total time: {time_taken}")
         print(f"Average FPS: {avg_fps:.2f}")
-        self.video_fps = str(avg_fps).format("{:.2f}")
-        self.time_taken = f"{int(timer.elapsed() / 60)}:{int(timer.elapsed() % 60)}"
+        self.video_fps = avg_fps
+        self.time_taken = timer.elapsed()
 
         # Save datadict in csv
         """if self.save_results:

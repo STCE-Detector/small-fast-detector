@@ -12,7 +12,7 @@
   "save_dir": "./outputs/",
   "save_results": false,
   "save_video": false,
-  "display": true,
+  "display": false,
   "stabilize": false,
   "logging": false,
   "stream_mode": false,
