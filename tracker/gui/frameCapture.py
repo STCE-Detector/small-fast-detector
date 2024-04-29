@@ -4,6 +4,8 @@ import cv2
 from vidgear.gears import VideoGear, CamGear
 import supervision as sv
 
+
+
 class FrameCapture:
     def __init__(self, source=0, stabilize=False, stream_mode=False, logging=False):
         self.source = source

@@ -53,6 +53,7 @@ thop>=0.1.1  # FLOPs computation
 pycocotools>=2.0.7  # COCO mAP
 hub-sdk>=0.0.8  # PyTorch Hub
 vidgear[asyncio]
+deffcode
 PySide6>=6.7.0
 simplejpeg
 timm

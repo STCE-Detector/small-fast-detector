@@ -71,7 +71,7 @@ from ultralytics.data.dataset import YOLODataset
 from ultralytics.data.utils import check_det_dataset
 from ultralytics.nn.autobackend import check_class_names, default_class_names
 from ultralytics.nn.modules import C2f, Detect, RTDETRDecoder
-from ultralytics.nn.tasks import DetectionModel, SegmentationModel
+from ultralytics.nn.tasks import DetectionModel, SegmentationModel, WorldModel
 from ultralytics.utils import (
     ARM64,
     DEFAULT_CFG,
@@ -200,11 +200,23 @@ class Exporter:
             self.args.half = False
             assert not self.args.dynamic, "half=True not compatible with dynamic=True, i.e. use only one."
         self.imgsz = check_imgsz(self.args.imgsz, stride=model.stride, min_dim=2)  # check image size
+        if self.args.int8 and engine:
+            self.args.dynamic = True  # enforce dynamic export when using INT8 for TensorRT export
+            if self.args.data is None:
+                LOGGER.warning("WARNING ⚠️ data argument required for TensorRT INT8 export, using data='coco128.yaml'")
+                self.args.data = self.args.data or "coco128.yaml"
         if self.args.optimize:
             assert not ncnn, "optimize=True not compatible with format='ncnn', i.e. use optimize=False"
             assert self.device.type == "cpu", "optimize=True not compatible with cuda devices, i.e. use device='cpu'"
         if edgetpu and not LINUX:
             raise SystemError("Edge TPU export only supported on Linux. See https://coral.ai/docs/edgetpu/compiler/")
+        if isinstance(model, WorldModel):
+            LOGGER.warning(
+                "WARNING ⚠️ YOLOWorld (original version) export is not supported to any format.\n"
+                "WARNING ⚠️ YOLOWorldv2 models (i.e. 'yolov8s-worldv2.pt') only support export to "
+                "(torchscript, onnx, openvino, engine, coreml) formats. "
+                "See https://docs.ultralytics.com/models/yolo-world for details."
+            )
 
         # Input
         im = torch.zeros(self.args.batch, 3, *self.imgsz).to(self.device)
@@ -212,8 +224,7 @@ class Exporter:
             getattr(model, "pt_path", None) or getattr(model, "yaml_file", None) or model.yaml.get("yaml_file", "")
         )
         if file.suffix in {".yaml", ".yml"}:
-            # file = Path(file.name)
-            file = Path(self.args.project + '/' + file.name if self.args.project is not None else file.name)
+            file = Path(file.name)
 
         # Update model
         model = deepcopy(model).to(self.device)
@@ -694,7 +705,7 @@ class Exporter:
         half = builder.platform_has_fast_fp16 and self.args.half
         int8 = builder.platform_has_fast_int8 and self.args.int8
 
-        if self.args.dynamic or int8:  # always use dynamic with int8
+        if self.args.dynamic:
             shape = self.im.shape
             if shape[0] <= 1:
                 LOGGER.warning(f"{prefix} WARNING ⚠️ 'dynamic=True' model requires max batch size, i.e. 'batch=16'")
@@ -710,6 +721,7 @@ class Exporter:
             from ultralytics.data import load_inference_source
             from ultralytics.data.loaders import infer_preprocess
 
+            config.set_calibration_profile(profile)  # set calibration profile
             preprocessor = partial(
                 infer_preprocess,
                 imgsz=self.imgsz,
@@ -768,14 +780,14 @@ class Exporter:
                         # Return [] or None, signal to TensorRT there is no calibration data remaining
                         return None
 
-                def read_calibration_cache(self) -> None:
+                def read_calibration_cache(self) -> bytes | None:
                     """
                     If there is a cache, use it instead of calibrating again.
 
                     Otherwise, implicitly return None.
                     """
                     if self.cache.exists() and self.cache.suffix == ".cache":
-                        _ = self.cache.read_bytes()
+                        return self.cache.read_bytes()
 
                 def write_calibration_cache(self, cache) -> None:
                     """Write calibration cache to disk."""
@@ -784,7 +796,7 @@ class Exporter:
             LOGGER.info(f"{prefix} building INT8 engine as {f}")
             data = check_det_dataset(self.args.data)
 
-            bsize = int(2 * self.args.batch)  # int8 calibration should use at least 2x batch size
+            bsize = int(2 * max(self.args.batch, 4))  # int8 calibration should use at least 2x batch size
             dataset = load_inference_source(data["val"], batch=bsize)
             n = len(dataset) * bsize
             if n < 500:
