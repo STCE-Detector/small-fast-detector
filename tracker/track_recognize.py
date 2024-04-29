@@ -230,7 +230,7 @@ if __name__ == "__main__":
     config = ConfigParser.from_args(parser)
     if config["display"]:
         app = QApplication(sys.argv)
-        video_display = VideoDisplay(processor=VideoProcessor(config))
+        video_display = VideoDisplay(processor=VideoProcessor(config), sync_fps=config["sync_fps"])
         video_display.show()
         sys.exit(app.exec())
     else:
