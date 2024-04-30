@@ -64,13 +64,14 @@ def linear_assignment(cost_matrix, thresh, use_lap=True):
     return matches, unmatched_a, unmatched_b
 
 
-def iou_distance(atracks, btracks):
+def iou_distance(atracks, btracks, b=0.0):
     """
     Compute cost based on Intersection over Union (IoU) between tracks.
 
     Args:
         atracks (list[STrack] | list[np.ndarray]): List of tracks 'a' or bounding boxes.
         btracks (list[STrack] | list[np.ndarray]): List of tracks 'b' or bounding boxes.
+        b (float, optional): Buffer for detection bounding boxes. Defaults to 0.
 
     Returns:
         (np.ndarray): Cost matrix computed based on IoU.
@@ -84,11 +85,24 @@ def iou_distance(atracks, btracks):
         atlbrs = [track.tlbr for track in atracks]
         btlbrs = [track.tlbr for track in btracks]
 
+    atlbrs = np.ascontiguousarray(atlbrs, dtype=np.float32)
+    btlbrs = np.ascontiguousarray(btlbrs, dtype=np.float32)
+
+    if b > 0 and len(btlbrs) > 0:
+        widths = btlbrs[:, 2] - btlbrs[:, 0]
+        heights = btlbrs[:, 3] - btlbrs[:, 1]
+        buffer_widths = widths * b
+        buffer_heights = heights * b
+        buffered_boxes = np.empty_like(btlbrs)
+        buffered_boxes[:, 0] = btlbrs[:, 0] - buffer_widths
+        buffered_boxes[:, 1] = btlbrs[:, 1] - buffer_heights
+        buffered_boxes[:, 2] = btlbrs[:, 2] + buffer_widths
+        buffered_boxes[:, 3] = btlbrs[:, 3] + buffer_heights
+        btlbrs = buffered_boxes
+
     ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float32)
     if len(atlbrs) and len(btlbrs):
-        ious = bbox_ioa(np.ascontiguousarray(atlbrs, dtype=np.float32),
-                        np.ascontiguousarray(btlbrs, dtype=np.float32),
-                        iou=True)
+        ious = bbox_ioa(atlbrs, btlbrs, iou=True)
         # TODO: ideally, we should only match detections with their own class, could be done inside bbox_ioa?
         # Create a mask for different class IDs more efficiently
         class_ids_a = np.array([track.class_ids for track in atracks])
