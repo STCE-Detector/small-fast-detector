@@ -325,6 +325,9 @@ class ByteTrack:
         self.track_high_thresh = args["track_high_thresh"]
         self.track_low_thresh = args["track_low_thresh"]
         self.new_track_thresh = args["new_track_thresh"]
+        self.first_match_thresh = args["first_match_thresh"]
+        self.second_match_thresh = args["second_match_thresh"]
+        self.new_match_thresh = args["new_match_thresh"]
 
         self.buffer_size = np.int8(video_info.fps / 30.0 * args["track_buffer"])
         self.max_time_lost = self.buffer_size
@@ -423,9 +426,9 @@ class ByteTrack:
             STrack.multi_gmc(unconfirmed, warp)
 
         # Compute distance matrix
-        dists = self.get_dists(strack_pool, detections)
+        dists = self.get_dists(strack_pool, detections, conf_fuse=True, reid=True, buffer=0)
         # Perform data association
-        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args["match_thresh"])
+        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.first_match_thresh)
 
         # Update matched stracks with matched detections
         for itracked, idet in matches:
@@ -447,10 +450,9 @@ class ByteTrack:
         r_tracked_stracks = [strack_pool[i] for i in u_track if (strack_pool[i].state == TrackState.Tracked)]
 
         # Compute distance matrix only based on IoU
-        dists = matching.iou_distance(r_tracked_stracks, detections_second)
+        dists = self.get_dists(r_tracked_stracks, detections_second, conf_fuse=False, reid=False, buffer=0)
         # Perform data association only based on IoU distance and greater than 0.5
-        # TODO: model this threhshold
-        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)
+        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=self.second_match_thresh)
 
         # Update matched stracks with matched detections
         for itracked, idet in matches:
@@ -471,10 +473,10 @@ class ByteTrack:
                 lost_stracks.append(track)
 
         # Deal with unmatched detections from the first association and unconfirmed tracks (usually tracks with only one frame)
+        #TODO: is this necessary? Can't we just activate the unconfirmed tracks in their first frame?
         detections = [detections[i] for i in u_detection]
-        dists = self.get_dists(unconfirmed, detections)
-        # TODO: this threshold is arbitrary, model it
-        matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
+        dists = self.get_dists(unconfirmed, detections, conf_fuse=True, reid=False, buffer=0)
+        matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=self.new_match_thresh)
         for itracked, idet in matches:
             unconfirmed[itracked].update(detections[idet], self.frame_id)
             activated_stracks.append(unconfirmed[itracked])
@@ -558,15 +560,16 @@ class ByteTrack:
 
         return detections
 
-    def get_dists(self, tracks, detections):
+    def get_dists(self, tracks, detections, conf_fuse=True, reid=False, buffer=0):
         """Get distances between tracks and detections using IoU and (optionally) ReID embeddings."""
-        dists = matching.iou_distance(tracks, detections)
-        dists_mask = (dists > self.proximity_thresh)
-        # Originally only used with MOT20 dataset
-        # TODO: flag to enable/disable this feature
-        #dists = matching.fuse_score(dists, detections)
+        dists = matching.iou_distance(tracks, detections, b=buffer)
+        # TODO: set it in config
+        if conf_fuse:
+            # Originally only used with MOT20 dataset
+            dists = matching.fuse_score(dists, detections)
 
-        if self.with_reid and self.encoder is not None:
+        if self.with_reid and (self.encoder is not None) and reid:
+            dists_mask = (dists > self.proximity_thresh)
             emb_dists = matching.embedding_distance(tracks, detections) / 2.0
             emb_dists[emb_dists > self.appearance_thresh] = 1.0
             emb_dists[dists_mask] = 1.0

@@ -11,8 +11,8 @@
 
   "save_dir": "./outputs/",
   "save_results": false,
-  "save_video": true,
-  "display": false,
+  "save_video": false,
+  "display": true,
   "stabilize": false,
   "logging": false,
   "stream_mode": false,
@@ -28,8 +28,12 @@
     "track_high_thresh": 0.4,
     "track_low_thresh": 0.1,
     "new_track_thresh": 0.25,
-    "track_buffer": 200,
-    "match_thresh": 0.9,
+    "first_match_thresh": 0.9,
+    "second_match_thresh": 0.5,
+    "new_match_thresh": 0.7,
+
+    "track_buffer": 100,
+
     "proximity_thresh": 0.9,
     "appearance_thresh": 0.8,
     "with_reid": false,
