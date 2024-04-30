@@ -449,6 +449,7 @@ class ByteTrack:
         # Compute distance matrix only based on IoU
         dists = matching.iou_distance(r_tracked_stracks, detections_second)
         # Perform data association only based on IoU distance and greater than 0.5
+        # TODO: model this threhshold
         matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)
 
         # Update matched stracks with matched detections
@@ -472,6 +473,7 @@ class ByteTrack:
         # Deal with unmatched detections from the first association and unconfirmed tracks (usually tracks with only one frame)
         detections = [detections[i] for i in u_detection]
         dists = self.get_dists(unconfirmed, detections)
+        # TODO: this threshold is arbitrary, model it
         matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
         for itracked, idet in matches:
             unconfirmed[itracked].update(detections[idet], self.frame_id)
@@ -561,12 +563,14 @@ class ByteTrack:
         dists = matching.iou_distance(tracks, detections)
         dists_mask = (dists > self.proximity_thresh)
         # Originally only used with MOT20 dataset
-        dists = matching.fuse_score(dists, detections)
+        # TODO: flag to enable/disable this feature
+        #dists = matching.fuse_score(dists, detections)
 
         if self.with_reid and self.encoder is not None:
             emb_dists = matching.embedding_distance(tracks, detections) / 2.0
             emb_dists[emb_dists > self.appearance_thresh] = 1.0
             emb_dists[dists_mask] = 1.0
+            # TODO: should be sum?
             dists = np.minimum(dists, emb_dists)
 
             # TODO: SMILE TRACK IMPLEMENTATION
