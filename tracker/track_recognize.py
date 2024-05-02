@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Signal
+from jetson_utils_python import cudaToNumpy
 
 from ultralytics.utils import IS_JETSON
 
@@ -134,14 +135,16 @@ class VideoProcessor(QObject):
         frame_count = 0
         while True:
             if not self.paused:
-                frame = self.frame_capture.Capture()
+                try:
+                    frame = self.frame_capture.capture()
+                except Exception as e:
+                    frame = None
                 frame_count += 1
                 if frame is None:
                     break
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
                 if frame_count >= self.frame_skip_interval:
-                    annotated_frame = self.process_frame(frame_rgb, self.frame_capture.get_frame_count(), fps_counter.value())
+                    annotated_frame = self.process_frame(frame, self.frame_capture.get_frame_count(), fps_counter.value())
                     fps_counter.step()
                     frame_count -= self.frame_skip_interval
 
@@ -149,9 +152,10 @@ class VideoProcessor(QObject):
                         self.video_writer.write_frame(annotated_frame)
 
                     if self.display:
+                        frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                         height, width, channel = annotated_frame.shape
                         bytes_per_line = 3 * width
-                        q_image = QImage(annotated_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
+                        q_image = QImage(frame_rgb.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
                         self.frame_ready.emit(q_image, fps_counter.value())
 
                     if self.save_results:
@@ -222,16 +226,7 @@ class VideoProcessor(QObject):
 
     def cleanup(self):
         print("Cleaning up...")
-        if not IS_JETSON:
-            self.frame_capture.stop()
-        else:
-            try:
-                from tracker.jetson.video import VideoSource
-                self.frame_capture = VideoSource(self.source_video_path)
-            except Exception as e:
-                print(f"Failed to open video source: {e}")
-                sys.exit(1)
-
+        self.frame_capture.stop()
         if self.save_video:
             self.video_writer.stop()
 

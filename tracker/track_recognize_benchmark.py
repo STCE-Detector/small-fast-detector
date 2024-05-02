@@ -317,13 +317,16 @@ class VideoBenchmark(QObject):
         timer_load_frame_start = 0
         while True:
             if not self.paused:
-                frame = self.frame_capture.Capture()
+                frame = self.frame_capture.capture()
                 timer_load_frame_end = time.perf_counter() if self.frame_capture.get_frame_count() != 0 else 0
                 timer_load_frame = timer_load_frame_end - timer_load_frame_start
                 self.timer_load_frame_list.append(timer_load_frame)
                 pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
                 if frame is None:
                     break
+                if IS_JETSON:
+                    if self.frame_capture.IsStreaming():
+                        break
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 annotated_frame = self.process_frame(frame_rgb, self.frame_capture.get_frame_count(),
                                                      fps_counter.value(), config_export)
