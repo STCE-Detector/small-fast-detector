@@ -8,6 +8,8 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Signal
 
+from ultralytics.utils import IS_JETSON
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
@@ -71,9 +73,17 @@ class VideoProcessor(QObject):
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
 
-        self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
-                                          stream_mode=config["stream_mode"], logging=config["logging"])
-        self.frame_capture.start()
+        if not IS_JETSON:
+            self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
+                                              stream_mode=config["stream_mode"], logging=config["logging"])
+            self.frame_capture.start()
+        else:
+            try:
+                from tracker.jetson.video import VideoSource
+                self.frame_capture = VideoSource(self.source_video_path)
+            except Exception as e:
+                print(f"Failed to open video source: {e}")
+                sys.exit(1)
         self.paused = False
 
         self.frame_skip_interval = 100/(100-config["fps_reduction"])
@@ -124,7 +134,7 @@ class VideoProcessor(QObject):
         frame_count = 0
         while True:
             if not self.paused:
-                frame = self.frame_capture.read()
+                frame = self.frame_capture.Capture()
                 frame_count += 1
                 if frame is None:
                     break
@@ -212,7 +222,16 @@ class VideoProcessor(QObject):
 
     def cleanup(self):
         print("Cleaning up...")
-        self.frame_capture.stop()
+        if not IS_JETSON:
+            self.frame_capture.stop()
+        else:
+            try:
+                from tracker.jetson.video import VideoSource
+                self.frame_capture = VideoSource(self.source_video_path)
+            except Exception as e:
+                print(f"Failed to open video source: {e}")
+                sys.exit(1)
+
         if self.save_video:
             self.video_writer.stop()
 

@@ -28,7 +28,7 @@ class FrameCapture:
         self.stopped = False
         self.vcap.start()
 
-    def read(self):
+    def Capture(self):
         if not self.stopped:
             frame = self.vcap.read()
             if frame is None:
@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
     try:
         while True:
-            frame = stream.read()
+            frame = stream.Capture()
             if frame is not None:
                 frame_count += 1
                 elapsed_time = time.time() - start_time

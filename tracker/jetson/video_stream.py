@@ -24,7 +24,7 @@ class VideoStream(Agent):
     It's also used as a basic test of video streaming before using more complex agents that rely on it.
     """
 
-    def __init__(self, video_input=None, video_output=None, **kwargs):
+    def __init__(self, video_input=None, video_output=None, video_output_bool=False, **kwargs):
         """
         Args:
           video_input (Plugin|str): the VideoSource plugin instance, or URL of the video stream or camera device.
@@ -34,59 +34,27 @@ class VideoStream(Agent):
 
         self.video_source = VideoSource(video_input, **kwargs)
         self.video_output = VideoOutput(video_output, **kwargs)
+        self.video_output_bool = video_output_bool
 
         self.video_source.add(self.on_video, threaded=False)
-        self.video_source.add(self.video_output)
+        if not self.video_output_bool:
+            self.video_source.add(self.video_output)
 
-        self.pipeline = [self.video_source]
-
+    def frame(self):
+        self.video_source.open()
+        self.video_output.open()
     def on_video(self, image):
         logging.debug(f"captured {image.width}x{image.height} frame from {self.video_source.resource}")
 
-class ArgParser(argparse.ArgumentParser):
-    Video = ['video_input', 'video_output']
-
-    def __init__(self, extras=Video, **kwargs):
-        super().__init__(formatter_class=argparse.ArgumentDefaultsHelpFormatter, **kwargs)
-        if 'video_input' in extras:
-            self.add_argument("--video-input", type=str, default=None,
-                              help="video camera device name, stream URL, file/dir path")
-            self.add_argument("--video-input-width", type=int, default=None,
-                              help="manually set the resolution of the video input")
-            self.add_argument("--video-input-height", type=int, default=None,
-                              help="manually set the resolution of the video input")
-            self.add_argument("--video-input-codec", type=str, default=None,
-                              choices=['h264', 'h265', 'vp8', 'vp9', 'mjpeg'],
-                              help="manually set the input video codec to use")
-            self.add_argument("--video-input-framerate", type=int, default=None,
-                              help="set the desired framerate of input video")
-            self.add_argument("--video-input-save", type=str, default=None,
-                              help="path to video file to save the incoming video feed to")
-
-        if 'video_output' in extras:
-            self.add_argument("--video-output", type=str, default=None, help="display, stream URL, file/dir path")
-            self.add_argument("--video-output-codec", type=str, default=None,
-                              choices=['h264', 'h265', 'vp8', 'vp9', 'mjpeg'], help="set the output video codec to use")
-            self.add_argument("--video-output-bitrate", type=int, default=None, help="set the output bitrate to use")
-            self.add_argument("--video-output-save", type=str, default=None,
-                              help="path to video file to save the outgoing video stream to")
-
-    def parse_args(self, **kwargs):
-        """
-        Override for parse_args() that does some additional configuration
-        """
-        args = super().parse_args(**kwargs)
-        logging.debug(f"{args}")
-        return args
+    def on_exit(self):
+        self.video_source.close()
+        self.video_output.close()
 
 def main():
-    parser = ArgParser()
-    parser.add_argument('--video-input', type=str, default='/dev/video0',
-                        help='URL of the video stream or camera device.')
-    parser.add_argument('--video-output', type=str, default='display://',
-                        help='Output stream URL or device ID.')
-
-    args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", type=str, help="URI of the input stream")
+    parser.add_argument("output", type=str, default="", nargs='?', help="URI of the output stream")
+    args = parser.parse_known_args()[0]
 
     # Setup logging
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')

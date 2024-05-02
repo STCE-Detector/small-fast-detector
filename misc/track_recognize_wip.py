@@ -104,10 +104,10 @@ class VideoProcessor(QObject):
             "frame_id": [], "tracker_id": [], "class_id": [], "x1": [], "y1": [], "x2": [], "y2": []
         } if self.save_results else None
 
-        frame = self.frame_capture.read()
+        frame = self.frame_capture.Capture()
         while frame is not None:
             if not self.paused:
-                frame = self.frame_capture.read()
+                frame = self.frame_capture.Capture()
                 if frame is None:
                     break
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
