@@ -8,7 +8,9 @@ import numpy as np
 
 from tracker.jetson.image import cuda_image
 from tracker.jetson.plugin import Plugin
+from ultralytics.utils import IS_JETSON
 from jetson_utils import videoSource, videoOutput, cudaDeviceSynchronize, cudaToNumpy
+
 
 class VideoSource(Plugin):
     """
@@ -122,6 +124,11 @@ class VideoSource(Plugin):
                     return
                 logging.error(f"Re-initializing video source \"{self.resource}\"")
                 self.reconnect()
+
+    def stop(self):
+        if self.stream is not None:
+            self.stream.Close()
+            self.stream = None
 
     @property
     def streaming(self):

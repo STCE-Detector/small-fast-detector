@@ -25,6 +25,7 @@ from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
 from ultralytics.utils.torch_utils import model_info
 import time
+from ultralytics.utils import IS_JETSON
 
 COLORS = sv.ColorPalette.default()
 import os
@@ -198,10 +199,18 @@ class VideoBenchmark(QObject):
                                                  thickness=2)
         self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.video_info)
         self.action_recognizer = ActionRecognizer(self.config["action_recognition"], self.video_info)
-        self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
-                                          stream_mode=config["stream_mode"], logging=config["logging"])
+        if not IS_JETSON:
+            self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
+                                              stream_mode=config["stream_mode"], logging=config["logging"])
+            self.frame_capture.start()
+        else:
+            try:
+                from tracker.jetson.video import VideoSource
+                self.frame_capture = VideoSource(self.source_video_path)
+            except Exception as e:
+                print(f"Failed to open video source: {e}")
+                sys.exit(1)
 
-        self.frame_capture.start()
         if self.save_video:
             self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
                                             compression_mode=config["compression_mode"],
@@ -308,7 +317,7 @@ class VideoBenchmark(QObject):
         timer_load_frame_start = 0
         while True:
             if not self.paused:
-                frame = self.frame_capture.read()
+                frame = self.frame_capture.Capture()
                 timer_load_frame_end = time.perf_counter() if self.frame_capture.get_frame_count() != 0 else 0
                 timer_load_frame = timer_load_frame_end - timer_load_frame_start
                 self.timer_load_frame_list.append(timer_load_frame)

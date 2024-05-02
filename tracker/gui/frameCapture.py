@@ -5,7 +5,6 @@ from vidgear.gears import VideoGear, CamGear
 import supervision as sv
 
 
-
 class FrameCapture:
     def __init__(self, source=0, stabilize=False, stream_mode=False, logging=False):
         self.source = source
@@ -16,7 +15,8 @@ class FrameCapture:
             self.fps = self.vcap.framerate
         else:
             # Use VideoGear for general video file handling
-            self.vcap = VideoGear(source=self.source, stabilize=stabilize, stream_mode=stream_mode, logging=logging, time_delay=2)
+            self.vcap = VideoGear(source=self.source, stabilize=stabilize, stream_mode=stream_mode, logging=logging,
+                                  time_delay=2)
             height, width, _ = self.vcap.stream.frame.shape
             self.fps = self.vcap.stream.framerate
         self.video_info = sv.VideoInfo.from_video_path(self.source)
@@ -28,7 +28,7 @@ class FrameCapture:
         self.stopped = False
         self.vcap.start()
 
-    def read(self):
+    def Capture(self):
         if not self.stopped:
             frame = self.vcap.read()
             if frame is None:
@@ -49,6 +49,20 @@ class FrameCapture:
 
     def get_stop(self):
         return self.stopped
+
+    @property
+    def streaming(self):
+        """
+        Returns true if the stream is currently open, false if closed or EOS.
+        """
+        return self.vcap.stream.isOpened()
+
+    @property
+    def eos(self):
+        """
+        Returns true if the stream is currently closed (EOS has been reached)
+        """
+        return not self.vcap.stream.stream
 
     def stop(self):
         # Safely close the video stream
@@ -77,7 +91,7 @@ if __name__ == '__main__':
 
     try:
         while True:
-            frame = stream.read()
+            frame = stream.Capture()
             if frame is not None:
                 frame_count += 1
                 elapsed_time = time.time() - start_time
