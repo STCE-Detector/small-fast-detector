@@ -59,22 +59,22 @@ import time
 import warnings
 from copy import deepcopy
 from datetime import datetime
-from functools import partial
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import torch
 
 from ultralytics.cfg import get_cfg
+from ultralytics.data.build import build_dataloader
 from ultralytics.data.dataset import YOLODataset
-from ultralytics.data.utils import check_det_dataset
+from ultralytics.data.utils import check_cls_dataset, check_det_dataset
 from ultralytics.nn.autobackend import check_class_names, default_class_names
 from ultralytics.nn.modules import C2f, Detect, RTDETRDecoder
 from ultralytics.nn.tasks import DetectionModel, SegmentationModel
 from ultralytics.utils import (
     ARM64,
     DEFAULT_CFG,
+    IS_JETSON,
     LINUX,
     LOGGER,
     MACOS,
@@ -667,6 +667,7 @@ class Exporter:
             import tensorrt as trt  # noqa
         check_version(trt.__version__, "7.0.0", hard=True)  # require tensorrt>=7.0.0
 
+        # Setup and checks
         LOGGER.info(f"\n{prefix} starting export with TensorRT {trt.__version__}...")
         is_trt10 = int(trt.__version__.split(".")[0]) >= 10  # is TensorRT >= 10
         assert Path(f_onnx).exists(), f"failed to export ONNX file: {f_onnx}"
@@ -675,6 +676,7 @@ class Exporter:
         if self.args.verbose:
             logger.min_severity = trt.Logger.Severity.VERBOSE
 
+        # Engine builder
         builder = trt.Builder(logger)
         config = builder.create_builder_config()
         workspace = int(self.args.workspace * (1 << 30))
@@ -684,19 +686,20 @@ class Exporter:
             config.max_workspace_size = workspace
         flag = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
         network = builder.create_network(flag)
+        half = builder.platform_has_fast_fp16 and self.args.half
+        int8 = builder.platform_has_fast_int8 and self.args.int8
+        # Read ONNX file
         parser = trt.OnnxParser(network, logger)
         if not parser.parse_from_file(f_onnx):
             raise RuntimeError(f"failed to load ONNX file: {f_onnx}")
 
+        # Network inputs
         inputs = [network.get_input(i) for i in range(network.num_inputs)]
         outputs = [network.get_output(i) for i in range(network.num_outputs)]
         for inp in inputs:
             LOGGER.info(f'{prefix} input "{inp.name}" with shape{inp.shape} {inp.dtype}')
         for out in outputs:
             LOGGER.info(f'{prefix} output "{out.name}" with shape{out.shape} {out.dtype}')
-
-        half = builder.platform_has_fast_fp16 and self.args.half
-        int8 = builder.platform_has_fast_int8 and self.args.int8
 
         if self.args.dynamic:
             shape = self.im.shape
@@ -711,17 +714,9 @@ class Exporter:
             config.add_optimization_profile(profile)
 
         if int8:
-            from ultralytics.data import load_inference_source
-            from ultralytics.data.loaders import infer_preprocess
-
-            config.set_calibration_profile(profile)  # set calibration profile
-            preprocessor = partial(
-                infer_preprocess,
-                imgsz=self.imgsz,
-                device=self.device,
-                half=False,  # enforce FP32
-                is_pt=True,  # export only for PyTorch models
-            )
+            config.set_flag(trt.BuilderFlag.INT8)
+            config.set_calibration_profile(profile)
+            config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
 
             class EngineCalibrator(trt.IInt8Calibrator):
                 TRT_INT8_CAL_ALGOS = {
@@ -733,9 +728,8 @@ class Exporter:
 
                 def __init__(
                     self,
-                    dataset,  # ultralytics.data.loaders.LoadImagesAndVideos
+                    dataset,  # ultralytics.data.build.InfiniteDataLoader
                     batch: int,
-                    preprocess: Callable,
                     calibration_algo: str = "ENTROPY_CALIBRATION_2",
                     cache: str = "",
                 ) -> None:
@@ -744,7 +738,6 @@ class Exporter:
                     self.data_iter = iter(dataset)
                     self.algo = self.fetch_algo(calibration_algo)
                     self.batch = batch
-                    self.preprocess = preprocess
                     self.cache = Path(cache)
 
                 def fetch_algo(self, algo: str = "ENTROPY_CALIBRATION_2") -> trt.CalibrationAlgoType:
@@ -767,8 +760,9 @@ class Exporter:
                 def get_batch(self, names) -> list[int] | None:
                     """Get the next batch to use for calibration, as a list of device memory pointers."""
                     try:
-                        _, im0s, _ = next(self.data_iter)
-                        return [int(self.preprocess(im0s).data_ptr())]
+                        im0s = next(self.data_iter)["img"] / 255.0
+                        im0s = im0s.to("cuda") if im0s.device.type == "cpu" else im0s
+                        return [int(im0s.data_ptr())]
                     except StopIteration:
                         # Return [] or None, signal to TensorRT there is no calibration data remaining
                         return None
@@ -787,24 +781,33 @@ class Exporter:
                     _ = self.cache.write_bytes(cache)
 
             LOGGER.info(f"{prefix} building INT8 engine as {f}")
-            data = check_det_dataset(self.args.data)
 
+            # Load dataset and builder (for batching)
             bsize = int(2 * max(self.args.batch, 4))  # int8 calibration should use at least 2x batch size
-            dataset = load_inference_source(data["val"], batch=bsize)
+            data = (check_det_dataset if self.args.task != "classify" else check_cls_dataset)(self.args.data)
+            dataset = YOLODataset(
+                data[self.args.split or "val"],
+                data=data,
+                task=self.args.task,
+                imgsz=self.imgsz[0],
+                augment=False,
+                batch_size=bsize,
+            )
+            dataset = build_dataloader(dataset, batch=bsize, workers=0, shuffle=False)
+
             n = len(dataset) * bsize
             if n < 500:
                 LOGGER.warning(f"{prefix} WARNING ⚠️ >=500 images recommended for INT8 calibration, found {n} images.")
             cache_file = self.file.with_suffix(".cache")
 
-            config.set_flag(trt.BuilderFlag.INT8)
-            config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
+            # Calibrate
             config.int8_calibrator = EngineCalibrator(
                 dataset,
                 bsize,
-                preprocessor,
                 str(self.args.trt_quant_algo).upper(),
                 cache_file,
             )
+
         elif half:
             LOGGER.info(f"{prefix} building FP16 engine as {f}")
             config.set_flag(trt.BuilderFlag.FP16)
@@ -846,7 +849,7 @@ class Exporter:
                 "sng4onnx>=1.0.1",
                 "onnxsim>=0.4.33",
                 "onnx_graphsurgeon>=0.3.26",
-                "tflite_support",
+                "tflite_support<=0.4.3" if IS_JETSON else "tflite_support",  # fix ImportError 'GLIBCXX_3.4.29'
                 "flatbuffers>=23.5.26,<100",  # update old 'flatbuffers' included inside tensorflow package
                 "onnxruntime-gpu" if cuda else "onnxruntime",
             ),
