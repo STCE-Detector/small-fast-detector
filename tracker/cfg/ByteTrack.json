@@ -6,13 +6,13 @@
   "source_weights_path": "./detectors/8sp2_150e_64b.pt",
   "source_stream_path": "./videos/demo.mp4",
 
-  "device": "mps",
+  "device": "cuda",
   "fps_reduction": 0,
 
   "save_dir": "./outputs/",
   "save_results": false,
   "save_video": false,
-  "display": false,
+  "display": true,
   "sync_fps": false,
   "stabilize": false,
   "logging": false,
@@ -22,8 +22,8 @@
   "img_size": 640,
   "conf_threshold": 0.1,
   "iou_threshold": 0.7,
-  "max_det": 50,
-  "agnostic_nms": true,
+  "max_det": 300,
+  "agnostic_nms": false,
 
   "tracker_args": {
     "track_high_thresh": 0.4,
