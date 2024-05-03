@@ -179,3 +179,6 @@ pnnx*
 /models/
 /demo/videos/
 /videos/
+
+# Evaluation tools in tracker
+/tracker/evaluation_tool/TrackEval/data
