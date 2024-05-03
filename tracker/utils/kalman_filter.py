@@ -13,7 +13,7 @@ class KalmanFilterXYAH:
     observation of the state space (linear observation model).
     """
 
-    def __init__(self):
+    def __init__(self, cw_thresh=0.6):
         """Initialize Kalman filter model matrices with motion and observation uncertainty weights."""
         ndim, dt = 4, 1.
 
@@ -27,6 +27,8 @@ class KalmanFilterXYAH:
         # the amount of uncertainty in the model. This is a bit hacky.
         self._std_weight_position = 1. / 20
         self._std_weight_velocity = 1. / 160
+
+        self.cw_thresh = cw_thresh
 
     def initiate(self, measurement):
         """
@@ -146,7 +148,7 @@ class KalmanFilterXYAH:
 
         return mean, covariance
 
-    def update(self, mean, covariance, measurement):
+    def update(self, mean, covariance, measurement, det_score):
         """
         Run Kalman filter correction step.
 
@@ -159,6 +161,8 @@ class KalmanFilterXYAH:
         measurement : ndarray
             The 4 dimensional measurement vector (x, y, a, h), where (x, y) is the center position, a the aspect
             ratio, and h the height of the bounding box.
+        det_score : float
+            Detection score of the measurement.
 
         Returns
         -------
@@ -171,6 +175,13 @@ class KalmanFilterXYAH:
         kalman_gain = scipy.linalg.cho_solve((chol_factor, lower),
                                              np.dot(covariance, self._update_mat.T).T,
                                              check_finite=False).T
+
+        # Inspired by ConfTrack:
+        if det_score < self.cw_thresh: #score_threshold is a hyperparameter 0.6-0.7
+            measurement = measurement + (projected_mean-measurement) * (1-det_score)
+
+        #TODO: measumerement (new_det) covariance
+
         innovation = measurement - projected_mean
 
         new_mean = mean + np.dot(innovation, kalman_gain.T)

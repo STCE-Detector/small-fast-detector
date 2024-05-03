@@ -31,6 +31,16 @@
     "first_match_thresh": 0.9,
     "second_match_thresh": 0.5,
     "new_match_thresh": 0.7,
+    "first_buffer": 0,
+    "second_buffer": 0,
+    "new_buffer": 0,
+    "first_fuse": 1,
+    "second_fuse": 0,
+    "new_fuse": 1,
+    "first_iou": 5,
+    "second_iou": 2,
+    "new_iou": 0,
+    "cw_thresh": 0.6,
 
     "track_buffer": 100,
 
