@@ -21,7 +21,7 @@ class VideoSource(Plugin):
     def __init__(self, video_input='/dev/video0',
                  video_input_width=None, video_input_height=None,
                  video_input_codec=None, video_input_framerate=None,
-                 video_input_save=None, return_tensors='cuda', **kwargs):
+                 video_input_save=None, return_tensors='np', **kwargs):
         """
         Parameters:
 
@@ -129,6 +129,9 @@ class VideoSource(Plugin):
         if self.stream is not None:
             self.stream.Close()
             self.stream = None
+
+    def get_frame_count(self):
+        return self.num_outputs
 
     @property
     def streaming(self):

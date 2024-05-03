@@ -28,7 +28,7 @@ class FrameCapture:
         self.stopped = False
         self.vcap.start()
 
-    def Capture(self):
+    def capture(self):
         if not self.stopped:
             frame = self.vcap.read()
             if frame is None:
