@@ -71,7 +71,6 @@ class STrack(BaseTrack):
         self.curr_feat = None
         if feat is not None:
             self.update_features(feat)
-
         self.alpha = 0.9
 
         # Action recognition: widow of previous states
@@ -181,6 +180,7 @@ class STrack(BaseTrack):
         self.mean, self.covariance = self.kalman_filter.update(self.mean, self.covariance,
                                                                self.convert_coords(new_track.tlwh), new_track.score)
         self.tracklet_len = 0
+
         self.state = TrackState.Tracked
         self.is_activated = True
         self.frame_id = frame_id
@@ -215,21 +215,6 @@ class STrack(BaseTrack):
             self.prev_states.append(self.mean)
         if len(self.prev_states) > self.speed_buffer_len:
             self.prev_states.pop(0)
-
-        '''
-        if self.prev_state is None:
-            self.prev_state = self.mean
-
-        speed = np.linalg.norm(self.mean[:2] - self.prev_state[:2])
-
-        if self.EMA_speed is None:
-            self.EMA_speed = speed
-        else:
-            self.EMA_speed = self.EMA_alpha * speed + (1 - self.EMA_alpha) * self.prev_EMA_speed
-
-        self.prev_EMA_speed = self.EMA_speed
-        self.prev_state = self.mean
-        '''
 
     def convert_coords(self, tlwh):
         """Convert a bounding box's top-left-width-height format to its x-y-angle-height equivalent."""
