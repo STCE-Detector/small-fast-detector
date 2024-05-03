@@ -350,6 +350,8 @@ class ByteTrack:
         self.buffer_size = np.int8(video_info.fps / 30.0 * args["track_buffer"])
         self.max_time_lost = self.buffer_size
         self.cw_thresh = args["cw_thresh"]   # 0 to deactivate
+        self.nk_flag = args["nk_flag"]
+        self.nk_alpha = args["nk_alpha"]
         self.kalman_filter = self.get_kalmanfilter()
 
         # ReID module
@@ -576,7 +578,7 @@ class ByteTrack:
 
     def get_kalmanfilter(self):
         """Returns a Kalman filter object for tracking bounding boxes."""
-        return KalmanFilterXYAH(self.cw_thresh)
+        return KalmanFilterXYAH(self.cw_thresh, self.nk_flag, self.nk_alpha)
 
     def init_track(self, dets, scores, cls, features=None, img=None):
         """Initialize object tracking with detections and scores using STrack algorithm."""

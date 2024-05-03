@@ -13,7 +13,7 @@ class KalmanFilterXYAH:
     observation of the state space (linear observation model).
     """
 
-    def __init__(self, cw_thresh=0.6):
+    def __init__(self, cw_thresh=0.6, nk_alpha=10, nk_flag=False):
         """Initialize Kalman filter model matrices with motion and observation uncertainty weights."""
         ndim, dt = 4, 1.
 
@@ -29,6 +29,8 @@ class KalmanFilterXYAH:
         self._std_weight_velocity = 1. / 160
 
         self.cw_thresh = cw_thresh
+        self.nk_alpha = nk_alpha
+        self.nk_flag = nk_flag
 
     def initiate(self, measurement):
         """
@@ -89,7 +91,7 @@ class KalmanFilterXYAH:
 
         return mean, covariance
 
-    def project(self, mean, covariance):
+    def project(self, mean, covariance, det_score):
         """
         Project state distribution to measurement space.
 
@@ -109,6 +111,10 @@ class KalmanFilterXYAH:
             self._std_weight_position * mean[3], self._std_weight_position * mean[3], 1e-1,
             self._std_weight_position * mean[3]]
         innovation_cov = np.diag(np.square(std))
+
+        # Noise Scale Adaptation form ConfTrack
+        if self.nk_flag:
+            innovation_cov = innovation_cov * (1-det_score) * self.nk_alpha
 
         mean = np.dot(self._update_mat, mean)
         covariance = np.linalg.multi_dot((self._update_mat, covariance, self._update_mat.T))
@@ -169,7 +175,7 @@ class KalmanFilterXYAH:
         (ndarray, ndarray)
             Returns the measurement-corrected state distribution.
         """
-        projected_mean, projected_cov = self.project(mean, covariance)
+        projected_mean, projected_cov = self.project(mean, covariance, det_score)
 
         chol_factor, lower = scipy.linalg.cho_factor(projected_cov, lower=True, check_finite=False)
         kalman_gain = scipy.linalg.cho_solve((chol_factor, lower),

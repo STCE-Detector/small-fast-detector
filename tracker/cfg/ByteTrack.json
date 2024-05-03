@@ -41,6 +41,8 @@
     "second_iou": 2,
     "new_iou": 0,
     "cw_thresh": 0.6,
+    "nk_flag": true,
+    "nk_alpha": 10,
 
     "track_buffer": 100,
 
