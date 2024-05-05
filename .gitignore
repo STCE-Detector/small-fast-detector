@@ -181,5 +181,5 @@ pnnx*
 /videos/
 
 # Evaluation tools in tracker
-/tracker/evaluation_tool/TrackEval/data
-/tracker/evaluation_tool/data_mot/
+/tracker/evaluation_tool/TrackEval/data/*
+/tracker/evaluation_tool/data_mot/*
