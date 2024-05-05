@@ -12,7 +12,7 @@
   "save_dir": "./outputs/",
   "save_results": false,
   "save_video": false,
-  "display": true,
+  "display": false,
   "sync_fps": false,
   "stabilize": false,
   "logging": false,
@@ -23,7 +23,7 @@
   "conf_threshold": 0.1,
   "iou_threshold": 0.7,
   "max_det": 300,
-  "agnostic_nms": false,
+  "agnostic_nms": true,
 
   "tracker_args": {
     "track_high_thresh": 0.4,
@@ -34,7 +34,7 @@
     "proximity_thresh": 0.9,
     "appearance_thresh": 0.8,
     "with_reid": false,
-    "reid_default": true,
+    "reid_default": false,
     "weight_path": "ver12.pt",
     "gmc_method": null,
     "device": "cuda"

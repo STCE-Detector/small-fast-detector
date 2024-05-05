@@ -78,7 +78,7 @@ class VideoDisplay(QGraphicsView):
         self.pixmap_item.setPixmap(pixmap)
         self.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
 
-        if not self.worker.frame_capture.IsStreaming():
+        if not self.worker.frame_capture.streaming:
             self.timer.stop()
             self.thread.quit()
             self.close()
@@ -88,6 +88,7 @@ class VideoDisplay(QGraphicsView):
             self.worker.toggle_pause()
         elif event.key() == Qt.Key.Key_F:
             self.sync_fps = not self.sync_fps
+            print("Sync FPS: ", self.sync_fps)
             self.timer.start(int(1000 / self.worker.frame_capture.get_fps() if not self.sync_fps else 0))
         elif event.key() == Qt.Key.Key_Q:
             self.close()

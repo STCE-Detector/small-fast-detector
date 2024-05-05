@@ -47,15 +47,9 @@ class FrameCapture:
     def get_frame_size(self):
         return self.frame_size
 
-    def get_stop(self):
-        return self.stopped
-
     @property
     def streaming(self):
-        """
-        Returns true if the stream is currently open, false if closed or EOS.
-        """
-        return self.vcap.stream.isOpened()
+        return self.stopped
 
     @property
     def eos(self):
