@@ -39,12 +39,9 @@ try:
     ci_and_not_headless = ci_build and not headless
 except:
     pass
-if sys.platform.startswith("linux") and ci_and_not_headless:
-    os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
-if sys.platform.startswith("linux") and ci_and_not_headless:
-    os.environ.pop("QT_QPA_FONTDIR")
 
-
+if IS_JETSON:
+    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
 def is_numeric(value):
     """ Check if the value can be converted to a float. """
     try:
@@ -205,8 +202,8 @@ class VideoBenchmark(QObject):
             self.frame_capture.start()
         else:
             try:
-                from tracker.jetson.video import VideoSource
-                self.frame_capture = VideoSource(self.source_video_path)
+                self.frame_capture = videoSource(self.source_video_path)
+
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
@@ -317,18 +314,26 @@ class VideoBenchmark(QObject):
         timer_load_frame_start = 0
         while True:
             if not self.paused:
-                frame = self.frame_capture.capture()
-                timer_load_frame_end = time.perf_counter() if self.frame_capture.get_frame_count() != 0 else 0
+                try:
+                    rgb_img = self.frame_capture.Capture()
+                except:
+                    continue
+                if rgb_img is None:
+                    continue
+                if IS_JETSON:
+                    # make sure the GPU is done work before we convert to cv2
+                    cudaDeviceSynchronize()
+                    # convert to cv2 image (cv2 images are numpy arrays)
+                    frame = cudaToNumpy(rgb_img)
+                else:
+                    frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
+                timer_load_frame_end = time.perf_counter() if self.frame_capture.GetFrameCount() != 0 else 0
                 timer_load_frame = timer_load_frame_end - timer_load_frame_start
                 self.timer_load_frame_list.append(timer_load_frame)
                 pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
                 if frame is None:
-                    break
-                if IS_JETSON:
-                    if self.frame_capture.IsStreaming():
-                        break
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                annotated_frame = self.process_frame(frame_rgb, self.frame_capture.get_frame_count(),
+                    continue
+                annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(),
                                                      fps_counter.value(), config_export)
                 fps_counter.step()
                 if self.save_video and not self.display:
@@ -351,6 +356,8 @@ class VideoBenchmark(QObject):
                         data_dict["x2"].append(track.tlbr[2])
                         data_dict["y2"].append(track.tlbr[3])
                 pbar.update(1)
+                if not self.frame_capture.IsStreaming:
+                    break
                 timer_load_frame_start = time.perf_counter()
             if self.save_video:
                 self.video_writer.stop()
