@@ -7,7 +7,6 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Signal
-from jetson_utils_python import cudaToNumpy
 
 from ultralytics.utils import IS_JETSON
 

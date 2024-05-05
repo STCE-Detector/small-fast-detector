@@ -41,6 +41,9 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_FONTDIR")
 
+if IS_JETSON:
+    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
+
 
 class VideoProcessor(QObject):
     frame_ready = Signal(QImage, float)
@@ -80,8 +83,8 @@ class VideoProcessor(QObject):
         else:
             try:
                 # from tracker.jetson.video import VideoSource
-                from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped
-                self.frame_capture = VideoSource(self.source_video_path)
+                self.frame_capture = videoSource(self.source_video_path)
+                self.frame_capture.Open()
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
@@ -135,20 +138,27 @@ class VideoProcessor(QObject):
         frame_count = 0
         while True:
             if not self.paused:
-                frame = self.frame_capture.Capture()
+                try:
+                    rgb_img = self.frame_capture.Capture()
+                except:
+                    continue
                 frame_count += 1
-                if frame is None:
-                    break
+                if rgb_img is None:
+                    continue
                 if IS_JETSON:
+                    bgr_img = cudaAllocMapped(width=rgb_img.width,
+                                              height=rgb_img.height,
+                                              format='bgr8')
+
                     cudaConvertColor(rgb_img, bgr_img)
                     # make sure the GPU is done work before we convert to cv2
                     cudaDeviceSynchronize()
                     # convert to cv2 image (cv2 images are numpy arrays)
                     frame = cudaToNumpy(bgr_img)
                 else:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
                 if frame_count >= self.frame_skip_interval:
-                    annotated_frame = self.process_frame(frame, self.frame_capture.get_frame_count(), fps_counter.value())
+                    annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(), fps_counter.value())
                     fps_counter.step()
                     frame_count -= self.frame_skip_interval
 
@@ -178,6 +188,8 @@ class VideoProcessor(QObject):
                     fps_counter.step()
 
                 pbar.update(1)
+                if not self.frame_capture.IsStreaming():
+                    break
 
             if self.save_results:
                 with open(self.csv_path, 'w', newline='') as file:

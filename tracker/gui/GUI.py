@@ -78,7 +78,7 @@ class VideoDisplay(QGraphicsView):
         self.pixmap_item.setPixmap(pixmap)
         self.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
 
-        if self.worker.frame_capture.get_stop():
+        if not self.worker.frame_capture.IsStreaming():
             self.timer.stop()
             self.thread.quit()
             self.close()

@@ -4,7 +4,7 @@ import cv2
 
 # define suitable FFmpeg parameter
 ffparams = {
-    "-vcodec": None,  # skip source decoder and let FFmpeg chose
+    "-vcodec": "h264_nvv4l2dec",  # skip source decoder and let FFmpeg chose
     "-enforce_cv_patch": True, # enable OpenCV patch for YUV(NV12) frames
     "-ffprefixes": [
         "-vsync",
