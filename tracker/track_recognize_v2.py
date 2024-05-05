@@ -84,7 +84,7 @@ class VideoProcessor(QObject):
             try:
                 # from tracker.jetson.video import VideoSource
                 self.frame_capture = videoSource(self.source_video_path)
-                self.frame_capture.Open()
+                self.frame_capture.run()
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
@@ -188,7 +188,7 @@ class VideoProcessor(QObject):
                     fps_counter.step()
 
                 pbar.update(1)
-                if not self.frame_capture.IsStreaming():
+                if not self.frame_capture.streaming:
                     break
 
             if self.save_results:

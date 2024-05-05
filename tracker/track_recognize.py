@@ -27,6 +27,9 @@ from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
 
 import tracker.trackers as trackers
+if IS_JETSON:
+    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
+
 
 COLORS = sv.ColorPalette.default()
 
@@ -79,8 +82,8 @@ class VideoProcessor(QObject):
             self.frame_capture.start()
         else:
             try:
-                from tracker.jetson.video import VideoSource
                 self.frame_capture = VideoSource(self.source_video_path)
+                self.frame_capture.run()
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
@@ -135,15 +138,26 @@ class VideoProcessor(QObject):
         while True:
             if not self.paused:
                 try:
-                    frame = self.frame_capture.capture()
-                except Exception as e:
-                    frame = None
+                    rgb_img = self.frame_capture.Capture()
+                except:
+                    continue
                 frame_count += 1
-                if frame is None:
-                    break
+                if rgb_img is None:
+                    continue
+                if IS_JETSON:
+                    bgr_img = cudaAllocMapped(width=rgb_img.width,
+                                              height=rgb_img.height,
+                                              format='bgr8')
 
+                    cudaConvertColor(rgb_img, bgr_img)
+                    # make sure the GPU is done work before we convert to cv2
+                    cudaDeviceSynchronize()
+                    # convert to cv2 image (cv2 images are numpy arrays)
+                    frame = cudaToNumpy(bgr_img)
+                else:
+                    frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
                 if frame_count >= self.frame_skip_interval:
-                    annotated_frame = self.process_frame(frame, self.frame_capture.get_frame_count(), fps_counter.value())
+                    annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(), fps_counter.value())
                     fps_counter.step()
                     frame_count -= self.frame_skip_interval
 
@@ -151,10 +165,9 @@ class VideoProcessor(QObject):
                         self.video_writer.write_frame(annotated_frame)
 
                     if self.display:
-                        frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                         height, width, channel = annotated_frame.shape
                         bytes_per_line = 3 * width
-                        q_image = QImage(frame_rgb.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
+                        q_image = QImage(frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
                         self.frame_ready.emit(q_image, fps_counter.value())
 
                     if self.save_results:
@@ -174,7 +187,8 @@ class VideoProcessor(QObject):
                     fps_counter.step()
 
                 pbar.update(1)
-
+                if not self.frame_capture.streaming:
+                    break
             if self.save_results:
                 with open(self.csv_path, 'w', newline='') as file:
                     writer = csv.writer(file)
