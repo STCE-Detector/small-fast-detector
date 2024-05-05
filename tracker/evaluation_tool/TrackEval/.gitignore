@@ -7,7 +7,7 @@ gt_data/*
 tracker_output/*
 !tracker_output/Readme.md
 output/*
-../../Ç»»»A/TrackEval/data/*
+../../evaluation_tools/TrackEval/data/*
 !goutput/Readme.md
 **/__pycache__
 .idea
