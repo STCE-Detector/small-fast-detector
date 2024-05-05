@@ -1,0 +1,34 @@
+{
+  "name": "ByteTrack_MOT20",
+
+  "tracker_name": "ByteTrack",
+
+  "source_weights_path": "../detectors/8sp2_150e_64b.pt",
+  "source_sequence_dir": "../evaluation_tool/data_mot/",
+
+  "device": "mps",
+  "fps_reduction": 0,
+
+  "save_dir": "../evaluation_tool/outputs/",
+
+  "img_size": 640,
+  "conf_threshold": 0.1,
+  "iou_threshold": 0.7,
+  "max_det": 50,
+  "agnostic_nms": true,
+
+  "tracker_args": {
+    "track_high_thresh": 0.4,
+    "track_low_thresh": 0.1,
+    "new_track_thresh": 0.25,
+    "track_buffer": 30,
+    "match_thresh": 0.9,
+    "proximity_thresh": 0.9,
+    "appearance_thresh": 0.8,
+    "with_reid": false,
+    "reid_default": true,
+    "weight_path": "ver12.pt",
+    "gmc_method": null,
+    "device": "cuda"
+  }
+}
