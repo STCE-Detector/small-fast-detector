@@ -28,7 +28,8 @@ from ultralytics import YOLO
 
 import tracker.trackers as trackers
 if IS_JETSON:
-    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
+    from jetson_utils import cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
+    from tracker.jetson.video import VideoSource
 
 
 COLORS = sv.ColorPalette.default()
@@ -83,7 +84,8 @@ class VideoProcessor(QObject):
         else:
             try:
                 self.frame_capture = VideoSource(self.source_video_path)
-                self.frame_capture.run()
+                self.frame_capture.start()
+
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
@@ -138,7 +140,7 @@ class VideoProcessor(QObject):
         while True:
             if not self.paused:
                 try:
-                    rgb_img = self.frame_capture.Capture()
+                    rgb_img = self.frame_capture.capture()
                 except:
                     continue
                 frame_count += 1
@@ -149,15 +151,15 @@ class VideoProcessor(QObject):
                                               height=rgb_img.height,
                                               format='bgr8')
 
-                    cudaConvertColor(rgb_img, bgr_img)
+                    # cudaConvertColor(rgb_img, bgr_img)
                     # make sure the GPU is done work before we convert to cv2
                     cudaDeviceSynchronize()
                     # convert to cv2 image (cv2 images are numpy arrays)
-                    frame = cudaToNumpy(bgr_img)
+                    frame = cudaToNumpy(rgb_img)
                 else:
                     frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
                 if frame_count >= self.frame_skip_interval:
-                    annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(), fps_counter.value())
+                    annotated_frame = self.process_frame(frame, self.frame_capture.get_frame_count(), fps_counter.value())
                     fps_counter.step()
                     frame_count -= self.frame_skip_interval
 

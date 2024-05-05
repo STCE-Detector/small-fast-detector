@@ -12,7 +12,7 @@
   "save_dir": "./outputs/",
   "save_results": false,
   "save_video": false,
-  "display": false,
+  "display": true,
   "sync_fps": false,
   "stabilize": false,
   "logging": false,
@@ -23,7 +23,7 @@
   "conf_threshold": 0.1,
   "iou_threshold": 0.7,
   "max_det": 300,
-  "agnostic_nms": true,
+  "agnostic_nms": false,
 
   "tracker_args": {
     "track_high_thresh": 0.4,

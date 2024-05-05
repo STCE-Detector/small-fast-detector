@@ -43,7 +43,7 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 
 if IS_JETSON:
     from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
-
+    from tracker.jetson.video import VideoSource
 
 class VideoProcessor(QObject):
     frame_ready = Signal(QImage, float)
@@ -84,7 +84,6 @@ class VideoProcessor(QObject):
             try:
                 # from tracker.jetson.video import VideoSource
                 self.frame_capture = videoSource(self.source_video_path)
-                self.frame_capture.run()
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
@@ -146,15 +145,10 @@ class VideoProcessor(QObject):
                 if rgb_img is None:
                     continue
                 if IS_JETSON:
-                    bgr_img = cudaAllocMapped(width=rgb_img.width,
-                                              height=rgb_img.height,
-                                              format='bgr8')
-
-                    cudaConvertColor(rgb_img, bgr_img)
                     # make sure the GPU is done work before we convert to cv2
                     cudaDeviceSynchronize()
                     # convert to cv2 image (cv2 images are numpy arrays)
-                    frame = cudaToNumpy(bgr_img)
+                    frame = cudaToNumpy(rgb_img)
                 else:
                     frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
                 if frame_count >= self.frame_skip_interval:
@@ -173,7 +167,7 @@ class VideoProcessor(QObject):
 
                     if self.save_results:
                         for track in self.tracker.active_tracks:
-                            self.data_dict["frame_id"].append(self.frame_capture.get_frame_count())
+                            self.data_dict["frame_id"].append(self.frame_capture.GetFrameCount())
                             self.data_dict["tracker_id"].append(track.track_id)
                             self.data_dict["class_id"].append(track.class_id)
                             self.data_dict["x1"].append(track.tlbr[0])
@@ -188,7 +182,7 @@ class VideoProcessor(QObject):
                     fps_counter.step()
 
                 pbar.update(1)
-                if not self.frame_capture.streaming:
+                if not self.frame_capture.IsStreaming:
                     break
 
             if self.save_results:
