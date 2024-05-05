@@ -182,3 +182,4 @@ pnnx*
 
 # Evaluation tools in tracker
 /tracker/evaluation_tool/TrackEval/data
+/tracker/evaluation_tool/data_mot/
