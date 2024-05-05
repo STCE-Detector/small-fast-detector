@@ -4,7 +4,7 @@
   "tracker_name": "ByteTrack",
 
   "source_weights_path": "./detectors/8sp2_150e_64b.engine",
-  "source_stream_path": "./videos/output.mp4",
+  "source_stream_path": "./videos/demo.mp4",
 
   "device": "cuda",
   "fps_reduction": 0,
@@ -12,7 +12,7 @@
   "save_dir": "./outputs/",
   "save_results": false,
   "save_video": false,
-  "display": true,
+  "display": false,
   "sync_fps": false,
   "stabilize": false,
   "logging": false,

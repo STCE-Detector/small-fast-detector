@@ -27,10 +27,6 @@ from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
 
 import tracker.trackers as trackers
-if IS_JETSON:
-    from jetson_utils import cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
-    from tracker.jetson.video import VideoSource
-
 
 COLORS = sv.ColorPalette.default()
 
@@ -45,6 +41,9 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_FONTDIR")
 
+if IS_JETSON:
+    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
+    from tracker.jetson.video import VideoSource
 
 class VideoProcessor(QObject):
     frame_ready = Signal(QImage, float)
@@ -83,9 +82,8 @@ class VideoProcessor(QObject):
             self.frame_capture.start()
         else:
             try:
-                self.frame_capture = VideoSource(self.source_video_path)
-                self.frame_capture.start()
-
+                # from tracker.jetson.video import VideoSource
+                self.frame_capture = videoSource(self.source_video_path)
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
@@ -140,18 +138,13 @@ class VideoProcessor(QObject):
         while True:
             if not self.paused:
                 try:
-                    rgb_img = self.frame_capture.capture()
+                    rgb_img = self.frame_capture.Capture()
                 except:
                     continue
                 frame_count += 1
                 if rgb_img is None:
                     continue
                 if IS_JETSON:
-                    bgr_img = cudaAllocMapped(width=rgb_img.width,
-                                              height=rgb_img.height,
-                                              format='bgr8')
-
-                    # cudaConvertColor(rgb_img, bgr_img)
                     # make sure the GPU is done work before we convert to cv2
                     cudaDeviceSynchronize()
                     # convert to cv2 image (cv2 images are numpy arrays)
@@ -159,7 +152,7 @@ class VideoProcessor(QObject):
                 else:
                     frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
                 if frame_count >= self.frame_skip_interval:
-                    annotated_frame = self.process_frame(frame, self.frame_capture.get_frame_count(), fps_counter.value())
+                    annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(), fps_counter.value())
                     fps_counter.step()
                     frame_count -= self.frame_skip_interval
 
@@ -169,12 +162,12 @@ class VideoProcessor(QObject):
                     if self.display:
                         height, width, channel = annotated_frame.shape
                         bytes_per_line = 3 * width
-                        q_image = QImage(frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
+                        q_image = QImage(annotated_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
                         self.frame_ready.emit(q_image, fps_counter.value())
 
                     if self.save_results:
                         for track in self.tracker.active_tracks:
-                            self.data_dict["frame_id"].append(self.frame_capture.get_frame_count())
+                            self.data_dict["frame_id"].append(self.frame_capture.GetFrameCount())
                             self.data_dict["tracker_id"].append(track.track_id)
                             self.data_dict["class_id"].append(track.class_id)
                             self.data_dict["x1"].append(track.tlbr[0])
@@ -189,8 +182,9 @@ class VideoProcessor(QObject):
                     fps_counter.step()
 
                 pbar.update(1)
-                if not self.frame_capture.streaming:
+                if not self.frame_capture.IsStreaming:
                     break
+
             if self.save_results:
                 with open(self.csv_path, 'w', newline='') as file:
                     writer = csv.writer(file)
@@ -241,7 +235,16 @@ class VideoProcessor(QObject):
 
     def cleanup(self):
         print("Cleaning up...")
-        self.frame_capture.stop()
+        if not IS_JETSON:
+            self.frame_capture.stop()
+        else:
+            try:
+                from tracker.jetson.video import VideoSource
+                self.frame_capture = VideoSource(self.source_video_path)
+            except Exception as e:
+                print(f"Failed to open video source: {e}")
+                sys.exit(1)
+
         if self.save_video:
             self.video_writer.stop()
 
