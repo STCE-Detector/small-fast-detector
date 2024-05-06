@@ -42,7 +42,7 @@ except:
     pass
 
 if IS_JETSON:
-    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
+    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize, cudaMemcpy
 
 
 def is_numeric(value):
@@ -325,7 +325,9 @@ class VideoBenchmark(QObject):
             if not self.paused:
                 try:
                     rgb_img = self.frame_capture.Capture()
+                    rgb_img = cudaMemcpy(rgb_img)
                     print("\n")
+                    print(f"Frame: {self.frame_capture.GetFrameCount()}\n")
                     print(f"Frame: {self.frame_capture.GetFrameCount()}\n")
                     pbar.update(1)
                 except:

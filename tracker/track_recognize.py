@@ -45,7 +45,7 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_FONTDIR")
 
 if IS_JETSON:
-    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize
+    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize, cudaMemcpy
     from tracker.jetson.video import VideoSource
 
 class VideoProcessor(QObject):
@@ -147,9 +147,10 @@ class VideoProcessor(QObject):
             if not self.paused:
                 try:
                     rgb_img = self.frame_capture.Capture()
+                    rgb_img = cudaMemcpy(rgb_img)
                     print("\n")
                     print(f"Frame: {self.frame_capture.GetFrameCount()}\n")
-                    pbar.update(1)
+
                 except:
                     continue
                 frame_count += 1
