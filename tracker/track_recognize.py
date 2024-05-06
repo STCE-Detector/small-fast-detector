@@ -25,6 +25,9 @@ from tracker.gui.frameProcessing import VideoWriter
 from tracker.utils.cfg.parse_config import ConfigParser
 from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
+import warnings
+warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="`BoxAnnotator` is deprecated")
 
 import tracker.trackers as trackers
 

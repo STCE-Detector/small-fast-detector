@@ -16,6 +16,7 @@ from tqdm import tqdm
 import warnings
 
 warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="`BoxAnnotator` is deprecated")
 import tracker.trackers as trackers
 from tracker.action_recognition import ActionRecognizer
 from tracker.gui.frameCapture import FrameCapture
