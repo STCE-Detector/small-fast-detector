@@ -339,7 +339,9 @@ class VideoBenchmark(QObject):
                 self.timer_load_frame_list.append(timer_load_frame)
                 pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
                 if frame is None:
-                    continue
+                    if not self.frame_capture.IsStreaming():
+                        break
+
                 annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(),
                                                      fps_counter.value(), config_export)
                 fps_counter.step()
@@ -363,7 +365,7 @@ class VideoBenchmark(QObject):
                         data_dict["x2"].append(track.tlbr[2])
                         data_dict["y2"].append(track.tlbr[3])
                 pbar.update(1)
-                if not self.frame_capture.IsStreaming:
+                if not self.frame_capture.IsStreaming():
                     break
                 timer_load_frame_start = time.perf_counter()
             if self.save_video:
@@ -448,7 +450,7 @@ class VideoBenchmark(QObject):
         self.paused = not self.paused
 
     def cleanup(self):
-        self.frame_capture.stop()
+        self.frame_capture.Close()
         if self.save_video:
             self.video_writer.stop()
 

@@ -28,7 +28,7 @@ class FrameCapture:
         self.stopped = False
         self.vcap.start()
 
-    def capture(self):
+    def Capture(self):
         if not self.stopped:
             frame = self.vcap.read()
             if frame is None:
@@ -38,17 +38,17 @@ class FrameCapture:
             return frame
         return None
 
-    def get_frame_count(self):
+    def GetFrameCount(self):
         return self.frame_count
 
-    def get_fps(self):
+    def GetFrameRate(self):
         return self.fps
 
     def get_frame_size(self):
         return self.frame_size
 
     @property
-    def streaming(self):
+    def IsStreaming(self):
         return self.stopped
 
     @property
@@ -58,7 +58,7 @@ class FrameCapture:
         """
         return not self.vcap.stream.stream
 
-    def stop(self):
+    def Close(self):
         # Safely close the video stream
         self.frame_count = 0
         # self.vcap.release()
