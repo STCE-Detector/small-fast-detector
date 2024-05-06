@@ -9,7 +9,8 @@ import numpy as np
 from tracker.jetson.image import cuda_image
 from tracker.jetson.plugin import Plugin
 from ultralytics.utils import IS_JETSON
-from jetson_utils import videoSource, videoOutput, cudaDeviceSynchronize, cudaToNumpy
+if IS_JETSON:
+    from jetson_utils import videoSource, videoOutput, cudaDeviceSynchronize, cudaToNumpy
 
 
 class VideoSource(Plugin):
@@ -56,7 +57,7 @@ class VideoSource(Plugin):
         self.resource = video_input  # self.stream.GetOptions().resource['string']
         self.return_tensors = return_tensors
 
-    def capture(self, timeout=2500, retries=8, return_tensors=None):
+    def Capture(self, timeout=2500, retries=8, return_tensors=None):
         """
         Capture images from the video source as long as it's streaming
         """
@@ -88,7 +89,7 @@ class VideoSource(Plugin):
 
         return None
 
-    def reconnect(self):
+    def Reconnect(self):
         """
         Attempt to re-open the stream if the connection fails
         """
@@ -108,13 +109,13 @@ class VideoSource(Plugin):
                 logging.error(f"Failed to create video source \"{self.resource}\"\n\n{traceback.format_exc()}")
                 time.sleep(2.5)
 
-    def run(self):
+    def Run(self):
         """
         Run capture continuously and attempt to handle disconnections
         """
         while True:
             try:
-                img = self.capture()
+                img = self.Capture()
             except Exception as error:
                 logging.error(
                     f"Exception occurred during video source capture of \"{self.resource}\"\n\n{traceback.format_exc()}")
@@ -123,18 +124,18 @@ class VideoSource(Plugin):
                 if self.file:
                     return
                 logging.error(f"Re-initializing video source \"{self.resource}\"")
-                self.reconnect()
+                self.Reconnect()
 
-    def stop(self):
+    def Close(self):
         if self.stream is not None:
             self.stream.Close()
             self.stream = None
 
-    def get_frame_count(self):
+    def GetFrameCount(self):
         return self.num_outputs
 
     @property
-    def streaming(self):
+    def IsStreaming(self):
         """
         Returns true if the stream is currently open, false if closed or EOS.
         """

@@ -42,8 +42,7 @@ except:
     pass
 
 if IS_JETSON:
-    from jetson_utils import videoSource, cudaToNumpy, cudaAllocMapped, cudaConvertColor, cudaDeviceSynchronize, cudaMemcpy
-
+    from tracker.jetson.video import VideoSource
 
 def is_numeric(value):
     """ Check if the value can be converted to a float. """
@@ -205,12 +204,8 @@ class VideoBenchmark(QObject):
             self.frame_capture.start()
         else:
             try:
-                options = {
-                    "numbuffers": 10,
-                    "mBufferSize": 4,
-                    "frameRate": "30",
-                }
-                self.frame_capture = videoSource(self.source_video_path, options=options)
+                options = { }
+                self.frame_capture = VideoSource(self.source_video_path, options=options)
 
             except Exception as e:
                 print(f"Failed to open video source: {e}")

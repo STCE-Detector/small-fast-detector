@@ -27,7 +27,7 @@ class Plugin(threading.Thread):
       threaded (bool): if true, will spawn independent thread for processing the queue.
     """
 
-    def __init__(self, output_channels=1, relay=False, drop_inputs=False, threaded=False, **kwargs):
+    def __init__(self, output_channels=1, relay=False, drop_inputs=False, threaded=True, **kwargs):
         """
         Initialize plugin
         """
