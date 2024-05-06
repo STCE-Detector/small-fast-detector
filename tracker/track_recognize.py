@@ -144,6 +144,7 @@ class VideoProcessor(QObject):
             if not self.paused:
                 try:
                     rgb_img = self.frame_capture.Capture()
+                    print(f"Frame: {self.frame_capture.GetFrameCount()}")
                 except:
                     continue
                 frame_count += 1
