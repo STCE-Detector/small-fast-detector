@@ -1,6 +1,7 @@
 import cProfile
 import json
 import sys
+import threading
 
 import pandas as pd
 import torch
@@ -14,6 +15,8 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QImage
 from tqdm import tqdm
 import warnings
+
+from tracker.jetson.GStreamerFrameCapture import GStreamerFrameCapture
 
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=DeprecationWarning, message="`BoxAnnotator` is deprecated")
@@ -198,7 +201,7 @@ class VideoBenchmark(QObject):
                                                  thickness=2)
         self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.video_info)
         self.action_recognizer = ActionRecognizer(self.config["action_recognition"], self.video_info)
-        if not IS_JETSON:
+        """if not IS_JETSON:
             self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
                                               stream_mode=config["stream_mode"], logging=config["logging"])
             self.frame_capture.start()
@@ -209,7 +212,10 @@ class VideoBenchmark(QObject):
 
             except Exception as e:
                 print(f"Failed to open video source: {e}")
-                sys.exit(1)
+                sys.exit(1)"""
+
+        self.frame_capture = GStreamerFrameCapture(self.source_video_path)
+        self.frame_capture.start()
 
         if self.save_video:
             self.video_writer = VideoWriter(self.target_video_path,
@@ -319,31 +325,17 @@ class VideoBenchmark(QObject):
         while True:
             if not self.paused:
                 try:
-                    rgb_img = self.frame_capture.Capture()
-                    rgb_img = cudaMemcpy(rgb_img)
-                    print("\n")
-                    print(f"Frame: {self.frame_capture.GetFrameCount()}\n")
-                    print(f"Frame: {self.frame_capture.GetFrameCount()}\n")
-                    pbar.update(1)
+                    frame = self.frame_capture.Capture()
                 except:
                     continue
-                if rgb_img is None:
+                if frame is None:
+                    print("No frame captured, possibly end of stream.")
                     continue
-                if IS_JETSON:
-                    # make sure the GPU is done work before we convert to cv2
-                    # cudaDeviceSynchronize()
-                    # convert to cv2 image (cv2 images are numpy arrays)
-                    frame = cudaToNumpy(rgb_img)
-                else:
-                    frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
+                pbar.update(1)
                 timer_load_frame_end = time.perf_counter() if self.frame_capture.GetFrameCount() != 0 else 0
                 timer_load_frame = timer_load_frame_end - timer_load_frame_start
                 self.timer_load_frame_list.append(timer_load_frame)
                 pbar.set_description(f"[FPS: {fps_counter.value():.2f}] ")
-                if frame is None:
-                    if not self.frame_capture.IsStreaming():
-                        break
-
                 annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(),
                                                      fps_counter.value(), config_export)
                 fps_counter.step()
