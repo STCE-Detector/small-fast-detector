@@ -329,7 +329,6 @@ class VideoBenchmark(QObject):
                 except:
                     continue
                 if frame is None:
-                    print("No frame captured, possibly end of stream.")
                     continue
                 pbar.update(1)
                 timer_load_frame_end = time.perf_counter() if self.frame_capture.GetFrameCount() != 0 else 0
