@@ -41,6 +41,12 @@ class FrameCapture:
     def GetFrameCount(self):
         return self.frame_count
 
+    def GetWidth(self):
+        return self.frame_size[0]
+
+    def GetHeight(self):
+        return self.frame_size[1]
+
     def GetFrameRate(self):
         return self.fps
 

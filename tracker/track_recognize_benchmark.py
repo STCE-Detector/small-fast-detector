@@ -216,10 +216,11 @@ class VideoBenchmark(QObject):
                 sys.exit(1)
 
         if self.save_video:
-            self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
+            self.video_writer = VideoWriter(self.target_video_path,
+                                            frame_size=(self.frame_capture.GetWidth(), self.frame_capture.GetHeight()),
                                             compression_mode=config["compression_mode"],
                                             logging=config["logging"],
-                                            fps=self.frame_capture.get_fps())
+                                            fps=self.frame_capture.GetFrameRate())
             self.video_writer.start()
 
     def reset_times(self):
@@ -357,7 +358,7 @@ class VideoBenchmark(QObject):
                     self.frame_ready.emit(q_image, fps_counter.value())
                 if self.save_results:
                     for track in self.tracker.tracked_stracks:
-                        data_dict["frame_id"].append(self.frame_capture.get_frame_count())
+                        data_dict["frame_id"].append(self.frame_capture.GetFrameCount())
                         data_dict["tracker_id"].append(track.track_id)
                         data_dict["class_id"].append(track.class_id)
                         data_dict["x1"].append(track.tlbr[0])
