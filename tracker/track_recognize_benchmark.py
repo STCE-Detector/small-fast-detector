@@ -325,7 +325,8 @@ class VideoBenchmark(QObject):
             if not self.paused:
                 try:
                     rgb_img = self.frame_capture.Capture()
-                    pbar.set_description(f"Processing Frame {self.frame_capture.GetFrameCount()}")
+                    print("\n")
+                    print(f"Frame: {self.frame_capture.GetFrameCount()}\n")
                 except:
                     continue
                 if rgb_img is None:
