@@ -327,6 +327,7 @@ class VideoBenchmark(QObject):
                     rgb_img = self.frame_capture.Capture()
                     print("\n")
                     print(f"Frame: {self.frame_capture.GetFrameCount()}\n")
+                    pbar.update(1)
                 except:
                     continue
                 if rgb_img is None:
@@ -368,7 +369,6 @@ class VideoBenchmark(QObject):
                         data_dict["y1"].append(track.tlbr[1])
                         data_dict["x2"].append(track.tlbr[2])
                         data_dict["y2"].append(track.tlbr[3])
-                pbar.update(1)
                 if not self.frame_capture.IsStreaming():
                     break
                 timer_load_frame_start = time.perf_counter()

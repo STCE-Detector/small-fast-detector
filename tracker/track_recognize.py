@@ -149,6 +149,7 @@ class VideoProcessor(QObject):
                     rgb_img = self.frame_capture.Capture()
                     print("\n")
                     print(f"Frame: {self.frame_capture.GetFrameCount()}\n")
+                    pbar.update(1)
                 except:
                     continue
                 frame_count += 1
@@ -191,8 +192,6 @@ class VideoProcessor(QObject):
                         #self.video_writer.write_frame(annotated_frame)
                         px=0
                     fps_counter.step()
-
-                pbar.update(1)
                 if not self.frame_capture.IsStreaming:
                     break
 
