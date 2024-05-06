@@ -145,23 +145,17 @@ class VideoProcessor(QObject):
         while True:
             if not self.paused:
                 try:
-                    rgb_img = self.frame_capture.Capture()
+                    frame = self.frame_capture.Capture()
                     print("\n")
                     print(f"Frame: {self.frame_capture.GetFrameCount()}\n")
 
                 except:
                     continue
                 frame_count += 1
-                if rgb_img is None:
+                if frame is None:
                     print("No frame captured")
                     continue
-                if IS_JETSON:
-                    # make sure the GPU is done work before we convert to cv2
-                    # cudaDeviceSynchronize()
-                    # convert to cv2 image (cv2 images are numpy arrays)
-                    frame = cudaToNumpy(rgb_img)
-                else:
-                    frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
+                    # frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
                 if frame_count >= self.frame_skip_interval:
                     annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(), fps_counter.value())
                     fps_counter.step()
