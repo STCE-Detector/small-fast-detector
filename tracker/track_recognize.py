@@ -83,7 +83,12 @@ class VideoProcessor(QObject):
         else:
             try:
                 # from tracker.jetson.video import VideoSource
-                self.frame_capture = videoSource(self.source_video_path)
+                options = {
+                    "numbuffers": 10,
+                    "mBufferSize": 4,
+                    "frameRate": "30",
+                }
+                self.frame_capture = videoSource(self.source_video_path, options=options)
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
@@ -143,10 +148,11 @@ class VideoProcessor(QObject):
                     continue
                 frame_count += 1
                 if rgb_img is None:
+                    print("No frame captured")
                     continue
                 if IS_JETSON:
                     # make sure the GPU is done work before we convert to cv2
-                    cudaDeviceSynchronize()
+                    # cudaDeviceSynchronize()
                     # convert to cv2 image (cv2 images are numpy arrays)
                     frame = cudaToNumpy(rgb_img)
                 else:

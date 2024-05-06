@@ -329,7 +329,7 @@ class VideoBenchmark(QObject):
                     continue
                 if IS_JETSON:
                     # make sure the GPU is done work before we convert to cv2
-                    cudaDeviceSynchronize()
+                    # cudaDeviceSynchronize()
                     # convert to cv2 image (cv2 images are numpy arrays)
                     frame = cudaToNumpy(rgb_img)
                 else:
