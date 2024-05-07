@@ -16,6 +16,7 @@ from PySide6.QtGui import QImage
 from tqdm import tqdm
 import warnings
 
+from tracker.jetson.DeffFrameCapture import DeffFrameCapture
 from tracker.jetson.GStreamerFrameCapture import GStreamerFrameCapture
 
 warnings.filterwarnings("ignore")
@@ -43,9 +44,6 @@ try:
     ci_and_not_headless = ci_build and not headless
 except:
     pass
-
-if IS_JETSON:
-    from tracker.jetson.video import VideoSource
 
 def is_numeric(value):
     """ Check if the value can be converted to a float. """
@@ -192,7 +190,6 @@ class VideoBenchmark(QObject):
 
         self.source_video_path = check_file_exists(video_path, video)
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
-        self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
         # TODO : CHECK TO PUT IN A THREAD
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
@@ -214,7 +211,7 @@ class VideoBenchmark(QObject):
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)"""
 
-        self.frame_capture = GStreamerFrameCapture(self.source_video_path)
+        self.frame_capture = DeffFrameCapture(self.source_video_path)
         self.frame_capture.start()
 
         if self.save_video:
