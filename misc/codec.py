@@ -1,61 +1,83 @@
-# import the necessary packages
-from deffcode import FFdecoder
+import time
+
 import cv2
-
-# define suitable FFmpeg parameter
-ffparams = {
-    "-vcodec": "h264_nvv4l2dec",  # skip source decoder and let FFmpeg chose
-    "-enforce_cv_patch": True, # enable OpenCV patch for YUV(NV12) frames
-    "-ffprefixes": [
-        "-vsync",
-        "0",  # prevent duplicate frames
-        "-hwaccel",
-        "cuda",  # accelerator
-        "-hwaccel_output_format",
-        "cuda",  # output accelerator
-    ],
-    "-custom_resolution": "null",  # discard source `-custom_resolution`
-    "-framerate": "null",  # discard source `-framerate`
-    "-vf": "scale_cuda=640:360,"  # scale to 640x360 in GPU memory
-    + "fps=60.0,"  # framerate 60.0fps in GPU memory
-    + "hwdownload,"  # download hardware frames to system memory
-    + "format=nv12",  # convert downloaded frames to NV12 pixel format
-}
-
-# initialize and formulate the decoder with `foo.mp4` source
-decoder = FFdecoder(
-    "/home/johnny/Projects/small-fast-detector/tracker/videos/demo.mp4",
-    frame_format="null",  # discard source frame pixel format
-    verbose=True, # enable verbose output
-    **ffparams # apply various params and custom filters
-)
-
-decoder = decoder.formulate()
-
-# grab the NV12 frame from the decoder
-for frame in decoder.generateFrame():
-
-    # check if frame is None
-    if frame is None:
-        break
-
-    # convert it to `BGR` pixel format,
-    # since imshow() method only accepts `BGR` frames
-    frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_NV12)
-
-    # {do something with the BGR frame here}
-
-    # Show output window
-    cv2.imshow("Output", frame)
-
-    # check for 'q' key if pressed
-    key = cv2.waitKey(1) & 0xFF
-    if key == ord("q"):
-        break
+from deffcode import FFdecoder
+from ultralytics.utils import IS_JETSON
 
 
-# close output window
-cv2.destroyAllWindows()
+class FFmpegFrameCapture:
+    def __init__(self, source, frame_format='bgr24', verbose=False):
+        self.source = source
+        self.frame_format = frame_format
+        self.verbose = verbose
+        self.frame_count = 0
+        self.decoder = None
+        self.stopped = True
 
-# terminate the decoder
-decoder.terminate()
+    def start(self):
+
+        if IS_JETSON:
+            ffparams = {
+                "-vcodec": "nvv4l2decoder",  # use H.264 CUVID Video-decoder
+            }
+        else:
+            ffparams = {
+                "-vcodec": None,  # skip source decoder and let FFmpeg chose
+                "-ffprefixes": [
+                    "-vsync",
+                    "0",  # prevent duplicate frames
+                    "-hwaccel",
+                    "cuda",  # accelerator
+                    "-hwaccel_output_format",
+                    "cuda",  # output accelerator
+                ],
+                "-custom_resolution": "null",  # discard source `-custom_resolution`
+                "-framerate": "null",  # discard source `-framerate`
+            }
+
+        self.decoder = FFdecoder(self.source, frame_format=self.frame_format, verbose=self.verbose, **ffparams)
+        self.decoder = self.decoder.formulate()
+        self.stopped = False
+
+    def capture(self):
+        if not self.stopped:
+            for frame in self.decoder.generateFrame():
+                if frame is None:
+                    self.stop()
+                    return None
+                self.frame_count += 1
+                return frame
+        return None
+
+    def stop(self):
+        if not self.stopped:
+            self.decoder.terminate()
+            self.stopped = True
+
+    def get_frame_count(self):
+        return self.frame_count
+
+    def is_streaming(self):
+        return not self.stopped
+
+if __name__ == '__main__':
+    video_path = "/Users/johnny/Projects/small-fast-detector/tracker/videos/demo.mp4"
+    capture = FFmpegFrameCapture(video_path)
+    capture.start()
+    print(capture.decoder.metadata)
+    start_time = time.time()
+    try:
+        while True:
+            frame = capture.capture()
+            if frame is None:
+                break
+            cv2.imshow("Frame", frame)
+            elapsed_time = time.time() - start_time
+            fps = capture.get_frame_count() / elapsed_time if elapsed_time > 0 else 0
+            print(f"Current FPS: {fps:.2f}")
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    finally:
+        capture.stop()
+        cv2.destroyAllWindows()
+        print("Exiting program")
