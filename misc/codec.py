@@ -1,11 +1,12 @@
 import time
+from threading import Thread
 
 import cv2
 from deffcode import FFdecoder
 from ultralytics.utils import IS_JETSON
 
 
-class FFmpegFrameCapture:
+class DeffFrameCapture:
     def __init__(self, source, frame_format='bgr24', verbose=False):
         self.source = source
         self.frame_format = frame_format
@@ -15,7 +16,6 @@ class FFmpegFrameCapture:
         self.stopped = True
 
     def start(self):
-
         if IS_JETSON:
             ffparams = {
                 "-vcodec": "nvv4l2decoder",  # use H.264 CUVID Video-decoder
@@ -38,46 +38,40 @@ class FFmpegFrameCapture:
         self.decoder = FFdecoder(self.source, frame_format=self.frame_format, verbose=self.verbose, **ffparams)
         self.decoder = self.decoder.formulate()
         self.stopped = False
+        self.thread = Thread(target=self.run)
+        self.thread.start()
 
-    def capture(self):
+    def run(self):
         if not self.stopped:
             for frame in self.decoder.generateFrame():
                 if frame is None:
                     self.stop()
                     return None
+                frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_NV12)
                 self.frame_count += 1
                 return frame
         return None
 
     def stop(self):
         if not self.stopped:
-            self.decoder.terminate()
             self.stopped = True
+            self.decoder.terminate()
+            self.thread.join()
 
-    def get_frame_count(self):
+    def Close(self):
+        self.stop()
+
+    def GetFrameRate(self):
+        return self.decoder.fps
+
+    def GetFrameCount(self):
         return self.frame_count
 
-    def is_streaming(self):
-        return not self.stopped
+    def GetWidth(self):
+        return self.decoder.width
 
-if __name__ == '__main__':
-    video_path = "/Users/johnny/Projects/small-fast-detector/tracker/videos/demo.mp4"
-    capture = FFmpegFrameCapture(video_path)
-    capture.start()
-    print(capture.decoder.metadata)
-    start_time = time.time()
-    try:
-        while True:
-            frame = capture.capture()
-            if frame is None:
-                break
-            cv2.imshow("Frame", frame)
-            elapsed_time = time.time() - start_time
-            fps = capture.get_frame_count() / elapsed_time if elapsed_time > 0 else 0
-            print(f"Current FPS: {fps:.2f}")
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-    finally:
-        capture.stop()
-        cv2.destroyAllWindows()
-        print("Exiting program")
+    def GetHeight(self):
+        return self.decoder.height
+
+    def IsStreaming(self):
+        return not self.stopped
