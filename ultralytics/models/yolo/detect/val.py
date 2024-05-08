@@ -1,10 +1,9 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
-import json
+
 import os
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import torch
 
 from ultralytics.data import build_dataloader, build_yolo_dataset, converter
@@ -34,10 +33,11 @@ class DetectionValidator(BaseValidator):
         super().__init__(dataloader, save_dir, pbar, args, _callbacks)
         self.nt_per_class = None
         self.is_coco = False
+        self.is_lvis = False
         self.class_map = None
         self.args.task = "detect"
         self.metrics = DetMetrics(save_dir=self.save_dir, on_plot=self.on_plot)
-        self.iouv = torch.linspace(0.5, 0.95, 10)  # iou vector for mAP@0.5:0.95
+        self.iouv = torch.linspace(0.5, 0.95, 10)  # IoU vector for mAP@0.5:0.95
         self.niou = self.iouv.numel()
         self.lb = []  # for autolabelling
 
@@ -65,18 +65,16 @@ class DetectionValidator(BaseValidator):
 
     def init_metrics(self, model):
         """Initialize evaluation metrics for YOLO."""
-        val = self.data.get(self.args.split, '')  # validation path
-        self.is_coco = (isinstance(val, str) and 'coco' in val and val.endswith(f'{os.sep}val2017.txt')) or \
-                       os.path.isfile(os.path.join(self.data['path'], 'annotations', 'instances_val2017.json')) # is COCO
-        self.class_map = list(range(1000)) #ops.coco80_to_coco91_class() if self.is_coco else list(range(1000))
-        self.args.save_json |= self.is_coco and not self.training  # run on final val if training COCO
+        val = self.data.get(self.args.split, "")  # validation path
+        self.is_coco = isinstance(val, str) and "coco" in val and val.endswith(f"{os.sep}val2017.txt")  # is COCO
+        self.is_lvis = isinstance(val, str) and "lvis" in val and not self.is_coco  # is LVIS
+        self.class_map = converter.coco80_to_coco91_class() if self.is_coco else list(range(len(model.names)))
+        self.args.save_json |= (self.is_coco or self.is_lvis) and not self.training  # run on final val if training COCO
         self.names = model.names
         self.nc = len(model.names)
         self.metrics.names = self.names
         self.metrics.plot = self.args.plots
-        # Confusion matrix for two scenarios
-        self.confusion_matrix_p = ConfusionMatrix(nc=self.nc, conf=0.3, iou_thres=0.3)
-        self.confusion_matrix_r = ConfusionMatrix(nc=self.nc, conf=0.001, iou_thres=0.3)
+        self.confusion_matrix = ConfusionMatrix(nc=self.nc, conf=self.args.conf)
         self.seen = 0
         self.jdict = []
         self.stats = dict(tp=[], conf=[], pred_cls=[], target_cls=[])
@@ -108,7 +106,7 @@ class DetectionValidator(BaseValidator):
         if len(cls):
             bbox = ops.xywh2xyxy(bbox) * torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]]  # target boxes
             ops.scale_boxes(imgsz, bbox, ori_shape, ratio_pad=ratio_pad)  # native-space labels
-        return dict(cls=cls, bbox=bbox, ori_shape=ori_shape, imgsz=imgsz, ratio_pad=ratio_pad)
+        return {"cls": cls, "bbox": bbox, "ori_shape": ori_shape, "imgsz": imgsz, "ratio_pad": ratio_pad}
 
     def _prepare_pred(self, pred, pbatch):
         """Prepares a batch of images and annotations for validation."""
@@ -136,10 +134,8 @@ class DetectionValidator(BaseValidator):
                 if nl:
                     for k in self.stats.keys():
                         self.stats[k].append(stat[k])
-                    # TODO: obb has not supported confusion_matrix yet.
-                    if self.args.plots and self.args.task != "obb":
-                        self.confusion_matrix_p.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
-                        self.confusion_matrix_r.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
+                    if self.args.plots:
+                        self.confusion_matrix.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
                 continue
 
             # Predictions
@@ -152,10 +148,8 @@ class DetectionValidator(BaseValidator):
             # Evaluate
             if nl:
                 stat["tp"] = self._process_batch(predn, bbox, cls)
-                # TODO: obb has not supported confusion_matrix yet.
-                if self.args.plots and self.args.task != "obb":
-                    self.confusion_matrix_p.process_batch(predn, bbox, cls)
-                    self.confusion_matrix_r.process_batch(predn, bbox, cls)
+                if self.args.plots:
+                    self.confusion_matrix.process_batch(predn, bbox, cls)
             for k in self.stats.keys():
                 self.stats[k].append(stat[k])
 
@@ -169,8 +163,7 @@ class DetectionValidator(BaseValidator):
     def finalize_metrics(self, *args, **kwargs):
         """Set final values for metrics speed and confusion matrix."""
         self.metrics.speed = self.speed
-        # TODO: which confusion matrix should be used?
-        self.metrics.confusion_matrix = self.confusion_matrix_p
+        self.metrics.confusion_matrix = self.confusion_matrix
 
     def get_stats(self):
         """Returns metrics statistics and results dictionary."""
@@ -182,7 +175,7 @@ class DetectionValidator(BaseValidator):
         )  # number of targets per class
         return self.metrics.results_dict
 
-    def print_results(self, stats):
+    def print_results(self):
         """Prints training/validation set metrics per class."""
         pf = "%22s" + "%11i" * 2 + "%11.3g" * len(self.metrics.keys)  # print format
         LOGGER.info(pf % ("all", self.seen, self.nt_per_class.sum(), *self.metrics.mean_results()))
@@ -195,32 +188,10 @@ class DetectionValidator(BaseValidator):
                 LOGGER.info(pf % (self.names[c], self.seen, self.nt_per_class[c], *self.metrics.class_result(i)))
 
         if self.args.plots:
-            for normalize in [False, 'gt', 'pred']:
-                self.confusion_matrix_p.plot(
+            for normalize in True, False:
+                self.confusion_matrix.plot(
                     save_dir=self.save_dir, names=self.names.values(), normalize=normalize, on_plot=self.on_plot
                 )
-                self.confusion_matrix_r.plot(
-                    save_dir=self.save_dir, names=self.names.values(), normalize=normalize, on_plot=self.on_plot
-                )
-
-        # Save micro metrics only if not training
-        if not self.training:
-            stats[f'metrics/muAR@{self.confusion_matrix_p.iou_thres}&{self.confusion_matrix_p.conf}'] = self.confusion_matrix_p.micro_recall
-            stats[f'metrics/MAR@{self.confusion_matrix_p.iou_thres}&{self.confusion_matrix_p.conf}'] = self.confusion_matrix_p.macro_recall
-            stats[f'metrics/muAP@{self.confusion_matrix_p.iou_thres}&{self.confusion_matrix_p.conf}'] = self.confusion_matrix_p.micro_precision
-            stats[f'metrics/MAP@{self.confusion_matrix_p.iou_thres}&{self.confusion_matrix_p.conf}'] = self.confusion_matrix_p.macro_precision
-
-            stats[f'metrics/muAR@{self.confusion_matrix_r.iou_thres}&{self.confusion_matrix_r.conf}'] = self.confusion_matrix_r.micro_recall
-            stats[f'metrics/MAR@{self.confusion_matrix_r.iou_thres}&{self.confusion_matrix_r.conf}'] = self.confusion_matrix_r.macro_recall
-            stats[f'metrics/muAP@{self.confusion_matrix_r.iou_thres}&{self.confusion_matrix_r.conf}'] = self.confusion_matrix_r.micro_precision
-            stats[f'metrics/MAP@{self.confusion_matrix_r.iou_thres}&{self.confusion_matrix_r.conf}'] = self.confusion_matrix_r.macro_precision
-
-            # Save macro metrics per class
-            for i, c in enumerate(self.metrics.ap_class_index):
-                stats[f"metrics/P_{self.names[c]}"] = self.metrics.class_result(i)[0]
-                stats[f"metrics/R_{self.names[c]}"] = self.metrics.class_result(i)[1]
-
-        return stats
 
     def _process_batch(self, detections, gt_bboxes, gt_cls):
         """
@@ -297,7 +268,8 @@ class DetectionValidator(BaseValidator):
             self.jdict.append(
                 {
                     "image_id": image_id,
-                    "category_id": self.class_map[int(p[5])],
+                    "category_id": self.class_map[int(p[5])]
+                    + (1 if self.is_lvis else 0),  # index starts from 1 if it's lvis
                     "bbox": [round(x, 3) for x in b],
                     "score": round(p[4], 5),
                 }
@@ -305,119 +277,42 @@ class DetectionValidator(BaseValidator):
 
     def eval_json(self, stats):
         """Evaluates YOLO output in JSON format and returns performance statistics."""
-        if self.args.save_json and self.is_coco and len(self.jdict):
-            anno_json = self.data["path"] / "annotations/instances_val2017.json"  # annotations
+        if self.args.save_json and (self.is_coco or self.is_lvis) and len(self.jdict):
             pred_json = self.save_dir / "predictions.json"  # predictions
-            LOGGER.info(f"\nEvaluating pycocotools mAP using {pred_json} and {anno_json}...")
+            anno_json = (
+                self.data["path"]
+                / "annotations"
+                / ("instances_val2017.json" if self.is_coco else f"lvis_v1_{self.args.split}.json")
+            )  # annotations
+            pkg = "pycocotools" if self.is_coco else "lvis"
+            LOGGER.info(f"\nEvaluating {pkg} mAP using {pred_json} and {anno_json}...")
             try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
-                check_requirements("pycocotools>=2.0.6")
-                from pycocotools.coco import COCO  # noqa
-                #from pycocotools.cocoeval import COCOeval  # noqa
-                from ultralytics.utils.cocoeval import COCOeval
-
-                for x in anno_json, pred_json:
+                for x in pred_json, anno_json:
                     assert x.is_file(), f"{x} file not found"
-                anno = COCO(str(anno_json))  # init annotations api
-                pred = anno.loadRes(str(pred_json))  # init predictions api (must pass string, not Path)
-                eval = COCOeval(anno, pred, "bbox")
-
-                # Set Custom Area Ranges
-                # TODO: should we set 10*15 as the minimum area? before it was 0**2
-                eval.params.areaRng = [[0**2, 1e5 ** 2],
-                                       [0**2, 16 ** 2],
-                                       [16 ** 2, 32 ** 2],
-                                       [32 ** 2, 96 ** 2],
-                                       [96 ** 2, 1e5 ** 2]]
-                eval.params.areaRngLbl = ['all', 'tiny', 'small', 'medium', 'large']
-                eval.params.maxDets = [3, 30, 300]
-
+                check_requirements("pycocotools>=2.0.6" if self.is_coco else "lvis>=0.5.3")
                 if self.is_coco:
-                    eval.params.imgIds = [int(Path(x).stem) for x in self.dataloader.dataset.im_files]  # images to eval
+                    from pycocotools.coco import COCO  # noqa
+                    from pycocotools.cocoeval import COCOeval  # noqa
+
+                    anno = COCO(str(anno_json))  # init annotations api
+                    pred = anno.loadRes(str(pred_json))  # init predictions api (must pass string, not Path)
+                    eval = COCOeval(anno, pred, "bbox")
+                else:
+                    from lvis import LVIS, LVISEval
+
+                    anno = LVIS(str(anno_json))  # init annotations api
+                    pred = anno._load_json(str(pred_json))  # init predictions api (must pass string, not Path)
+                    eval = LVISEval(anno, pred, "bbox")
+                eval.params.imgIds = [int(Path(x).stem) for x in self.dataloader.dataset.im_files]  # images to eval
                 eval.evaluate()
                 eval.accumulate()
                 eval.summarize()
-
-                # Update metrics
-                stats[self.metrics.keys[-1]] = eval.stats[0]  # update mAP50-95
-                stats[self.metrics.keys[-2]] = eval.stats[5]  # update mAP50
-
-                # Set some metrics in the stats dictionary
-                # Precision
-                stats['metrics/AP(T)'] = eval.stats[1]
-                stats['metrics/AP(S)'] = eval.stats[2]
-                stats['metrics/AP(M)'] = eval.stats[3]
-                stats['metrics/AP(L)'] = eval.stats[4]
-
-                # Recall by IoU
-                stats['metrics/AR(50:95)'] = eval.stats[25]
-                stats['metrics/AR(75)'] = eval.stats[30]
-                stats['metrics/AR(50)'] = eval.stats[31]
-
-                # Recall by Area
-                stats['metrics/AR(T)'] = eval.stats[26]
-                stats['metrics/AR(S)'] = eval.stats[27]
-                stats['metrics/AR(M)'] = eval.stats[28]
-                stats['metrics/AR(L)'] = eval.stats[29]
-
-                # Get all metrics in a dictionary
-                self.extract_cocoeval_metrics(eval)
-
-                # Save results to file
-                results_file = self.save_dir / "evaluation_results.json"
-                with results_file.open("w") as file:
-                    json.dump(stats, file)
+                if self.is_lvis:
+                    eval.print_results()  # explicitly call print_results
+                # update mAP50-95 and mAP50
+                stats[self.metrics.keys[-1]], stats[self.metrics.keys[-2]] = (
+                    eval.stats[:2] if self.is_coco else [eval.results["AP50"], eval.results["AP"]]
+                )
             except Exception as e:
-                LOGGER.warning(f"pycocotools unable to run: {e}")
+                LOGGER.warning(f"{pkg} unable to run: {e}")
         return stats
-
-    def extract_cocoeval_metrics(self, eval):
-        """Extracts metrics from COCOeval object and saves them to a DataFrame."""
-
-        # Function to append metrics
-        def append_metrics(metrics, metric_type, iou, area, max_dets, value):
-            metrics.append({
-                'Metric Type': metric_type,
-                'IoU': iou,
-                'Area': area,
-                'Max Detections': max_dets,
-                'Value': value
-            })
-
-        # Initialize a list to store the metrics
-        metrics_ = []
-
-        # Extract metrics for bbox/segm evaluation
-        iou_types = ['0.50:0.95', '0.50', '0.75']
-        areas = eval.params.areaRngLbl
-        max_dets = eval.params.maxDets
-
-        # Extract AP metrics (indices 0-14: 3 IoUs * 5 areas)
-        for i, iou in enumerate(iou_types):
-            for j, area in enumerate(areas):
-                idx = i * len(areas) + j
-                append_metrics(metrics_, 'AP', iou, area, max_dets[-1], eval.stats[idx])
-
-        # Extract AR metrics (indices 15-17: 3 maxDets for 'all' area)
-        num_ap_metrics = len(iou_types) * len(areas)  # Total number of AP metrics
-
-        # Iterate over max_dets to append AR metrics
-        for i, md in enumerate(max_dets):
-            for j, area in enumerate(areas):
-                idx = num_ap_metrics + j + i * len(areas)  # Adjust index calculation for AR
-                append_metrics(metrics_, 'AR', '0.50:0.95', area, md, eval.stats[idx])
-
-        # Append AR metrics for 0.75 and 0.50 IoU
-        for i, iou in enumerate(['0.75', '0.50']):
-            append_metrics(metrics_, 'AR', iou, 'all', '300', eval.stats[idx + i + 1])
-
-        # Convert to DataFrame
-        df_metrics = pd.DataFrame(metrics_)
-
-        # Save to file
-        df_metrics.to_csv(self.save_dir / "cocoeval_results.csv", index=False)
-
-        # Write to log
-        self.metrics.cocoeval_df = df_metrics
-
-
-
