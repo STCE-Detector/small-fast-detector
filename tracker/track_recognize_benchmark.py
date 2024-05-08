@@ -43,6 +43,9 @@ try:
     ci_and_not_headless = ci_build and not headless
 except:
     pass
+if IS_JETSON:
+    from jetson_utils import cudaDeviceSynchronize, cudaToNumpy
+
 
 def is_numeric(value):
     """ Check if the value can be converted to a float. """
@@ -322,6 +325,9 @@ class VideoBenchmark(QObject):
             if not self.paused:
                 try:
                     frame = self.frame_capture.Capture()
+                    if IS_JETSON:
+                        frame = cudaToNumpy(frame)
+                        cudaDeviceSynchronize()
                 except:
                     continue
                 if frame is None:

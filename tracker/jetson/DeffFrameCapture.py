@@ -6,6 +6,8 @@ import numpy as np
 from deffcode import FFdecoder
 from ultralytics.utils import IS_JETSON
 import platform
+if IS_JETSON:
+    from jetson_utils import cudaFromNumpy
 def check_os():
     os = platform.system()
     if os == "Darwin":
@@ -64,7 +66,8 @@ class DeffFrameCapture:
                     self.stop()
                     return None
                 self.frame_count += 1
-                return np.array(frame)
+                cuda_array = cudaFromNumpy(np.array(frame)) if IS_JETSON else frame
+                return cuda_array
         return None
 
     def stop(self):
