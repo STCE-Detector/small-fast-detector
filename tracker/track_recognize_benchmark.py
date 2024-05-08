@@ -261,9 +261,9 @@ class VideoBenchmark(QObject):
                         'loaded_video_times': self.loaded_video_times,
                         'write_video_time_list': self.write_video_time_list,
                         'timer_load_frame_list': self.timer_load_frame_list,
-                        'FPS_model': np.mean([1 / (x / 1000) if x != 0 else 1 for x in self.model_times]),
-                        'FPS_video': self.video_fps,
-                        'time_taken_seconds': self.time_taken
+                        'FPS_model': [np.mean([1 / (x / 1000) if x != 0 else 1 for x in self.model_times])],
+                        'FPS_video': [float(self.video_fps)],
+                        'time_taken_seconds': [float(self.time_taken)],
                     }
                     all_video_results.append(video_results)
                     self.reset_times()
