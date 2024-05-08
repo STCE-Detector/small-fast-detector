@@ -18,8 +18,7 @@ class FFmpegFrameCapture:
 
         if IS_JETSON:
             ffparams = {
-                "-vcodec": "h264_cuvid",  # use H.264 CUVID Video-decoder
-                "-enforce_cv_patch": True  # enable OpenCV patch for YUV(YUV420p) frames
+                "-vcodec": "h264_nvv4l2dec",  # use H.264 CUVID Video-decoder
             }
         else:
             ffparams = {
@@ -62,7 +61,7 @@ class FFmpegFrameCapture:
         return not self.stopped
 
 if __name__ == '__main__':
-    video_path = "/Users/johnny/Projects/small-fast-detector/tracker/videos/demo.mp4"
+    video_path = "/home/johnny/Projects/small-fast-detector/tracker/videos/output.mp4"
     capture = FFmpegFrameCapture(video_path)
     capture.start()
     print(capture.decoder.metadata)
