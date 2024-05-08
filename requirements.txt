@@ -60,8 +60,8 @@ timm
 einops
 supervision
 onnx_graphsurgeon
-paddle2onnx
-loguru
-rich_click
+# paddle2onnx
+# loguru
+# rich_click
 
 # roboflow

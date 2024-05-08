@@ -17,7 +17,6 @@ from tqdm import tqdm
 import warnings
 
 from tracker.jetson.DeffFrameCapture import DeffFrameCapture
-from tracker.jetson.GStreamerFrameCapture import GStreamerFrameCapture
 
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=DeprecationWarning, message="`BoxAnnotator` is deprecated")
@@ -326,7 +325,7 @@ class VideoBenchmark(QObject):
                 except:
                     continue
                 if frame is None:
-                    continue
+                    break
                 pbar.update(1)
                 timer_load_frame_end = time.perf_counter() if self.frame_capture.GetFrameCount() != 0 else 0
                 timer_load_frame = timer_load_frame_end - timer_load_frame_start
