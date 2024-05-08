@@ -325,9 +325,9 @@ class VideoBenchmark(QObject):
             if not self.paused:
                 try:
                     frame = self.frame_capture.Capture()
-                    if IS_JETSON:
+                    """if IS_JETSON:
                         frame = cudaToNumpy(frame)
-                        cudaDeviceSynchronize()
+                        cudaDeviceSynchronize()"""
                 except:
                     continue
                 if frame is None:
