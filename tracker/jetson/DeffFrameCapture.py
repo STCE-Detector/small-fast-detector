@@ -66,7 +66,7 @@ class DeffFrameCapture:
                     self.stop()
                     return None
                 self.frame_count += 1
-                cuda_array = cudaFromNumpy(np.array(frame)) if IS_JETSON else frame
+                cuda_array = cudaFromNumpy(np.array(frame)) if IS_JETSON else np.array(frame)
                 return cuda_array
         return None
 
