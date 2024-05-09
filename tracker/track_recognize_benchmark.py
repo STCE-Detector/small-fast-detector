@@ -269,7 +269,6 @@ class VideoBenchmark(QObject):
                         'time_taken_seconds': [float(self.time_taken)],
                     }
                     all_video_results.append(video_results)
-                    print(video_results)
                     self.reset_times()
                     self.cleanup()
 
