@@ -3,23 +3,23 @@
 
   "tracker_name": "ByteTrack",
 
-  "source_weights_path": "./detectors/8s_300e_128b.onnx",
-  "source_stream_path": "./videos/output.mp4",
+  "source_weights_path": "./detectors/8sp2_150e_64b.pt",
+  "source_stream_path": "./videos/fullhd_60.mp4",
 
-  "device": "cuda",
+  "device": "mps",
   "fps_reduction": 0,
 
   "save_dir": "./outputs/",
   "save_results": false,
   "save_video": false,
-  "display": false,
+  "display": true,
   "sync_fps": false,
   "stabilize": false,
   "logging": false,
   "stream_mode": false,
   "compression_mode": true,
 
-  "img_size": 1280,
+  "img_size": 640,
   "conf_threshold": 0.1,
   "iou_threshold": 0.7,
   "max_det": 300,
