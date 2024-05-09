@@ -22,19 +22,20 @@ class FrameCapture:
         self.video_info = sv.VideoInfo.from_video_path(self.source)
         self.frame_count = 0
         self.frame_size = (width, height)
-        self.stopped = False
+        self.streaming = False
 
     def start(self):
-        self.stopped = False
+        self.streaming = True
         self.vcap.start()
 
     def Capture(self):
-        if not self.stopped:
+        if self.streaming:
             frame = self.vcap.read()
             if frame is None:
-                self.stop()
+                self.Close()
                 return None
             self.frame_count += 1
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             return frame
         return None
 
@@ -53,9 +54,8 @@ class FrameCapture:
     def get_frame_size(self):
         return self.frame_size
 
-    @property
     def IsStreaming(self):
-        return self.stopped
+        return self.streaming
 
     @property
     def eos(self):
@@ -69,7 +69,7 @@ class FrameCapture:
         self.frame_count = 0
         # self.vcap.release()
         self.vcap.stop()
-        self.stopped = True
+        self.streaming = False
 
 
 if __name__ == '__main__':

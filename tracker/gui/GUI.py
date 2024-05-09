@@ -79,9 +79,10 @@ class VideoDisplay(QGraphicsView):
         self.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
 
         if not self.worker.frame_capture.IsStreaming():
-            self.timer.stop()
-            self.thread.quit()
             self.close()
+            self.timer.stop()
+            self.worker.cleanup()
+            self.thread.quit()
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key.Key_P:
