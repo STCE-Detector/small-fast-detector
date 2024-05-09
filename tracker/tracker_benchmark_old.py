@@ -222,7 +222,6 @@ class VideoBenchmark:
                         'time_taken_seconds': [float(self.time_taken)],
                     }
                     all_video_results.append(video_results)
-                    print(video_results)
                     self.reset_times()
 
                 # Compute averages of all metrics across videos for the current model configuration
