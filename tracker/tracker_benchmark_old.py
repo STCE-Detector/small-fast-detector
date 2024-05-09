@@ -207,7 +207,7 @@ class VideoBenchmark:
                         'latency_tracker_ms': self.tracker_times,
                         'latency_total_ms': self.post_processing_times_total,
                         'latency_preprocess_ms': self.preprocessing,
-                        'post_processing_times': self.post_processing_times,
+                        'post_processing_ms': self.post_processing_times,
                         'inference_ms': self.model_times,
                         'action_recognition_ms': self.action_recognition_times,
                         'annotated_frame_times': self.annotated_frame_times,
@@ -219,6 +219,7 @@ class VideoBenchmark:
                         'time_taken_seconds': [float(self.time_taken)],
                     }
                     all_video_results.append(video_results)
+                    print(video_results)
                     self.reset_times()
 
                 # Compute averages of all metrics across videos for the current model configuration
