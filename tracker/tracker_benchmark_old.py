@@ -93,6 +93,7 @@ class VideoBenchmark:
         self.tracker = None
         self.action_recognizer = None
         self.model_times = []
+        self.preprocessing = []
         self.post_processing_times = []
         self.post_processing_times_total = []
         self.tracker_times = []
@@ -176,6 +177,7 @@ class VideoBenchmark:
 
     def reset_times(self):
         self.model_times = []
+        self.preprocessing = []
         self.post_processing_times = []
         self.post_processing_times_total = []
         self.tracker_times = []
@@ -204,6 +206,7 @@ class VideoBenchmark:
                     video_results = {
                         'latency_tracker_ms': self.tracker_times,
                         'latency_total_ms': self.post_processing_times_total,
+                        'latency_preprocess_ms': self.preprocessing,
                         'post_processing_times': self.post_processing_times,
                         'inference_ms': self.model_times,
                         'action_recognition_ms': self.action_recognition_times,
@@ -362,6 +365,7 @@ class VideoBenchmark:
         annotated_frame = self.annotate_frame(frame, detections, ar_results,  frame_number, fps)
         annotated_frame_time = time.perf_counter() - start_time_annotated_frame
 
+        self.preprocessing.append(model_speed_preprocess)
         self.model_times.append(model_speed_inference)
         self.post_processing_times.append(model_speed_postprocess)
         self.post_processing_times_total.append(model_speed_postprocess_total)
