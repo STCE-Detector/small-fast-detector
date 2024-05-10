@@ -20,6 +20,9 @@ from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
 import supervision as sv
 from ultralytics.utils.torch_utils import model_info
+import warnings
+warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="`BoxAnnotator` is deprecated")
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 COLORS = sv.ColorPalette.default()
