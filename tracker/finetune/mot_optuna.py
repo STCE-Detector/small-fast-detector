@@ -15,7 +15,11 @@ def print_and_save(study, trial):
 
 if __name__ == "__main__":
 
-    study = optuna.create_study(direction="maximize")
+    resume = True
+    if resume:
+        study = joblib.load(f"./outputs/studies/optuna/no-name-fc665668-5b6a-4625-9f94-9a5d354143f2_study.pkl")
+    else:
+        study = optuna.create_study(direction="maximize")
 
     # Load config from default params
     with open("./cfg/evolve.json", "r") as f:
