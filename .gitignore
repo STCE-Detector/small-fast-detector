@@ -177,3 +177,5 @@ pnnx*
 /evaluation_tools/models/
 /evaluation_tools/outputs/
 /models/
+/tracker/evaluation/outputs/
+/tracker/finetune/outputs/

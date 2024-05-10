@@ -3,7 +3,7 @@
 
   "tracker_name": "ByteTrack",
 
-  "source_weights_path": "./detectors/8sp2_150.pt",
+  "source_weights_path": "./detectors/8sp2_150e_64b.pt",
   "source_stream_path": "/Users/inaki-eab/Desktop/TAR_data/selection/11.mp4",
 
   "device": "mps",
@@ -38,10 +38,10 @@
     "second_fuse": 0,
     "new_fuse": 1,
     "first_iou": 5,
-    "second_iou": 2,
+    "second_iou": 1,
     "new_iou": 0,
     "cw_thresh": 0.6,
-    "nk_flag": true,
+    "nk_flag": 1,
     "nk_alpha": 10,
 
     "track_buffer": 100,
