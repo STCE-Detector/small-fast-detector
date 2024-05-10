@@ -16,7 +16,16 @@ def generate_unique_tag():
 
 
 def fitness_fn(ga_instance, solution, solution_idx):
-    # Prepare the parameters for the tracker
+    """
+    Fitness function for the genetic algorithm. This function evaluates the fitness of a solution by running the tracker
+    with the specified parameters and evaluating the results using the TrackEval evaluation script.
+    Args:
+        ga_instance: The genetic algorithm instance
+        solution: The solution to evaluate
+        solution_idx: The index of the solution in the population
+    Returns:
+        The fitness value of the solution
+    """
 
     # Read common config
     with open("./cfg/evolve.json", "r") as f:
@@ -47,14 +56,21 @@ def fitness_fn(ga_instance, solution, solution_idx):
         dataset_folder=config["source_gt_dir"],
         trackers_folder=trackers_folder,
         trackers_to_eval=trackers_to_eval,
-        metrics=["HOTA"], # uncomment this line to only evaluate HOTA, single-object fitness
+        metrics=["HOTA"],   # uncomment this line to only evaluate HOTA, single-object fitness
     )
     print(combined_metrics)
-    return combined_metrics["HOTA"]#list(combined_metrics.values())
+    return combined_metrics["HOTA"] #list(combined_metrics.values())
 
 
 def optuna_fitness_fn(trial):
-    # Prepare the parameters for the tracker
+    """
+    Fitness function for the Optuna optimization library. This function evaluates the fitness of a solution by running
+    the tracker with the specified parameters and evaluating the results using the TrackEval evaluation script.
+    Args:
+        trial: The Optuna trial object
+    Returns:
+        The fitness value of the solution
+    """
 
     # Read common config
     with open("./cfg/evolve.json", "r") as f:
@@ -104,14 +120,12 @@ def optuna_fitness_fn(trial):
         trackers_to_eval=trackers_to_eval,
         metrics=["HOTA"],  # uncomment this line to only evaluate HOTA, single-object fitness
     )
-    #print(combined_metrics)
-    #return combined_metrics["HOTA"]
-    return list(combined_metrics.values())
+    return combined_metrics["HOTA"]
+    #return list(combined_metrics.values())
 
 
 if __name__ == "__main__":
     solution = [0.6, 0.3]
     h = fitness_fn(None, solution, 0)
-    #h = optuna_fitness_fn(optuna.trial.Trial())
     print(h)
 

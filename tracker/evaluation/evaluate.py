@@ -12,6 +12,18 @@ def trackeval(
         metrics=["HOTA", "CLEAR", "Identity"],
         print_output=False
 ):
+    """
+    Run the TrackEval evaluation script.
+    Args:
+        evaluator_folder: Path to the TrackEval folder.
+        dataset_folder: Path to the dataset folder.
+        trackers_folder: Path to the trackers folder.
+        trackers_to_eval: Name of the tracker to evaluate.
+        metrics: List of metrics to evaluate.
+        print_output: Whether to print the output of the evaluation script.
+    Returns:
+        Dictionary with the results of the evaluation.
+    """
 
     seq_info = [d for d in os.listdir(dataset_folder) if os.path.isdir(os.path.join(dataset_folder, d))]
 

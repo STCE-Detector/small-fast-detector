@@ -9,6 +9,9 @@ import tracker.trackers as trackers
 
 
 class SequenceProcessor:
+    """
+    Process a sequence of detections using a tracker and save the results to a txt file.
+    """
 
     def __init__(self, config, sequence_path, experiment_id=None):
         super().__init__()
@@ -66,6 +69,9 @@ class SequenceProcessor:
         self.save_results_to_txt()
 
     def get_detections(self, txt_path):
+        """
+        Read detections from a txt file and return a Detections object.
+        """
         txt_data = np.loadtxt(txt_path)
         detections = sv.Detections(
             xyxy=txt_data[:, 1:5],
@@ -75,7 +81,6 @@ class SequenceProcessor:
         return detections
 
     def save_results_to_txt(self):
-
         mot_results = np.column_stack((
             np.array(self.data_dict["frame_id"]),
             np.array(self.data_dict["tracker_id"]),
@@ -101,15 +106,24 @@ class SequenceProcessor:
 
 
 def generate_tracks(config, experiment_id=None, print_bar=True):
-        sequences_dir = config["source_detections_dir"]
-        sequence_paths = [os.path.join(sequences_dir, name) for name in os.listdir(sequences_dir) if
-                          os.path.isdir(os.path.join(sequences_dir, name))]
+    """
+    Generate tracks for all sequences in the dataset using the specified tracker and reading detections from the source
+    detections directory.
+    Args:
+        config: Configuration dictionary
+        experiment_id: Experiment ID to append to the output directory name
+        print_bar: Whether to print a progress bar
+    Returns:
+        processor: The last SequenceProcessor object used
+    """
+    sequences_dir = config["source_detections_dir"]
+    sequence_paths = [os.path.join(sequences_dir, name) for name in os.listdir(sequences_dir) if
+                      os.path.isdir(os.path.join(sequences_dir, name))]
 
-        for sequence_path in sequence_paths:
-            processor = SequenceProcessor(config, sequence_path, experiment_id)
-            processor.process_sequence(print_bar)
-
-        return processor
+    for sequence_path in sequence_paths:
+        processor = SequenceProcessor(config, sequence_path, experiment_id)
+        processor.process_sequence(print_bar)
+    return processor
 
 
 if __name__ == "__main__":
