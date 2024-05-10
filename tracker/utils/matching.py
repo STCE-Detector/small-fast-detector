@@ -233,7 +233,8 @@ def bbox_bbsi(box1, box2, type='iou', eps=1e-7):
     box2_area = box2_height * box2_width
 
     if type == 'iou_1way':
-        return intersection / (box1_area + eps)
+        # TODO: not sure if this is useful
+        return (intersection.T / (box1_area + eps)).T
 
     if type == 'iou_2way':
         return intersection / (box2_area + eps)
