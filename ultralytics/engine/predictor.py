@@ -46,6 +46,12 @@ from ultralytics.utils import DEFAULT_CFG, LOGGER, MACOS, WINDOWS, callbacks, co
 from ultralytics.utils.checks import check_imgsz, check_imshow
 from ultralytics.utils.files import increment_path
 from ultralytics.utils.torch_utils import select_device, smart_inference_mode
+from ultralytics.utils import IS_JETSON
+
+if IS_JETSON:
+    from jetson_utils import (loadImage, cudaAllocMapped, cudaConvertColor,
+                              cudaDeviceSynchronize, cudaToNumpy)
+
 
 STREAM_WARNING = """
 WARNING ⚠️ inference results will accumulate in RAM unless `stream=True` is passed, causing potential out-of-memory
@@ -119,6 +125,13 @@ class BasePredictor:
         Args:
             im (torch.Tensor | List(np.ndarray)): BCHW for tensor, [(HWC) x B] for list.
         """
+        if IS_JETSON:
+            # it receives a cuda image
+            bgr_img = cudaAllocMapped(width=im.width, height=im.height, format='bgr32f')
+            cudaConvertColor(im, bgr_img)
+
+            cudaDeviceSynchronize()
+
         not_tensor = not isinstance(im, torch.Tensor)
         if not_tensor:
             im = np.stack(self.pre_transform(im))
