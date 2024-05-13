@@ -44,8 +44,6 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_FONTDIR")
 
-if IS_JETSON:
-    from tracker.jetson.video import VideoSource
 
 class VideoProcessor(QObject):
     frame_ready = Signal(QImage, float)
@@ -78,22 +76,10 @@ class VideoProcessor(QObject):
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
 
-        if not IS_JETSON:
-            self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
-                                              stream_mode=config["stream_mode"], logging=config["logging"])
-            self.frame_capture.start()
-        else:
-            try:
-                # from tracker.jetson.video import VideoSource
-                options = {
-                    "numbuffers": 10,
-                    "mBufferSize": 4,
-                    "frameRate": "30",
-                }
-                self.frame_capture = VideoSource(self.source_video_path, options=options)
-            except Exception as e:
-                print(f"Failed to open video source: {e}")
-                sys.exit(1)
+
+        self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
+                                          stream_mode=config["stream_mode"], logging=config["logging"])
+        self.frame_capture.start()
         self.paused = False
 
         self.frame_skip_interval = 100/(100-config["fps_reduction"])
@@ -236,16 +222,7 @@ class VideoProcessor(QObject):
 
     def cleanup(self):
         print("Cleaning up...")
-        if not IS_JETSON:
-            self.frame_capture.Close()
-        else:
-            try:
-                from tracker.jetson.video import VideoSource
-                self.frame_capture = VideoSource(self.source_video_path)
-            except Exception as e:
-                print(f"Failed to open video source: {e}")
-                sys.exit(1)
-
+        self.frame_capture.Close()
         if self.save_video:
             self.video_writer.stop()
 
