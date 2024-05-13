@@ -83,10 +83,10 @@ class Yolov8:
             image_tensor: Preprocessed image data ready for inference as a PyTorch tensor.
         """
         # Load the input image (automatically infers the format and type)
-        self.input_image = cuda_image(self.input_image_path)
+        self.input_image = cuda_image(self.input_image)
 
         # Resize the image to match the input shape of the model
-        resized_image = .cudaAllocMapped(width=self.input_width, height=self.input_height, format=self.input_image.format)
+        resized_image = cudaAllocMapped(width=self.input_width, height=self.input_height, format=self.input_image.format)
         cudaResize(self.input_image, resized_image)
 
         # Convert the image color space from BGR to RGB (if needed)
