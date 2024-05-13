@@ -210,7 +210,7 @@ class Yolov8:
 if __name__ == '__main__':
     # Create an argument parser to handle command-line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='yolov8n.onnx', help='Input your ONNX model.')
+    parser.add_argument('--model', type=str, default='../detectors/8s_300e_128b.onnx', help='Input your ONNX model.')
     parser.add_argument('--img', type=str, default=str(ASSETS / 'bus.jpg'), help='Path to input image.')
     parser.add_argument('--conf-thres', type=float, default=0.5, help='Confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.5, help='NMS IoU threshold')
