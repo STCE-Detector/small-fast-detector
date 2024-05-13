@@ -1,4 +1,5 @@
 import argparse
+import time
 
 import cv2
 import numpy as np
@@ -8,8 +9,9 @@ import torch
 from ultralytics.utils import ASSETS, yaml_load, IS_JETSON
 from ultralytics.utils.checks import check_requirements, check_yaml
 from tracker.jetson.image import cuda_image
+import cv2
 if IS_JETSON:
-    from jetson_utils import cudaAllocMapped, cudaConvertColor, cudaNormalize, cudaResize
+    from jetson_utils import cudaAllocMapped, cudaConvertColor, cudaNormalize, cudaResize, cudaToNumpy
 
 class Yolov8:
 
@@ -51,6 +53,7 @@ class Yolov8:
         # Extract the coordinates of the bounding box
         x1, y1, w, h = box
 
+        img = np.array(img)
         # Retrieve the color for the class ID
         color = self.color_palette[class_id]
 
@@ -82,7 +85,9 @@ class Yolov8:
         Returns:
             image_tensor: Preprocessed image data ready for inference as a PyTorch tensor.
         """
+        init_time = time.time()
         # Load the input image (automatically infers the format and type)
+        self.img_height, self.img_width = self.input_image.shape[:2]
         self.input_image = cuda_image(self.input_image)
 
         # Resize the image to match the input shape of the model
@@ -90,23 +95,26 @@ class Yolov8:
         cudaResize(self.input_image, resized_image)
 
         # Convert the image color space from BGR to RGB (if needed)
-        rgb_image = cudaAllocMapped(width=self.input_width, height=self.input_height, format='rgb8')
+        rgb_image = cudaAllocMapped(width=self.input_width, height=self.input_height, format='rgb32f')
         cudaConvertColor(resized_image, rgb_image)
 
         # Normalize the image data to be in the range [0,1]
-        normalized_image = cudaAllocMapped(width=self.input_width, height=self.input_height, format='rgb32f')
+        normalized_image = cudaAllocMapped(width=rgb_image.width, height=rgb_image.height, format=rgb_image.format)
         cudaNormalize(rgb_image, (0, 255), normalized_image, (0, 1))
 
         # Convert cudaImage to PyTorch tensor using __cuda_array_interface__
-        image_tensor = torch.as_tensor(normalized_image, device='cuda')
+        image_tensor = torch.as_tensor(rgb_image, device='cuda')
 
         # Transpose the tensor to have the channel dimension first (C, H, W)
         image_tensor = image_tensor.permute(2, 0, 1)
 
         # Expand the dimensions of the image data to match the expected input shape of most models (batch size, C, H, W)
         image_tensor = image_tensor.unsqueeze(0).float()
+        # image_tensor = image_tensor.half() if self.model.fp16 else image_tensor.float()
 
         # Return the preprocessed image data as a PyTorch tensor
+        end_time = time.time()
+        print("Time: {}", end_time - init_time)
         return image_tensor
 
     def postprocess(self, input_image, output):
@@ -201,17 +209,17 @@ class Yolov8:
         img_data = self.preprocess()
 
         # Run inference using the preprocessed image data
-        outputs = session.run(None, {model_inputs[0].name: img_data})
+        outputs = session.run(None, {model_inputs[0].name: img_data.cpu().numpy()})
 
         # Perform post-processing on the outputs to obtain output image.
-        return self.postprocess(self.img, outputs)  # output image
+        return self.postprocess(self.input_image, outputs)  # output image
 
 
 if __name__ == '__main__':
     # Create an argument parser to handle command-line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='../detectors/8s_300e_128b.onnx', help='Input your ONNX model.')
-    parser.add_argument('--img', type=str, default=str(ASSETS / 'bus.jpg'), help='Path to input image.')
+    parser.add_argument('--img', type=str, default=str(ASSETS / '4k.png'), help='Path to input image.')
     parser.add_argument('--conf-thres', type=float, default=0.5, help='Confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.5, help='NMS IoU threshold')
     args = parser.parse_args()
@@ -219,8 +227,9 @@ if __name__ == '__main__':
     # Check the requirements and select the appropriate backend (CPU or GPU)
     check_requirements('onnxruntime-gpu' if torch.cuda.is_available() else 'onnxruntime')
 
+    img = cv2.imread(args.img)
     # Create an instance of the Yolov8 class with the specified arguments
-    detection = Yolov8(args.model, args.img, args.conf_thres, args.iou_thres)
+    detection = Yolov8(args.model, img, args.conf_thres, args.iou_thres)
 
     # Perform object detection and obtain the output image
     output_image = detection.main()
