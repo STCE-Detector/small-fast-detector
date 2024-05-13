@@ -16,6 +16,12 @@ py-cpuinfo==9.0.0
 pandas==2.0.3
 supervision==0.17.1
 pycocotools
-
+vidgear[asyncio]
+deffcode
+PySide6>=6.7.0
+simplejpeg
+timm
+einops
+supervision
 
 
