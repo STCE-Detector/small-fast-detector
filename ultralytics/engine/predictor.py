@@ -125,13 +125,6 @@ class BasePredictor:
         Args:
             im (torch.Tensor | List(np.ndarray)): BCHW for tensor, [(HWC) x B] for list.
         """
-        if IS_JETSON:
-            # it receives a cuda image
-            bgr_img = cudaAllocMapped(width=im.width, height=im.height, format='bgr32f')
-            cudaConvertColor(im, bgr_img)
-
-            cudaDeviceSynchronize()
-
         not_tensor = not isinstance(im, torch.Tensor)
         if not_tensor:
             im = np.stack(self.pre_transform(im))
