@@ -139,7 +139,6 @@ class VideoProcessor(QObject):
                 if frame is None:
                     print("No frame captured")
                     continue
-                    # frame = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
                 if frame_count >= self.frame_skip_interval:
                     annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(), fps_counter.value())
                     fps_counter.step()
