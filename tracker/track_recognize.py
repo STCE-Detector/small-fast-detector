@@ -132,7 +132,8 @@ class VideoProcessor(QObject):
                 try:
                     frame = self.frame_capture.Capture()
                 except:
-                    continue
+                    if not self.frame_capture.IsStreaming():
+                        break
                 frame_count += 1
                 if frame is None:
                     print("No frame captured")
@@ -244,4 +245,3 @@ if __name__ == "__main__":
     else:
         video_processor = VideoProcessor(config)
         video_processor.process_video()
-        
