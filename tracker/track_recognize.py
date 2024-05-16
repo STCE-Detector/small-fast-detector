@@ -166,7 +166,7 @@ class VideoProcessor(QObject):
                         self.video_writer.write_frame(annotated_frame)
                     fps_counter.step()
 
-                if not self.frame_capture.IsStreaming:
+                if not self.frame_capture.IsStreaming():
                     break
 
                 pbar.update(1)
