@@ -3,15 +3,15 @@ import argparse
 import csv
 import os
 
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+
 from PySide6.QtCore import QObject
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Signal
 
 from ultralytics.utils import IS_JETSON
-
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 import cv2
 import numpy as np
@@ -103,7 +103,7 @@ class VideoProcessor(QObject):
             self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
                                             compression_mode=config["compression_mode"],
                                             logging=config["logging"],
-                                            fps=self.frame_capture.get_fps())
+                                            fps=self.frame_capture.GetFrameRate())
             self.video_writer.start()
 
         self.class_names = {
