@@ -59,7 +59,7 @@ from .conv import (
     EMA,
     SimAM
 )
-from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, DetectLateDecoup, DetectLateDecoupV2
+from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, DetectLateDecoup, DetectLateDecoupV2, DetectEmb
 from .transformer import (
     AIFI,
     MLP,
@@ -115,6 +115,7 @@ __all__ = (
     "Detect",
     "DetectLateDecoup",
     "DetectLateDecoupV2",
+    "DetectEmb",
     "Segment",
     "Pose",
     "Classify",

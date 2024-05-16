@@ -12,15 +12,15 @@ SETTINGS['comet'] = True  # set True to log using Comet.ml
 comet_ml.init()
 
 # Initialize model and load matching weights
-model = YOLO('yolov8s.yaml', task='detect').load('./../models/yolov8s.pt')
+model = YOLO('yolov8s-p2-emb.yaml', task='detectemb').load('./../models/yolov8s.pt')
 results = model.train(
-    save=True,
+    save=False,
     verbose=True,
-    plots=True,
+    plots=False,
     project='debug',
     name='8s',
-    data='coco8.yaml',
-    epochs=3,
+    data='coco8-tagged.yaml',
+    epochs=100,
     batch=4,
     imgsz=320,
 )

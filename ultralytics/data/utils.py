@@ -42,9 +42,9 @@ PIN_MEMORY = str(os.getenv("PIN_MEMORY", True)).lower() == "true"  # global pin_
 FORMATS_HELP_MSG = f"Supported formats are:\nimages: {IMG_FORMATS}\nvideos: {VID_FORMATS}"
 
 
-def img2label_paths(img_paths):
+def img2label_paths(img_paths, labels_dir="labels"):
     """Define label paths as a function of image paths."""
-    sa, sb = f"{os.sep}images{os.sep}", f"{os.sep}labels{os.sep}"  # /images/, /labels/ substrings
+    sa, sb = f"{os.sep}images{os.sep}", f"{os.sep}{labels_dir}{os.sep}"  # /images/, /labels/ substrings
     return [sb.join(x.rsplit(sa, 1)).rsplit(".", 1)[0] + ".txt" for x in img_paths]
 
 
@@ -96,9 +96,9 @@ def verify_image(args):
 
 def verify_image_label(args):
     """Verify one image-label pair."""
-    im_file, lb_file, prefix, keypoint, num_cls, nkpt, ndim = args
+    im_file, lb_file, prefix, keypoint, tag, num_cls, nkpt, ndim = args
     # Number (missing, found, empty, corrupt), message, segments, keypoints
-    nm, nf, ne, nc, msg, segments, keypoints = 0, 0, 0, 0, "", [], None
+    nm, nf, ne, nc, msg, segments, keypoints, tags = 0, 0, 0, 0, "", [], None, None
     try:
         # Verify images
         im = Image.open(im_file)
@@ -129,11 +129,16 @@ def verify_image_label(args):
                 if keypoint:
                     assert lb.shape[1] == (5 + nkpt * ndim), f"labels require {(5 + nkpt * ndim)} columns each"
                     points = lb[:, 5:].reshape(-1, ndim)[:, :2]
+                elif tag:
+                    assert lb.shape[1] == 6, f"labels require 6 columns each, {lb.shape[1]} columns detected"
+                    points = lb[:, 1:5]
+                    tags = lb[:, 5]
                 else:
                     assert lb.shape[1] == 5, f"labels require 5 columns, {lb.shape[1]} columns detected"
                     points = lb[:, 1:]
+                    tags = np.zeros(nl, dtype=np.float32)
                 assert points.max() <= 1, f"non-normalized or out of bounds coordinates {points[points > 1]}"
-                assert lb.min() >= 0, f"negative label values {lb[lb < 0]}"
+                assert lb[:, :5].min() >= 0, f"negative label values {lb[lb < 0]}"
 
                 # All labels
                 max_cls = lb[:, 0].max()  # max label count
@@ -149,21 +154,29 @@ def verify_image_label(args):
                     msg = f"{prefix}WARNING ⚠️ {im_file}: {nl - len(i)} duplicate labels removed"
             else:
                 ne = 1  # label empty
-                lb = np.zeros((0, (5 + nkpt * ndim) if keypoint else 5), dtype=np.float32)
+                if tag:
+                    lb = np.zeros((0, 6), dtype=np.float32)
+                else:
+                    lb = np.zeros((0, (5 + nkpt * ndim) if keypoint else 5), dtype=np.float32)
         else:
             nm = 1  # label missing
-            lb = np.zeros((0, (5 + nkpt * ndim) if keypoints else 5), dtype=np.float32)
+            if tag:
+                lb = np.zeros((0, 6), dtype=np.float32)
+            else:
+                lb = np.zeros((0, (5 + nkpt * ndim) if keypoints else 5), dtype=np.float32)
         if keypoint:
             keypoints = lb[:, 5:].reshape(-1, nkpt, ndim)
             if ndim == 2:
                 kpt_mask = np.where((keypoints[..., 0] < 0) | (keypoints[..., 1] < 0), 0.0, 1.0).astype(np.float32)
                 keypoints = np.concatenate([keypoints, kpt_mask[..., None]], axis=-1)  # (nl, nkpt, 3)
+        elif tag:
+            tags = lb[:, 5]
         lb = lb[:, :5]
-        return im_file, lb, shape, segments, keypoints, nm, nf, ne, nc, msg
+        return im_file, lb, shape, segments, keypoints, tags, nm, nf, ne, nc, msg
     except Exception as e:
         nc = 1
         msg = f"{prefix}WARNING ⚠️ {im_file}: ignoring corrupt image/label: {e}"
-        return [None, None, None, None, None, nm, nf, ne, nc, msg]
+        return [None, None, None, None, None, None, nm, nf, ne, nc, msg]
 
 
 def polygon2mask(imgsz, polygons, color=1, downsample_ratio=1):

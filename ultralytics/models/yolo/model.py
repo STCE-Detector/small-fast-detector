@@ -2,7 +2,7 @@
 
 from ultralytics.engine.model import Model
 from ultralytics.models import yolo  # noqa
-from ultralytics.nn.tasks import ClassificationModel, DetectionModel, PoseModel, SegmentationModel
+from ultralytics.nn.tasks import ClassificationModel, DetectionModel, PoseModel, SegmentationModel, DetectionEmbModel  # noqa
 
 
 class YOLO(Model):
@@ -31,4 +31,10 @@ class YOLO(Model):
                 'model': PoseModel,
                 'trainer': yolo.pose.PoseTrainer,
                 'validator': yolo.pose.PoseValidator,
-                'predictor': yolo.pose.PosePredictor, }, }
+                'predictor': yolo.pose.PosePredictor, },
+            'detectemb': {
+                'model': DetectionEmbModel,
+                'trainer': yolo.detectemb.DetectionEmbTrainer,
+                'validator': yolo.detectemb.DetectionEmbValidator,
+                'predictor': yolo.detectemb.DetectionEmbPredictor, },
+        }

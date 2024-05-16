@@ -12,6 +12,43 @@ from .metrics import bbox_iou, probiou
 from .tal import bbox2dist
 
 
+class ContrastiveLoss(nn.Module):
+    def __init__(self, margin):
+        super(ContrastiveLoss, self).__init__()
+        self.margin = margin
+
+    def forward(self, embeddings, tags):
+        """
+        Compute the contrastive loss, based on the Triplet Loss function.
+        Args:
+            embeddings (torch.Tensor): The embeddings to compare, shape (num_foreground_anchors, embedding_dim).
+            tags (torch.Tensor): The labels for each embedding, shape (num_foreground_anchors,).
+        Returns:
+            torch.Tensor: The contrastive loss.
+        """
+        # Run checks
+        assert embeddings.shape[0] == tags.shape[0], "Embeddings and labels must have the same number of elements."
+        assert len(tags.shape) == 1, "Tags must be 1D."
+        assert tags.min() > 0, "Tags must be strictly positive."
+
+        # Compute pairwise distances
+        # TODO: squared euclidean distance instead?
+        # non-zero distances for mm compute mode (https://github.com/pytorch/pytorch/issues/57690)
+        distances = torch.cdist(embeddings, embeddings, p=2, compute_mode='donot_use_mm_for_euclid_dist')
+
+        positive_mask = tags.unsqueeze(0) == tags.unsqueeze(1)
+        negative_mask = ~positive_mask
+
+        positive_distances = distances * positive_mask
+        negative_distances = distances * negative_mask
+
+        # Compute per embedding loss and sum/mean or sum postive and negative losses and then merge
+        # TODO: exponential loss? or top k?
+        loss = torch.clamp(self.margin + positive_distances - negative_distances, min=0.0)
+        # TODO: why mean?
+        return torch.mean(loss)
+
+
 class VarifocalLoss(nn.Module):
     """
     Varifocal loss by Zhang et al.
@@ -150,6 +187,140 @@ class KeypointLoss(nn.Module):
         # e = d / (2 * (area * self.sigmas) ** 2 + 1e-9)  # from formula
         e = d / (2 * self.sigmas) ** 2 / (area + 1e-9) / 2  # from cocoeval
         return (kpt_loss_factor.view(-1, 1) * ((1 - torch.exp(-e)) * kpt_mask)).mean()
+
+
+class v8DetectionEmbLoss:
+    """Criterion class for computing training losses."""
+
+    def __init__(self, model):  # model must be de-paralleled
+        """Initializes v8DetectionLoss with the model, defining model-related properties and BCE loss function."""
+        device = next(model.parameters()).device  # get model device
+        h = model.args  # hyperparameters
+
+        m = model.model[-1]  # Detect() module
+        self.bce = nn.BCEWithLogitsLoss(reduction="none")
+        #self.varifocal_loss = VarifocalLoss()
+        #self.focal_loss = FocalLoss()
+        self.hyp = h
+        self.stride = m.stride  # model strides
+        self.nc = m.nc  # number of classes
+        self.no = m.no
+        self.ch_emb = m.ch_emb
+        self.reg_max = m.reg_max
+        self.device = device
+
+        self.use_dfl = m.reg_max > 1
+
+        self.assigner = TaskAlignedAssigner(topk=10, num_classes=self.nc, alpha=0.5, beta=6.0, tags=True)
+        self.bbox_loss = BboxLoss(m.reg_max - 1, use_dfl=self.use_dfl).to(device)
+        self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
+        self.emb_loss = ContrastiveLoss(margin=1.0)
+
+    def preprocess(self, targets, batch_size, scale_tensor):
+        """Preprocesses the target counts and matches with the input batch size to output a tensor."""
+        if targets.shape[0] == 0:
+            out = torch.zeros(batch_size, 0, 6, device=self.device)
+        else:
+            i = targets[:, 0]  # image index
+            _, counts = i.unique(return_counts=True)
+            counts = counts.to(dtype=torch.int32)
+            out = torch.zeros(batch_size, counts.max(), 6, device=self.device)
+            for j in range(batch_size):
+                matches = i == j
+                n = matches.sum()
+                if n:
+                    out[j, :n] = targets[matches, 1:]
+            out[..., 1:5] = xywh2xyxy(out[..., 1:5].mul_(scale_tensor))
+        return out
+
+    def bbox_decode(self, anchor_points, pred_dist):
+        """Decode predicted object bounding box coordinates from anchor points and distribution."""
+        if self.use_dfl:
+            b, a, c = pred_dist.shape  # batch, anchors, channels
+            pred_dist = pred_dist.view(b, a, 4, c // 4).softmax(3).matmul(self.proj.type(pred_dist.dtype))
+            # pred_dist = pred_dist.view(b, a, c // 4, 4).transpose(2,3).softmax(3).matmul(self.proj.type(pred_dist.dtype))
+            # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
+        return dist2bbox(pred_dist, anchor_points, xywh=False)
+
+    def __call__(self, preds, batch):
+        """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
+        loss = torch.zeros(4, device=self.device)  # box, cls, dfl, emb
+        feats = preds[1] if isinstance(preds, tuple) else preds
+        pred_distri, pred_scores, pred_embeds = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
+            (self.reg_max * 4, self.nc, self.ch_emb), 1
+        )
+
+        pred_scores = pred_scores.permute(0, 2, 1).contiguous()
+        pred_distri = pred_distri.permute(0, 2, 1).contiguous()
+        pred_embeds = pred_embeds.permute(0, 2, 1).contiguous()
+
+        dtype = pred_scores.dtype
+        batch_size = pred_scores.shape[0]
+        imgsz = torch.tensor(feats[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]  # image size (h,w)
+        anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
+
+        # Targets
+        targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["cls"].view(-1, 1), batch["bboxes"], batch["tags"].view(-1, 1)), 1)
+        targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
+        gt_labels, gt_bboxes, gt_tags = targets.split((1, 4, 1), 2)  # cls, xyxy, tags
+        mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
+
+        # Pboxes
+        pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
+
+        _, target_bboxes, target_scores, fg_mask, _, target_tags = self.assigner(
+            pred_scores.detach().sigmoid(),
+            (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+            anchor_points * stride_tensor,
+            gt_labels,
+            gt_bboxes,
+            mask_gt,
+            gt_tags
+        )
+
+        target_scores_sum = max(target_scores.sum(), 1)
+
+        # Cls loss
+        masking = False
+        if masking:
+            bg_mask_threshold = 0.3
+            bg_mask = (~((target_scores.sum(dim=2, keepdim=True) == 0).repeat(1, 1, self.nc) & (
+                        pred_scores > bg_mask_threshold))).to(dtype)
+            pred_scores *= bg_mask
+
+        class_weights = False
+        if class_weights:
+            bs, num_anchor, num_classes = pred_scores.shape
+            class_weights = torch.tensor([1, 1, 2, 23, 21, 10], device=self.device, dtype=dtype)
+            w = class_weights.repeat(bs, num_anchor, 1)
+        else:
+            w = None
+
+        loss[1] = F.binary_cross_entropy_with_logits(pred_scores, target_scores.to(dtype), pos_weight=w, reduction="none").sum() / target_scores_sum  # BCE
+        #loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
+        #loss[1] = self.varifocal_loss(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum # VFL
+        #loss[1] = self.focal_loss(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum # FL
+
+        # Bbox loss
+        if fg_mask.sum():
+            target_bboxes /= stride_tensor
+            loss[0], loss[2] = self.bbox_loss(
+                pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask
+            )
+
+        # Embedding loss
+        # Select the predicted embeddings corresponding to the target labels
+        pred_embeds = pred_embeds[fg_mask]  # (total_num_fg_object, 64)
+        target_tags = target_tags[fg_mask]  # (total_num_fg_object, 1)
+        loss[3] = self.emb_loss(pred_embeds, target_tags)
+
+        loss[0] *= self.hyp.box  # box gain
+        loss[1] *= self.hyp.cls  # cls gain
+        loss[2] *= self.hyp.dfl  # dfl gain
+        #TODO: weight emb loss
+        #loss[3] *= self.hyp.emb  # emb gain
+
+        return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
 
 
 class v8DetectionLoss:

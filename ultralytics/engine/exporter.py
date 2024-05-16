@@ -70,7 +70,7 @@ from ultralytics.cfg import get_cfg
 from ultralytics.data.dataset import YOLODataset
 from ultralytics.data.utils import check_det_dataset
 from ultralytics.nn.autobackend import check_class_names, default_class_names
-from ultralytics.nn.modules import C2f, Detect, RTDETRDecoder
+from ultralytics.nn.modules import C2f, Detect, RTDETRDecoder, DetectEmb
 from ultralytics.nn.tasks import DetectionModel, SegmentationModel
 from ultralytics.utils import (
     ARM64,
@@ -223,7 +223,7 @@ class Exporter:
         model.float()
         model = model.fuse()
         for m in model.modules():
-            if isinstance(m, (Detect, RTDETRDecoder)):  # includes all Detect subclasses like Segment, Pose, OBB
+            if isinstance(m, (Detect, RTDETRDecoder, DetectEmb)):  # includes all Detect subclasses like Segment, Pose, OBB
                 m.dynamic = self.args.dynamic
                 m.export = True
                 m.format = self.args.format
@@ -464,7 +464,7 @@ class Exporter:
             quantization_dataset = nncf.Dataset(dataset, transform_fn)
 
             ignored_scope = None
-            if isinstance(self.model.model[-1], Detect):
+            if isinstance(self.model.model[-1], Detect, DetectEmb):
                 # Includes all Detect subclasses like Segment, Pose, OBB, WorldDetect
                 head_module_name = ".".join(list(self.model.named_modules())[-1][0].split(".")[:2])
 

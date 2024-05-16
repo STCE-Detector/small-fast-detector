@@ -33,6 +33,7 @@ from ultralytics.nn.modules import (
     Detect,
     DetectLateDecoup,
     DetectLateDecoupV2,
+    DetectEmb,
     DWConv,
     PConv,
     DWConvTranspose2d,
@@ -50,7 +51,7 @@ from ultralytics.nn.modules import (
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
-from ultralytics.utils.loss import v8ClassificationLoss, v8DetectionLoss, v8OBBLoss, v8PoseLoss, v8SegmentationLoss
+from ultralytics.utils.loss import v8ClassificationLoss, v8DetectionLoss, v8OBBLoss, v8PoseLoss, v8SegmentationLoss, v8DetectionEmbLoss
 from ultralytics.utils.plotting import feature_visualization
 from ultralytics.utils.torch_utils import (
     fuse_conv_and_bn,
@@ -238,7 +239,7 @@ class BaseModel(nn.Module):
         """
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Segment, DetectLateDecoup, DetectLateDecoupV2)):
+        if isinstance(m, (Detect, Segment, DetectLateDecoup, DetectLateDecoupV2, DetectEmb)):
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
             m.strides = fn(m.strides)
@@ -297,7 +298,7 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2)):
+        if isinstance(m, (Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2, DetectEmb)):
             s = 256  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)[0] if isinstance(m, (Segment, Pose, OBB)) else self.forward(x)
@@ -351,7 +352,7 @@ class DetectionModel(BaseModel):
 
     def init_criterion(self):
         """Initialize the loss criterion for the DetectionModel."""
-        return v8DetectionLoss(self)
+        return v8DetectionLoss(self) if self.yaml['head'][-1][2] == 'Detect' else v8DetectionEmbLoss(self)
 
 
 class OBBModel(DetectionModel):
@@ -443,6 +444,18 @@ class ClassificationModel(BaseModel):
     def init_criterion(self):
         """Initialize the loss criterion for the ClassificationModel."""
         return v8ClassificationLoss()
+
+
+class DetectionEmbModel(DetectionModel):
+    """YOLOv8 detection model with embeddings."""
+
+    def __init__(self, cfg="yolov8n-seg.yaml", ch=3, nc=None, verbose=True):
+        """Initialize YOLOv8 segmentation model with given config and parameters."""
+        super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
+
+    def init_criterion(self):
+        """Initialize the loss criterion for the SegmentationModel."""
+        return v8DetectionEmbLoss(self)
 
 
 class RTDETRDetectionModel(DetectionModel):
@@ -693,7 +706,7 @@ def attempt_load_weights(weights, device=None, inplace=True, fuse=False):
     # Module updates
     for m in ensemble.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2, DetectEmb):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -729,7 +742,7 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     # Module updates
     for m in model.modules():
         t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2):
+        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2, DetectEmb):
             m.inplace = inplace
         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
@@ -847,7 +860,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             args = [ch[f]]
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
-        elif m in (Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2):
+        elif m in (Detect, Segment, Pose, OBB, DetectLateDecoup, DetectLateDecoupV2, DetectEmb):
             args.append([ch[x] for x in f])
             if m is Segment:
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
@@ -956,6 +969,8 @@ def guess_model_task(model):
             return "pose"
         if m == "obb":
             return "obb"
+        if m == "detectemb":
+            return "detectemb"
 
     # Guess from model cfg
     if isinstance(model, dict):
@@ -982,6 +997,8 @@ def guess_model_task(model):
                 return "pose"
             elif isinstance(m, OBB):
                 return "obb"
+            elif isinstance(m, DetectEmb):
+                return "detectemb"
 
     # Guess from model filename
     if isinstance(model, (str, Path)):
@@ -996,6 +1013,8 @@ def guess_model_task(model):
             return "obb"
         elif "detect" in model.parts:
             return "detect"
+        elif "detectemb" in model.parts:
+            return "detectemb"
 
     # Unable to determine task from model
     LOGGER.warning(
