@@ -37,6 +37,7 @@ class VideoWriter:
         while not self.stopped or self.frame is not None:
             if self.frame is not None:
                 with self.lock:
+                    self.frame = cv2.cvtColor(self.frame, cv2.COLOR_RGB2BGR)
                     self.writer.write(self.frame)
                     self.frame = None
             else:
