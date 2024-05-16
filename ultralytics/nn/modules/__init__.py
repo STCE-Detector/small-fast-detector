@@ -31,6 +31,7 @@ from .block import (
     Bottleneck,
     BottleneckCSP,
     C2f,
+    C2fAttn,
     C2fSum,
     C2fPConv,
     C2fPConvEMA,

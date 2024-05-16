@@ -71,6 +71,7 @@ class TaskAlignedAssigner(nn.Module):
                 torch.zeros_like(pd_scores).to(device),
                 torch.zeros_like(pd_scores[..., 0]).to(device),
                 torch.zeros_like(pd_scores[..., 0]).to(device),
+                torch.zeros_like(pd_scores[..., 0]).to(device),
             )
 
         mask_pos, align_metric, overlaps = self.get_pos_mask(

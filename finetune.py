@@ -31,7 +31,7 @@ model.train(
     #fraction=0.5,
     save_json=True,
     plots=True,
-    device=[3,4],
+    device=[1,2,3,4],
     project='fine-tune-cdv3',
     imgsz=640,
     name=f'8sp2-{epochs}e-{batch}b-TE',

@@ -320,10 +320,11 @@ class v8DetectionEmbLoss:
             )
 
         # Embedding loss
-        # Select the predicted embeddings corresponding to the target labels
-        pred_embeds = pred_embeds[fg_mask]  # (total_num_fg_object, 64)
-        target_tags = target_tags[fg_mask]  # (total_num_fg_object, 1)
-        loss[3] = self.emb_loss(pred_embeds, target_tags)
+        if fg_mask.sum():
+            # Select the predicted embeddings corresponding to the target labels
+            pred_embeds = pred_embeds[fg_mask]  # (total_num_fg_object, 64)
+            target_tags = target_tags[fg_mask]  # (total_num_fg_object, 1)
+            loss[3] = self.emb_loss(pred_embeds, target_tags)
 
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
