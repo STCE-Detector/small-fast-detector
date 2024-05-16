@@ -71,7 +71,6 @@ class STrack(BaseTrack):
         self.curr_feat = None
         if feat is not None:
             self.update_features(feat)
-
         self.alpha = 0.9
 
         # Action recognition: widow of previous states
@@ -179,8 +178,9 @@ class STrack(BaseTrack):
     def re_activate(self, new_track, frame_id, new_id=False):
         """Reactivates a previously lost track with a new detection."""
         self.mean, self.covariance = self.kalman_filter.update(self.mean, self.covariance,
-                                                               self.convert_coords(new_track.tlwh))
+                                                               self.convert_coords(new_track.tlwh), new_track.score)
         self.tracklet_len = 0
+
         self.state = TrackState.Tracked
         self.is_activated = True
         self.frame_id = frame_id
@@ -203,7 +203,7 @@ class STrack(BaseTrack):
 
         new_tlwh = new_track.tlwh
         self.mean, self.covariance = self.kalman_filter.update(self.mean, self.covariance,
-                                                               self.convert_coords(new_tlwh))
+                                                               self.convert_coords(new_tlwh), new_track.score)
         self.state = TrackState.Tracked
         self.is_activated = True
 
@@ -215,21 +215,6 @@ class STrack(BaseTrack):
             self.prev_states.append(self.mean)
         if len(self.prev_states) > self.speed_buffer_len:
             self.prev_states.pop(0)
-
-        '''
-        if self.prev_state is None:
-            self.prev_state = self.mean
-
-        speed = np.linalg.norm(self.mean[:2] - self.prev_state[:2])
-
-        if self.EMA_speed is None:
-            self.EMA_speed = speed
-        else:
-            self.EMA_speed = self.EMA_alpha * speed + (1 - self.EMA_alpha) * self.prev_EMA_speed
-
-        self.prev_EMA_speed = self.EMA_speed
-        self.prev_state = self.mean
-        '''
 
     def convert_coords(self, tlwh):
         """Convert a bounding box's top-left-width-height format to its x-y-angle-height equivalent."""
@@ -325,9 +310,33 @@ class ByteTrack:
         self.track_high_thresh = args["track_high_thresh"]
         self.track_low_thresh = args["track_low_thresh"]
         self.new_track_thresh = args["new_track_thresh"]
+        self.first_match_thresh = args["first_match_thresh"]
+        self.second_match_thresh = args["second_match_thresh"]
+        self.new_match_thresh = args["new_match_thresh"]
+        self.first_buffer = args["first_buffer"]
+        self.second_buffer = args["second_buffer"]
+        self.new_buffer = args["new_buffer"]
+        self.first_fuse = args["first_fuse"]
+        self.second_fuse = args["second_fuse"]
+        self.new_fuse = args["new_fuse"]
+
+        self.iou_type_dict = {
+            0: 'iou',
+            1: 'iou_1way',
+            2: 'iou_2way',
+            3: 'diou',
+            4: 'bbsi',
+            5: 'hmiou',
+        }
+        self.first_iou = self.iou_type_dict[args["first_iou"]]
+        self.second_iou = self.iou_type_dict[args["second_iou"]]
+        self.new_iou = self.iou_type_dict[args["new_iou"]]
 
         self.buffer_size = np.int8(video_info.fps / 30.0 * args["track_buffer"])
         self.max_time_lost = self.buffer_size
+        self.cw_thresh = args["cw_thresh"]   # 0 to deactivate
+        self.nk_flag = args["nk_flag"]
+        self.nk_alpha = args["nk_alpha"]
         self.kalman_filter = self.get_kalmanfilter()
 
         # ReID module
@@ -423,9 +432,13 @@ class ByteTrack:
             STrack.multi_gmc(unconfirmed, warp)
 
         # Compute distance matrix
-        dists = self.get_dists(strack_pool, detections)
+        dists = self.get_dists(strack_pool, detections,
+                               conf_fuse=self.first_fuse,
+                               reid=True,
+                               buffer=self.first_buffer,
+                               iou_type=self.first_iou)
         # Perform data association
-        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args["match_thresh"])
+        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.first_match_thresh)
 
         # Update matched stracks with matched detections
         for itracked, idet in matches:
@@ -447,9 +460,13 @@ class ByteTrack:
         r_tracked_stracks = [strack_pool[i] for i in u_track if (strack_pool[i].state == TrackState.Tracked)]
 
         # Compute distance matrix only based on IoU
-        dists = matching.iou_distance(r_tracked_stracks, detections_second)
+        dists = self.get_dists(r_tracked_stracks, detections_second,
+                               conf_fuse=self.second_fuse,
+                               reid=False,
+                               buffer=self.second_buffer,
+                               iou_type=self.second_iou)
         # Perform data association only based on IoU distance and greater than 0.5
-        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)
+        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=self.second_match_thresh)
 
         # Update matched stracks with matched detections
         for itracked, idet in matches:
@@ -470,9 +487,14 @@ class ByteTrack:
                 lost_stracks.append(track)
 
         # Deal with unmatched detections from the first association and unconfirmed tracks (usually tracks with only one frame)
+        #TODO: is this necessary? Can't we just activate the unconfirmed tracks in their first frame?
         detections = [detections[i] for i in u_detection]
-        dists = self.get_dists(unconfirmed, detections)
-        matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
+        dists = self.get_dists(unconfirmed, detections,
+                               conf_fuse=self.new_fuse,
+                               reid=False,
+                               buffer=self.new_buffer,
+                               iou_type=self.new_iou)
+        matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=self.new_match_thresh)
         for itracked, idet in matches:
             unconfirmed[itracked].update(detections[idet], self.frame_id)
             activated_stracks.append(unconfirmed[itracked])
@@ -541,7 +563,7 @@ class ByteTrack:
 
     def get_kalmanfilter(self):
         """Returns a Kalman filter object for tracking bounding boxes."""
-        return KalmanFilterXYAH()
+        return KalmanFilterXYAH(self.cw_thresh, self.nk_flag, self.nk_alpha)
 
     def init_track(self, dets, scores, cls, features=None, img=None):
         """Initialize object tracking with detections and scores using STrack algorithm."""
@@ -556,17 +578,21 @@ class ByteTrack:
 
         return detections
 
-    def get_dists(self, tracks, detections):
+    def get_dists(self, tracks, detections, conf_fuse=True, reid=False, buffer=0, iou_type='iou'):
         """Get distances between tracks and detections using IoU and (optionally) ReID embeddings."""
-        dists = matching.iou_distance(tracks, detections)
-        dists_mask = (dists > self.proximity_thresh)
-        # Originally only used with MOT20 dataset
-        dists = matching.fuse_score(dists, detections)
 
-        if self.with_reid and self.encoder is not None:
+        dists = matching.iou_distance(tracks, detections, b=buffer, type=iou_type)
+        # TODO: set it in config
+        if conf_fuse:
+            # Originally only used with MOT20 dataset
+            dists = matching.fuse_score(dists, detections)
+
+        if self.with_reid and (self.encoder is not None) and reid:
+            dists_mask = (dists > self.proximity_thresh)
             emb_dists = matching.embedding_distance(tracks, detections) / 2.0
             emb_dists[emb_dists > self.appearance_thresh] = 1.0
             emb_dists[dists_mask] = 1.0
+            # TODO: should be sum?
             dists = np.minimum(dists, emb_dists)
 
             # TODO: SMILE TRACK IMPLEMENTATION

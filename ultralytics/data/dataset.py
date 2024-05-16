@@ -60,6 +60,7 @@ class YOLODataset(BaseDataset):
         self.use_segments = task == "segment"
         self.use_keypoints = task == "pose"
         self.use_obb = task == "obb"
+        self.use_tag = task == "detectemb"
         self.data = data
         assert not (self.use_segments and self.use_keypoints), "Can not use both segments and keypoints."
         super().__init__(*args, **kwargs)
@@ -92,13 +93,14 @@ class YOLODataset(BaseDataset):
                     self.label_files,
                     repeat(self.prefix),
                     repeat(self.use_keypoints),
+                    repeat(self.use_tag),
                     repeat(len(self.data["names"])),
                     repeat(nkpt),
                     repeat(ndim),
                 ),
             )
             pbar = TQDM(results, desc=desc, total=total)
-            for im_file, lb, shape, segments, keypoint, nm_f, nf_f, ne_f, nc_f, msg in pbar:
+            for im_file, lb, shape, segments, keypoint, tag, nm_f, nf_f, ne_f, nc_f, msg in pbar:
                 nm += nm_f
                 nf += nf_f
                 ne += ne_f
@@ -109,7 +111,8 @@ class YOLODataset(BaseDataset):
                             "im_file": im_file,
                             "shape": shape,
                             "cls": lb[:, 0:1],  # n, 1
-                            "bboxes": lb[:, 1:],  # n, 4
+                            "bboxes": lb[:, 1:5],  # n, 4
+                            "tags": tag.reshape(-1, 1),  # n, 1
                             "segments": segments,
                             "keypoints": keypoint,
                             "normalized": True,
@@ -133,7 +136,7 @@ class YOLODataset(BaseDataset):
 
     def get_labels(self):
         """Returns dictionary of labels for YOLO training."""
-        self.label_files = img2label_paths(self.im_files)
+        self.label_files = img2label_paths(self.im_files, labels_dir='tagged_labels') if self.use_tag else img2label_paths(self.im_files)
         cache_path = Path(self.label_files[0]).parent.with_suffix(".cache")
         try:
             cache, exists = load_dataset_cache_file(cache_path), True  # attempt to load a *.cache file
@@ -158,8 +161,8 @@ class YOLODataset(BaseDataset):
         self.im_files = [lb["im_file"] for lb in labels]  # update im_files
 
         # Check if the dataset is all boxes or all segments
-        lengths = ((len(lb["cls"]), len(lb["bboxes"]), len(lb["segments"])) for lb in labels)
-        len_cls, len_boxes, len_segments = (sum(x) for x in zip(*lengths))
+        lengths = ((len(lb["cls"]), len(lb["bboxes"]), len(lb["segments"]), len(lb["tags"])) for lb in labels)
+        len_cls, len_boxes, len_segments, len_tags = (sum(x) for x in zip(*lengths))
         if len_segments and len_boxes != len_segments:
             LOGGER.warning(
                 f"WARNING ⚠️ Box and segment counts should be equal, but got len(segments) = {len_segments}, "
@@ -170,6 +173,13 @@ class YOLODataset(BaseDataset):
                 lb["segments"] = []
         if len_cls == 0:
             LOGGER.warning(f"WARNING ⚠️ No labels found in {cache_path}, training may not work correctly. {HELP_URL}")
+        if len_tags != len_cls:
+            LOGGER.warning(
+                f"WARNING ⚠️ Tag and class counts should be equal, but got len(tags) = {len_tags}, "
+                f"len(cls) = {len_cls}. To resolve this all tags will be removed."
+            )
+            for lb in labels:
+                lb["tags"] = []
         return labels
 
     def build_transforms(self, hyp=None):
@@ -237,7 +247,7 @@ class YOLODataset(BaseDataset):
             value = values[i]
             if k == "img":
                 value = torch.stack(value, 0)
-            if k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb"}:
+            if k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb", "tags"}:
                 value = torch.cat(value, 0)
             new_batch[k] = value
         new_batch["batch_idx"] = list(new_batch["batch_idx"])

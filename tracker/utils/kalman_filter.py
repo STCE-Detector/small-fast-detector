@@ -13,7 +13,7 @@ class KalmanFilterXYAH:
     observation of the state space (linear observation model).
     """
 
-    def __init__(self):
+    def __init__(self, cw_thresh=0.6, nk_alpha=10, nk_flag=False):
         """Initialize Kalman filter model matrices with motion and observation uncertainty weights."""
         ndim, dt = 4, 1.
 
@@ -27,6 +27,10 @@ class KalmanFilterXYAH:
         # the amount of uncertainty in the model. This is a bit hacky.
         self._std_weight_position = 1. / 20
         self._std_weight_velocity = 1. / 160
+
+        self.cw_thresh = cw_thresh
+        self.nk_alpha = nk_alpha
+        self.nk_flag = nk_flag
 
     def initiate(self, measurement):
         """
@@ -87,7 +91,7 @@ class KalmanFilterXYAH:
 
         return mean, covariance
 
-    def project(self, mean, covariance):
+    def project(self, mean, covariance, det_score):
         """
         Project state distribution to measurement space.
 
@@ -107,6 +111,10 @@ class KalmanFilterXYAH:
             self._std_weight_position * mean[3], self._std_weight_position * mean[3], 1e-1,
             self._std_weight_position * mean[3]]
         innovation_cov = np.diag(np.square(std))
+
+        # Noise Scale Adaptation form ConfTrack
+        if self.nk_flag:
+            innovation_cov = innovation_cov * (1-det_score) * self.nk_alpha
 
         mean = np.dot(self._update_mat, mean)
         covariance = np.linalg.multi_dot((self._update_mat, covariance, self._update_mat.T))
@@ -146,7 +154,7 @@ class KalmanFilterXYAH:
 
         return mean, covariance
 
-    def update(self, mean, covariance, measurement):
+    def update(self, mean, covariance, measurement, det_score):
         """
         Run Kalman filter correction step.
 
@@ -159,18 +167,27 @@ class KalmanFilterXYAH:
         measurement : ndarray
             The 4 dimensional measurement vector (x, y, a, h), where (x, y) is the center position, a the aspect
             ratio, and h the height of the bounding box.
+        det_score : float
+            Detection score of the measurement.
 
         Returns
         -------
         (ndarray, ndarray)
             Returns the measurement-corrected state distribution.
         """
-        projected_mean, projected_cov = self.project(mean, covariance)
+        projected_mean, projected_cov = self.project(mean, covariance, det_score)
 
         chol_factor, lower = scipy.linalg.cho_factor(projected_cov, lower=True, check_finite=False)
         kalman_gain = scipy.linalg.cho_solve((chol_factor, lower),
                                              np.dot(covariance, self._update_mat.T).T,
                                              check_finite=False).T
+
+        # Inspired by ConfTrack:
+        if det_score < self.cw_thresh: #score_threshold is a hyperparameter 0.6-0.7
+            measurement = measurement + (projected_mean-measurement) * (1-det_score)
+
+        #TODO: measumerement (new_det) covariance
+
         innovation = measurement - projected_mean
 
         new_mean = mean + np.dot(innovation, kalman_gain.T)

@@ -3,11 +3,11 @@
 
   "tracker_name": "ByteTrack",
 
-  "source_weights_path": "./detectors/8s_300e_128b.pt",
-  "source_stream_path": "./videos/fullhd_60.mp4",
+  "source_weights_path": "./detectors/8sp2_150e_64b.pt",
+  "source_stream_path": "/Users/inaki-eab/Desktop/TAR_data/selection/13.mp4",
 
   "device": "mps",
-  "fps_reduction": 0,
+  "fps_reduction": 20,
 
   "save_dir": "./outputs/",
   "save_results": false,
@@ -22,19 +22,35 @@
   "img_size": 640,
   "conf_threshold": 0.1,
   "iou_threshold": 0.7,
-  "max_det": 300,
-  "agnostic_nms": false,
+  "max_det": 50,
+  "agnostic_nms": true,
 
   "tracker_args": {
-    "track_high_thresh": 0.4,
-    "track_low_thresh": 0.1,
-    "new_track_thresh": 0.25,
-    "track_buffer": 30,
-    "match_thresh": 0.9,
+    "track_high_thresh": 0.2,
+    "track_low_thresh": 0.38,
+    "new_track_thresh": 0.57,
+    "first_match_thresh": 0.93,
+    "second_match_thresh": 0.98,
+    "new_match_thresh": 0.84,
+    "first_buffer": 0.0,
+    "second_buffer": 0.1,
+    "new_buffer": 0.11,
+    "first_fuse": 1,
+    "second_fuse": 1,
+    "new_fuse": 1,
+    "first_iou": 5,
+    "second_iou": 0,
+    "new_iou": 3,
+    "cw_thresh": 0.75,
+    "nk_flag": 1,
+    "nk_alpha": 50,
+
+    "track_buffer": 50,
+
     "proximity_thresh": 0.9,
     "appearance_thresh": 0.8,
     "with_reid": false,
-    "reid_default": false,
+    "reid_default": true,
     "weight_path": "ver12.pt",
     "gmc_method": null,
     "device": "cuda"

@@ -1,0 +1,14 @@
+{
+  "name": "YOLOv8s-P2-640",
+
+  "source_weights_path": "./../detectors/8sp2_150e_64b.pt",
+  "source_sequence_dir": "./TrackEval/data/gt/mot_challenge/MOTHupba-train",
+
+  "device": "mps",
+
+  "img_size": 640,
+  "conf_threshold": 0.1,
+  "iou_threshold": 0.7,
+  "max_det": 300,
+  "agnostic_nms": true
+}

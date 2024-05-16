@@ -346,22 +346,28 @@ class Mosaic(BaseMixTransform):
             return {}
         cls = []
         instances = []
+        tags = []
+
         imgsz = self.imgsz * 2  # mosaic imgsz
         for labels in mosaic_labels:
             cls.append(labels["cls"])
             instances.append(labels["instances"])
+            tags.append(labels["tags"])
+
         # Final labels
         final_labels = {
             "im_file": mosaic_labels[0]["im_file"],
             "ori_shape": mosaic_labels[0]["ori_shape"],
             "resized_shape": (imgsz, imgsz),
             "cls": np.concatenate(cls, 0),
+            "tags": np.concatenate(tags, 0),
             "instances": Instances.concatenate(instances, axis=0),
             "mosaic_border": self.border,
         }
         final_labels["instances"].clip(imgsz, imgsz)
         good = final_labels["instances"].remove_zero_area_boxes()
         final_labels["cls"] = final_labels["cls"][good]
+        final_labels["tags"] = final_labels["tags"][good]
         if "texts" in mosaic_labels[0]:
             final_labels["texts"] = mosaic_labels[0]["texts"]
         return final_labels
@@ -567,6 +573,7 @@ class RandomPerspective:
         img = labels["img"]
         cls = labels["cls"]
         instances = labels.pop("instances")
+        tags = labels["tags"]
         # Make sure the coord formats are right
         instances.convert_bbox(format="xyxy")
         instances.denormalize(*img.shape[:2][::-1])
@@ -599,6 +606,7 @@ class RandomPerspective:
         )
         labels["instances"] = new_instances[i]
         labels["cls"] = cls[i]
+        labels["tags"] = tags[i]
         labels["img"] = img
         labels["resized_shape"] = img.shape[:2]
         return labels
@@ -964,6 +972,7 @@ class Format:
         instances.convert_bbox(format=self.bbox_format)
         instances.denormalize(w, h)
         nl = len(instances)
+        tags = labels.pop("tags")
 
         if self.return_mask:
             if nl:
@@ -977,6 +986,7 @@ class Format:
         labels["img"] = self._format_img(img)
         labels["cls"] = torch.from_numpy(cls) if nl else torch.zeros(nl)
         labels["bboxes"] = torch.from_numpy(instances.bboxes) if nl else torch.zeros((nl, 4))
+        labels["tags"] = torch.from_numpy(tags) if nl else torch.zeros(nl)
         if self.return_keypoint:
             labels["keypoints"] = torch.from_numpy(instances.keypoints)
             if self.normalize:

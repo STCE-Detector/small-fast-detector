@@ -3,15 +3,15 @@ import argparse
 import csv
 import os
 
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+
 from PySide6.QtCore import QObject
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Signal
 
 from ultralytics.utils import IS_JETSON
-
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 import cv2
 import numpy as np
@@ -76,7 +76,6 @@ class VideoProcessor(QObject):
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
 
-
         self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
                                           stream_mode=config["stream_mode"], logging=config["logging"])
         self.frame_capture.start()
@@ -104,7 +103,7 @@ class VideoProcessor(QObject):
             self.video_writer = VideoWriter(self.target_video_path, frame_size=self.frame_capture.get_frame_size(),
                                             compression_mode=config["compression_mode"],
                                             logging=config["logging"],
-                                            fps=self.frame_capture.get_fps())
+                                            fps=self.frame_capture.GetFrameRate())
             self.video_writer.start()
 
         self.class_names = {
@@ -127,7 +126,7 @@ class VideoProcessor(QObject):
         pbar = tqdm(total=self.video_info.total_frames, desc="Processing Frames", unit="frame")
         fps_counter = FrameRateCounter()
         timer = Timer()
-        frame_count = 0
+        frame_count = 1
         while True:
             if not self.paused:
                 try:
@@ -135,7 +134,6 @@ class VideoProcessor(QObject):
                 except:
                     continue
                 frame_count += 1
-                pbar.update(1)
                 if frame is None:
                     print("No frame captured")
                     continue
@@ -165,11 +163,13 @@ class VideoProcessor(QObject):
                 else:
                     # TODO: when static skipping is > 0, video not generated, solve this (skipping should start by true)
                     if self.save_video and not self.display:
-                        #self.video_writer.write_frame(annotated_frame)
-                        px=0
+                        self.video_writer.write_frame(annotated_frame)
                     fps_counter.step()
+
                 if not self.frame_capture.IsStreaming:
                     break
+
+                pbar.update(1)
 
             if self.save_results:
                 with open(self.csv_path, 'w', newline='') as file:

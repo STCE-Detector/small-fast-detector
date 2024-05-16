@@ -25,7 +25,7 @@ class TaskAlignedAssigner(nn.Module):
         eps (float): A small value to prevent division by zero.
     """
 
-    def __init__(self, topk=13, num_classes=80, alpha=1.0, beta=6.0, eps=1e-9):
+    def __init__(self, topk=13, num_classes=80, alpha=1.0, beta=6.0, eps=1e-9, tags=False):
         """Initialize a TaskAlignedAssigner object with customizable hyperparameters."""
         super().__init__()
         self.topk = topk
@@ -34,9 +34,10 @@ class TaskAlignedAssigner(nn.Module):
         self.alpha = alpha
         self.beta = beta
         self.eps = eps
+        self.use_tags = tags
 
     @torch.no_grad()
-    def forward(self, pd_scores, pd_bboxes, anc_points, gt_labels, gt_bboxes, mask_gt):
+    def forward(self, pd_scores, pd_bboxes, anc_points, gt_labels, gt_bboxes, mask_gt, gt_tags=None):
         """
         Compute the task-aligned assignment. Reference code is available at
         https://github.com/Nioolek/PPYOLOE_pytorch/blob/master/ppyoloe/assigner/tal_assigner.py.
@@ -48,6 +49,7 @@ class TaskAlignedAssigner(nn.Module):
             gt_labels (Tensor): shape(bs, n_max_boxes, 1)
             gt_bboxes (Tensor): shape(bs, n_max_boxes, 4)
             mask_gt (Tensor): shape(bs, n_max_boxes, 1)
+            gt_tags (Tensor): shape(bs, n_max_boxes, 1)
 
         Returns:
             target_labels (Tensor): shape(bs, num_total_anchors)
@@ -55,16 +57,19 @@ class TaskAlignedAssigner(nn.Module):
             target_scores (Tensor): shape(bs, num_total_anchors, num_classes)
             fg_mask (Tensor): shape(bs, num_total_anchors)
             target_gt_idx (Tensor): shape(bs, num_total_anchors)
+            target_tags (Tensor): shape(bs, num_total_anchors)
         """
         self.bs = pd_scores.size(0)
         self.n_max_boxes = gt_bboxes.size(1)
 
         if self.n_max_boxes == 0:
             device = gt_bboxes.device
+            #TODO: check if this is correct for tags
             return (
                 torch.full_like(pd_scores[..., 0], self.bg_idx).to(device),
                 torch.zeros_like(pd_bboxes).to(device),
                 torch.zeros_like(pd_scores).to(device),
+                torch.zeros_like(pd_scores[..., 0]).to(device),
                 torch.zeros_like(pd_scores[..., 0]).to(device),
                 torch.zeros_like(pd_scores[..., 0]).to(device),
             )
@@ -76,7 +81,7 @@ class TaskAlignedAssigner(nn.Module):
         target_gt_idx, fg_mask, mask_pos = self.select_highest_overlaps(mask_pos, overlaps, self.n_max_boxes)
 
         # Assigned target
-        target_labels, target_bboxes, target_scores = self.get_targets(gt_labels, gt_bboxes, target_gt_idx, fg_mask)
+        target_labels, target_bboxes, target_scores, target_tags = self.get_targets(gt_labels, gt_bboxes, target_gt_idx, fg_mask, gt_tags)
 
         # Normalize
         align_metric *= mask_pos
@@ -85,7 +90,7 @@ class TaskAlignedAssigner(nn.Module):
         norm_align_metric = (align_metric * pos_overlaps / (pos_align_metrics + self.eps)).amax(-2).unsqueeze(-1)
         target_scores = target_scores * norm_align_metric
 
-        return target_labels, target_bboxes, target_scores, fg_mask.bool(), target_gt_idx
+        return target_labels, target_bboxes, target_scores, fg_mask.bool(), target_gt_idx, target_tags
 
     def get_pos_mask(self, pd_scores, pd_bboxes, gt_labels, gt_bboxes, anc_points, mask_gt):
         """Get in_gts mask, (b, max_num_obj, h*w)."""
@@ -161,7 +166,7 @@ class TaskAlignedAssigner(nn.Module):
 
         return count_tensor.to(metrics.dtype)
 
-    def get_targets(self, gt_labels, gt_bboxes, target_gt_idx, fg_mask):
+    def get_targets(self, gt_labels, gt_bboxes, target_gt_idx, fg_mask, gt_tags=None):
         """
         Compute target labels, target bounding boxes, and target scores for the positive anchor points.
 
@@ -174,6 +179,8 @@ class TaskAlignedAssigner(nn.Module):
                                     number of anchor points.
             fg_mask (Tensor): A boolean tensor of shape (b, h*w) indicating the positive
                               (foreground) anchor points.
+            gt_tags (Tensor): Ground truth tags of shape (b, max_num_obj, 1), where tag values
+                              start from 1 onwards (0 reserved for null tags).
 
         Returns:
             (Tuple[Tensor, Tensor, Tensor]): A tuple containing the following tensors:
@@ -184,12 +191,14 @@ class TaskAlignedAssigner(nn.Module):
                 - target_scores (Tensor): Shape (b, h*w, num_classes), containing the target scores
                                           for positive anchor points, where num_classes is the number
                                           of object classes.
+                - target_tags (Tensor):   Shape (b, h*w), containing the target tags for positive anchor points.
         """
 
         # Assigned target labels, (b, 1)
         batch_ind = torch.arange(end=self.bs, dtype=torch.int64, device=gt_labels.device)[..., None]
         target_gt_idx = target_gt_idx + batch_ind * self.n_max_boxes  # (b, h*w)
         target_labels = gt_labels.long().flatten()[target_gt_idx]  # (b, h*w)
+        target_tags = gt_tags.flatten()[target_gt_idx] if gt_tags is not None else None
 
         # Assigned target boxes, (b, max_num_obj, 4) -> (b, h*w, 4)
         target_bboxes = gt_bboxes.view(-1, gt_bboxes.shape[-1])[target_gt_idx]
@@ -208,7 +217,7 @@ class TaskAlignedAssigner(nn.Module):
         fg_scores_mask = fg_mask[:, :, None].repeat(1, 1, self.num_classes)  # (b, h*w, 80)
         target_scores = torch.where(fg_scores_mask > 0, target_scores, 0)
 
-        return target_labels, target_bboxes, target_scores
+        return target_labels, target_bboxes, target_scores, target_tags
 
     @staticmethod
     def select_candidates_in_gts(xy_centers, gt_bboxes, eps=1e-9):
