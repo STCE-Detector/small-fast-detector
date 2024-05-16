@@ -61,6 +61,7 @@ class VideoDisplay(QGraphicsView):
         self.worker = processor
         self.worker.moveToThread(self.thread)
         self.worker.frame_ready.connect(self.update_display)
+        self.thread.started.connect(self.worker.process_video)
         self.thread.start()
 
         self.timer = QTimer()
@@ -79,19 +80,28 @@ class VideoDisplay(QGraphicsView):
         self.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
 
         if not self.worker.frame_capture.IsStreaming():
-            self.close()
-            self.timer.stop()
-            self.worker.cleanup()
-            self.thread.quit()
+            print("Video ended")
+            self.cleanup_and_close()
+
+    def closeEvent(self, event):
+        self.cleanup_and_close()
+        super().closeEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key.Key_P:
             self.worker.toggle_pause()
         elif event.key() == Qt.Key.Key_F:
             self.sync_fps = not self.sync_fps
-            print("Sync FPS: ", self.sync_fps)
             self.timer.start(int(1000 / self.worker.frame_capture.GetFrameRate() if not self.sync_fps else 0))
         elif event.key() == Qt.Key.Key_Q:
-            self.close()
-            self.worker.cleanup()
+            self.cleanup_and_close()
+
+    def cleanup_and_close(self):
+        self.worker.cleanup()
+        if self.timer.isActive():
+            self.timer.stop()
+        if self.thread.isRunning():
             self.thread.quit()
+            self.thread.wait()
+        self.close()
+        
