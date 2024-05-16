@@ -137,8 +137,7 @@ class VideoProcessor(QObject):
                 frame_count += 1
                 if frame is None:
                     print("No frame captured")
-                    if not self.frame_capture.IsStreaming():
-                        break
+                    break
                 if frame_count >= self.frame_skip_interval:
                     annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(), fps_counter.value())
                     fps_counter.step()
