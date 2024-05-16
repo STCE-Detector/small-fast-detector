@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.ops import sigmoid_focal_loss
+import einops as ein
 
 from ultralytics.utils.metrics import OKS_SIGMA
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
@@ -34,7 +35,9 @@ class ContrastiveLoss(nn.Module):
         # Compute pairwise distances
         # TODO: squared euclidean distance instead?
         # non-zero distances for mm compute mode (https://github.com/pytorch/pytorch/issues/57690)
-        distances = torch.cdist(embeddings, embeddings, p=2, compute_mode='donot_use_mm_for_euclid_dist')
+        #distances = torch.cdist(embeddings, embeddings, p=2, compute_mode='donot_use_mm_for_euclid_dist')
+        # TODO: actual distance computation does not work with fp16
+        distances = self.cdist(embeddings, embeddings, p=2, compute_mode='donot_use_mm_for_euclid_dist')
 
         positive_mask = tags.unsqueeze(0) == tags.unsqueeze(1)
         negative_mask = ~positive_mask
@@ -47,6 +50,14 @@ class ContrastiveLoss(nn.Module):
         loss = torch.clamp(self.margin + positive_distances - negative_distances, min=0.0)
         # TODO: why mean?
         return torch.mean(loss)
+
+    @staticmethod
+    def cdist(x: torch.Tensor, y: torch.Tensor, p=2, compute_mode='donot_use_mm_for_euclid_dist') -> torch.Tensor:
+        if x.dtype is torch.float16 and x.is_cuda:
+            x = ein.rearrange(x, 'i d -> i 1 d')
+            y = ein.rearrange(y, 'j d -> 1 j d')
+            return (x - y).norm(dim=-1, p=p)
+        return torch.cdist(x, y, p=p, compute_mode=compute_mode)
 
 
 class VarifocalLoss(nn.Module):

@@ -66,12 +66,7 @@ class DetectionEmbValidator(DetectionValidator):
         return prepared_batch
 
     # TODO: not sure if should be used
-    def _prepare_pred(self, pred, pbatch, proto):
-        """Prepares a batch for training or inference by processing images and targets."""
-        predn = super()._prepare_pred(pred, pbatch)
-        pred_masks = self.process(proto, pred[:, 6:], pred[:, :4], shape=pbatch["imgsz"])
-        return predn, pred_masks
-
+    #def _prepare_pred(self, pred, pbatch, proto):
     #def update_metrics(self, preds, batch):
     #def _process_batch(self, detections, gt_bboxes, gt_cls, pred_masks=None, gt_masks=None, overlap=False, masks=False):
     #def plot_val_samples(self, batch, ni):
