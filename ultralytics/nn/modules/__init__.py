@@ -24,7 +24,10 @@ from .block import (
     C3TR,
     DFL,
     SPP,
+    SPPELAN,
     SPPF,
+    ADown,
+    BNContrastiveHead,
     Bottleneck,
     BottleneckCSP,
     C2f,
@@ -34,12 +37,18 @@ from .block import (
     C2fPConvSimAM,
     C3Ghost,
     C3x,
+    CBFuse,
+    CBLinear,
+    ContrastiveHead,
     GhostBottleneck,
     HGBlock,
     HGStem,
+    ImagePoolingAttn,
     Proto,
     RepC3,
+    RepNCSPELAN4,
     ResNetLayer,
+    Silence,
 )
 from .conv import (
     CBAM,
@@ -59,7 +68,7 @@ from .conv import (
     EMA,
     SimAM
 )
-from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, DetectLateDecoup, DetectLateDecoupV2, DetectEmb
+from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, DetectLateDecoup, DetectLateDecoupV2, DetectEmb, WorldDetect
 from .transformer import (
     AIFI,
     MLP,
@@ -101,6 +110,7 @@ __all__ = (
     "C2",
     "C3",
     "C2f",
+    "C2fAttn",
     "C2fSum",
     "C2fPConv",
     "C2fPConvEMA",
@@ -130,5 +140,15 @@ __all__ = (
     "ResNetLayer",
     "OBB",
     "EMA",
-    "SimAM"
+    "SimAM",
+    "WorldDetect",
+    "ImagePoolingAttn",
+    "ContrastiveHead",
+    "BNContrastiveHead",
+    "RepNCSPELAN4",
+    "ADown",
+    "SPPELAN",
+    "CBFuse",
+    "CBLinear",
+    "Silence",
 )

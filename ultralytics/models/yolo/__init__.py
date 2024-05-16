@@ -1,7 +1,7 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 
-from ultralytics.models.yolo import classify, detect, obb, pose, segment, detectemb
+from ultralytics.models.yolo import classify, detect, obb, pose, segment, detectemb, world
 
-from .model import YOLO
+from .model import YOLO, YOLOWorld
 
-__all__ = "classify", "segment", "detect", "pose", "obb", "YOLO", "detectemb"
+__all__ = "classify", "segment", "detect", "pose", "obb", "YOLO", "detectemb", "YOLOWorld", "world"

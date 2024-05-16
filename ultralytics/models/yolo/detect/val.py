@@ -34,10 +34,11 @@ class DetectionValidator(BaseValidator):
         super().__init__(dataloader, save_dir, pbar, args, _callbacks)
         self.nt_per_class = None
         self.is_coco = False
+        self.is_lvis = False
         self.class_map = None
         self.args.task = "detect"
         self.metrics = DetMetrics(save_dir=self.save_dir, on_plot=self.on_plot)
-        self.iouv = torch.linspace(0.5, 0.95, 10)  # iou vector for mAP@0.5:0.95
+        self.iouv = torch.linspace(0.5, 0.95, 10)  # IoU vector for mAP@0.5:0.95
         self.niou = self.iouv.numel()
         self.lb = []  # for autolabelling
 
@@ -68,8 +69,9 @@ class DetectionValidator(BaseValidator):
         val = self.data.get(self.args.split, '')  # validation path
         self.is_coco = (isinstance(val, str) and 'coco' in val and val.endswith(f'{os.sep}val2017.txt')) or \
                        os.path.isfile(os.path.join(self.data['path'], 'annotations', 'instances_val2017.json')) # is COCO
-        self.class_map = list(range(1000)) #ops.coco80_to_coco91_class() if self.is_coco else list(range(1000))
-        self.args.save_json |= self.is_coco and not self.training  # run on final val if training COCO
+        self.is_lvis = isinstance(val, str) and "lvis" in val and not self.is_coco  # is LVIS
+        self.class_map = converter.coco80_to_coco91_class() if self.is_coco else list(range(len(model.names)))
+        self.args.save_json |= (self.is_coco or self.is_lvis) and not self.training  # run on final val if training COCO
         self.names = model.names
         self.nc = len(model.names)
         self.metrics.names = self.names
@@ -108,7 +110,7 @@ class DetectionValidator(BaseValidator):
         if len(cls):
             bbox = ops.xywh2xyxy(bbox) * torch.tensor(imgsz, device=self.device)[[1, 0, 1, 0]]  # target boxes
             ops.scale_boxes(imgsz, bbox, ori_shape, ratio_pad=ratio_pad)  # native-space labels
-        return dict(cls=cls, bbox=bbox, ori_shape=ori_shape, imgsz=imgsz, ratio_pad=ratio_pad)
+        return {"cls": cls, "bbox": bbox, "ori_shape": ori_shape, "imgsz": imgsz, "ratio_pad": ratio_pad}
 
     def _prepare_pred(self, pred, pbatch):
         """Prepares a batch of images and annotations for validation."""
@@ -297,7 +299,8 @@ class DetectionValidator(BaseValidator):
             self.jdict.append(
                 {
                     "image_id": image_id,
-                    "category_id": self.class_map[int(p[5])],
+                    "category_id": self.class_map[int(p[5])]
+                    + (1 if self.is_lvis else 0),  # index starts from 1 if it's lvis
                     "bbox": [round(x, 3) for x in b],
                     "score": round(p[4], 5),
                 }
@@ -369,55 +372,3 @@ class DetectionValidator(BaseValidator):
             except Exception as e:
                 LOGGER.warning(f"pycocotools unable to run: {e}")
         return stats
-
-    def extract_cocoeval_metrics(self, eval):
-        """Extracts metrics from COCOeval object and saves them to a DataFrame."""
-
-        # Function to append metrics
-        def append_metrics(metrics, metric_type, iou, area, max_dets, value):
-            metrics.append({
-                'Metric Type': metric_type,
-                'IoU': iou,
-                'Area': area,
-                'Max Detections': max_dets,
-                'Value': value
-            })
-
-        # Initialize a list to store the metrics
-        metrics_ = []
-
-        # Extract metrics for bbox/segm evaluation
-        iou_types = ['0.50:0.95', '0.50', '0.75']
-        areas = eval.params.areaRngLbl
-        max_dets = eval.params.maxDets
-
-        # Extract AP metrics (indices 0-14: 3 IoUs * 5 areas)
-        for i, iou in enumerate(iou_types):
-            for j, area in enumerate(areas):
-                idx = i * len(areas) + j
-                append_metrics(metrics_, 'AP', iou, area, max_dets[-1], eval.stats[idx])
-
-        # Extract AR metrics (indices 15-17: 3 maxDets for 'all' area)
-        num_ap_metrics = len(iou_types) * len(areas)  # Total number of AP metrics
-
-        # Iterate over max_dets to append AR metrics
-        for i, md in enumerate(max_dets):
-            for j, area in enumerate(areas):
-                idx = num_ap_metrics + j + i * len(areas)  # Adjust index calculation for AR
-                append_metrics(metrics_, 'AR', '0.50:0.95', area, md, eval.stats[idx])
-
-        # Append AR metrics for 0.75 and 0.50 IoU
-        for i, iou in enumerate(['0.75', '0.50']):
-            append_metrics(metrics_, 'AR', iou, 'all', '300', eval.stats[idx + i + 1])
-
-        # Convert to DataFrame
-        df_metrics = pd.DataFrame(metrics_)
-
-        # Save to file
-        df_metrics.to_csv(self.save_dir / "cocoeval_results.csv", index=False)
-
-        # Write to log
-        self.metrics.cocoeval_df = df_metrics
-
-
-

@@ -3,15 +3,19 @@ import argparse
 import csv
 import os
 
+from PySide6.QtCore import QObject
+from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Signal
+
+from ultralytics.utils import IS_JETSON
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 import cv2
 import numpy as np
 import supervision as sv
-from PyQt5.QtGui import QImage
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtWidgets import QApplication
 from tqdm import tqdm
 
 from tracker.action_recognition import ActionRecognizer
@@ -21,6 +25,9 @@ from tracker.gui.frameProcessing import VideoWriter
 from tracker.utils.cfg.parse_config import ConfigParser
 from tracker.utils.timer.utils import FrameRateCounter, Timer
 from ultralytics import YOLO
+import warnings
+warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=DeprecationWarning, message="`BoxAnnotator` is deprecated")
 
 import tracker.trackers as trackers
 
@@ -39,7 +46,7 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 
 
 class VideoProcessor(QObject):
-    frame_ready = pyqtSignal(QImage, float)
+    frame_ready = Signal(QImage, float)
 
     def __init__(self, config) -> None:
         super(VideoProcessor, self).__init__()
@@ -71,6 +78,7 @@ class VideoProcessor(QObject):
 
         self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
                                           stream_mode=config["stream_mode"], logging=config["logging"])
+        self.frame_capture.start()
         self.paused = False
 
         self.frame_skip_interval = 100/(100-config["fps_reduction"])
@@ -119,23 +127,22 @@ class VideoProcessor(QObject):
         fps_counter = FrameRateCounter()
         timer = Timer()
         frame_count = 1
-        self.frame_capture.start()
-
         while True:
             if not self.paused:
-                frame = self.frame_capture.read()
+                try:
+                    frame = self.frame_capture.Capture()
+                except:
+                    continue
                 frame_count += 1
                 if frame is None:
-                    break
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
+                    print("No frame captured")
+                    continue
                 if frame_count >= self.frame_skip_interval:
-                    annotated_frame = self.process_frame(frame_rgb, self.frame_capture.get_frame_count(), fps_counter.value())
+                    annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(), fps_counter.value())
                     fps_counter.step()
                     frame_count -= self.frame_skip_interval
 
                     if self.save_video and not self.display:
-                        annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                         self.video_writer.write_frame(annotated_frame)
 
                     if self.display:
@@ -146,7 +153,7 @@ class VideoProcessor(QObject):
 
                     if self.save_results:
                         for track in self.tracker.active_tracks:
-                            self.data_dict["frame_id"].append(self.frame_capture.get_frame_count())
+                            self.data_dict["frame_id"].append(self.frame_capture.GetFrameCount())
                             self.data_dict["tracker_id"].append(track.track_id)
                             self.data_dict["class_id"].append(track.class_id)
                             self.data_dict["x1"].append(track.tlbr[0])
@@ -158,6 +165,9 @@ class VideoProcessor(QObject):
                     if self.save_video and not self.display:
                         self.video_writer.write_frame(annotated_frame)
                     fps_counter.step()
+
+                if not self.frame_capture.IsStreaming:
+                    break
 
                 pbar.update(1)
 
@@ -210,7 +220,8 @@ class VideoProcessor(QObject):
         self.paused = not self.paused
 
     def cleanup(self):
-        self.frame_capture.stop()
+        print("Cleaning up...")
+        self.frame_capture.Close()
         if self.save_video:
             self.video_writer.stop()
 
@@ -227,7 +238,7 @@ if __name__ == "__main__":
     config = ConfigParser.from_args(parser)
     if config["display"]:
         app = QApplication(sys.argv)
-        video_display = VideoDisplay(processor=VideoProcessor(config))
+        video_display = VideoDisplay(processor=VideoProcessor(config), sync_fps=config["sync_fps"])
         video_display.show()
         sys.exit(app.exec())
     else:

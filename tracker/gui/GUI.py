@@ -6,15 +6,17 @@ from time import time
 
 import os
 
-from PyQt5.QtCore import (Qt, pyqtSignal, QObject, QThread, QTimer)
-from PyQt5.QtGui import QImage, QPainter, QFont, QColor, QKeyEvent, QPixmap
-from PyQt5.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
+from PySide6.QtCore import QObject, QThread, QTimer
+from PySide6.QtGui import QImage, QPainter, QFont, QColor, Qt, QPixmap, QKeyEvent
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
+from PySide6.QtCore import Signal
+
 
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 
 class FrameWorker(QObject):
-    frame_ready = pyqtSignal(QImage, float)  # Emit both the QImage and the calculated FPS
+    frame_ready = Signal(QImage, float)  # Emit both the QImage and the calculated FPS
 
     def __init__(self, video_path):
         super(FrameWorker, self).__init__()
@@ -52,6 +54,7 @@ class VideoDisplay(QGraphicsView):
         self.setScene(self.scene)
         self.pixmap_item = QGraphicsPixmapItem()
         self.scene.addItem(self.pixmap_item)
+        self.setMinimumSize(640, 360)
         self.sync_fps = sync_fps
 
         self.thread = QThread()
@@ -62,12 +65,11 @@ class VideoDisplay(QGraphicsView):
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.worker.process_video)
-        self.timer.start(0 if not self.sync_fps else int(1000 / self.worker.frame_capture.get_fps()))
+        self.timer.start(int(1000 / self.worker.frame_capture.GetFrameRate() if not self.sync_fps else 0))
 
     def update_display(self, q_image, fps):
-        # Draw FPS on the image using QPainter
         painter = QPainter(q_image)
-        painter.setFont(QFont("Arial", 32))
+        painter.setFont(QFont("Arial", 38))
         painter.setPen(QColor("yellow"))
         painter.drawText(q_image.rect(), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, f"FPS: {fps:.2f}")
         painter.end()
@@ -75,15 +77,20 @@ class VideoDisplay(QGraphicsView):
         pixmap = QPixmap.fromImage(q_image)
         self.pixmap_item.setPixmap(pixmap)
         self.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
-        if self.sync_fps:
-            self.timer.start(0 if not self.sync_fps else int(1000 / 30))
+
+        if not self.worker.frame_capture.IsStreaming():
+            self.close()
+            self.timer.stop()
+            self.worker.cleanup()
+            self.thread.quit()
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key.Key_P:
             self.worker.toggle_pause()
         elif event.key() == Qt.Key.Key_F:
             self.sync_fps = not self.sync_fps
-            self.timer.start(0 if not self.sync_fps else int(1000 / self.worker.frame_capture.get_fps()))
+            print("Sync FPS: ", self.sync_fps)
+            self.timer.start(int(1000 / self.worker.frame_capture.GetFrameRate() if not self.sync_fps else 0))
         elif event.key() == Qt.Key.Key_Q:
             self.close()
             self.worker.cleanup()

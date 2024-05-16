@@ -185,7 +185,7 @@ class AutoBackend(nn.Module):
             check_requirements(("onnx", "onnxruntime-gpu" if cuda else "onnxruntime"))
             if IS_RASPBERRYPI or IS_JETSON:
                 # Fix error: module 'numpy.linalg._umath_linalg' has no attribute '_ilp64' when exporting to Tensorflow SavedModel on RPi and Jetson
-                check_requirements("numpy==1.23.5")
+                check_requirements("numpy==1.26.4")
             import onnxruntime
 
             providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if cuda else ["CPUExecutionProvider"]

@@ -59,22 +59,22 @@ import time
 import warnings
 from copy import deepcopy
 from datetime import datetime
-from functools import partial
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import torch
 
-from ultralytics.cfg import get_cfg
+from ultralytics.cfg import TASK2DATA, get_cfg
+from ultralytics.data import build_dataloader
 from ultralytics.data.dataset import YOLODataset
-from ultralytics.data.utils import check_det_dataset
+from ultralytics.data.utils import check_cls_dataset, check_det_dataset
 from ultralytics.nn.autobackend import check_class_names, default_class_names
 from ultralytics.nn.modules import C2f, Detect, RTDETRDecoder, DetectEmb
 from ultralytics.nn.tasks import DetectionModel, SegmentationModel
 from ultralytics.utils import (
     ARM64,
     DEFAULT_CFG,
+    IS_JETSON,
     LINUX,
     LOGGER,
     MACOS,
@@ -88,7 +88,7 @@ from ultralytics.utils import (
     yaml_save,
 )
 from ultralytics.utils.checks import check_imgsz, check_is_path_safe, check_requirements, check_version
-from ultralytics.utils.downloads import attempt_download_asset, get_github_assets
+from ultralytics.utils.downloads import attempt_download_asset, get_github_assets, safe_download
 from ultralytics.utils.files import file_size, spaces_in_path
 from ultralytics.utils.ops import Profile
 from ultralytics.utils.torch_utils import TORCH_1_13, get_latest_opset, select_device, smart_inference_mode
@@ -170,7 +170,7 @@ class Exporter:
         callbacks.add_integration_callbacks(self)
 
     @smart_inference_mode()
-    def __call__(self, model=None):
+    def __call__(self, model=None) -> str:
         """Returns list of exported files/dirs after running callbacks."""
         self.run_callbacks("on_export_start")
         t = time.time()
@@ -200,19 +200,25 @@ class Exporter:
             self.args.half = False
             assert not self.args.dynamic, "half=True not compatible with dynamic=True, i.e. use only one."
         self.imgsz = check_imgsz(self.args.imgsz, stride=model.stride, min_dim=2)  # check image size
+        if self.args.int8 and engine:
+            self.args.dynamic = True  # enforce dynamic to export TensorRT INT8; ensures ONNX is dynamic
         if self.args.optimize:
             assert not ncnn, "optimize=True not compatible with format='ncnn', i.e. use optimize=False"
             assert self.device.type == "cpu", "optimize=True not compatible with cuda devices, i.e. use device='cpu'"
         if edgetpu and not LINUX:
             raise SystemError("Edge TPU export only supported on Linux. See https://coral.ai/docs/edgetpu/compiler/")
-
+        if self.args.int8 and not self.args.data:
+            self.args.data = DEFAULT_CFG.data or TASK2DATA[getattr(model, "task", "detect")]  # assign default data
+            LOGGER.warning(
+                "WARNING ⚠️ INT8 export requires a missing 'data' arg for calibration. "
+                f"Using default 'data={self.args.data}'."
+            )
         # Input
         im = torch.zeros(self.args.batch, 3, *self.imgsz).to(self.device)
         file = Path(
             getattr(model, "pt_path", None) or getattr(model, "yaml_file", None) or model.yaml.get("yaml_file", "")
         )
         if file.suffix in {".yaml", ".yml"}:
-            # file = Path(file.name)
             file = Path(self.args.project + '/' + file.name if self.args.project is not None else file.name)
 
         # Update model
@@ -328,6 +334,23 @@ class Exporter:
         self.run_callbacks("on_export_end")
         return f  # return list of exported files/dirs
 
+    def get_int8_calibration_dataloader(self, prefix=""):
+        """Build and return a dataloader suitable for calibration of INT8 models."""
+        LOGGER.info(f"{prefix} collecting INT8 calibration images from 'data={self.args.data}'")
+        data = (check_cls_dataset if self.model.task == "classify" else check_det_dataset)(self.args.data)
+        dataset = YOLODataset(
+            data[self.args.split or "val"],
+            data=data,
+            task=self.model.task,
+            imgsz=self.imgsz[0],
+            augment=False,
+            batch_size=self.args.batch * 2,  # NOTE TensorRT INT8 calibration should use 2x batch size
+        )
+        n = len(dataset)
+        if n < 300:
+            LOGGER.warning(f"{prefix} WARNING ⚠️ >300 images recommended for INT8 calibration, found {n} images.")
+        return build_dataloader(dataset, batch=self.args.batch * 2, workers=0)  # required for batch loading
+
     @try_export
     def export_torchscript(self, prefix=colorstr("TorchScript:")):
         """YOLOv8 TorchScript model export."""
@@ -409,7 +432,7 @@ class Exporter:
     @try_export
     def export_openvino(self, prefix=colorstr("OpenVINO:")):
         """YOLOv8 OpenVINO export."""
-        check_requirements("openvino>=2024.0.0")  # requires openvino: https://pypi.org/project/openvino/
+        check_requirements(f'openvino{"<=2024.0.0" if ARM64 else ">=2024.0.0"}')  # fix OpenVINO issue on ARM64
         import openvino as ov
 
         LOGGER.info(f"\n{prefix} starting export with openvino {ov.__version__}...")
@@ -437,37 +460,21 @@ class Exporter:
         if self.args.int8:
             fq = str(self.file).replace(self.file.suffix, f"_int8_openvino_model{os.sep}")
             fq_ov = str(Path(fq) / self.file.with_suffix(".xml").name)
-            if not self.args.data:
-                self.args.data = DEFAULT_CFG.data or "coco128.yaml"
-                LOGGER.warning(
-                    f"{prefix} WARNING ⚠️ INT8 export requires a missing 'data' arg for calibration. "
-                    f"Using default 'data={self.args.data}'."
-                )
             check_requirements("nncf>=2.8.0")
             import nncf
 
-            def transform_fn(data_item):
+            def transform_fn(data_item) -> np.ndarray:
                 """Quantization transform function."""
-                assert (
-                    data_item["img"].dtype == torch.uint8
-                ), "Input image must be uint8 for the quantization preprocessing"
-                im = data_item["img"].numpy().astype(np.float32) / 255.0  # uint8 to fp16/32 and 0 - 255 to 0.0 - 1.0
+                data_item: torch.Tensor = data_item["img"] if isinstance(data_item, dict) else data_item
+                assert data_item.dtype == torch.uint8, "Input image must be uint8 for the quantization preprocessing"
+                im = data_item.numpy().astype(np.float32) / 255.0  # uint8 to fp16/32 and 0 - 255 to 0.0 - 1.0
                 return np.expand_dims(im, 0) if im.ndim == 3 else im
 
             # Generate calibration data for integer quantization
-            LOGGER.info(f"{prefix} collecting INT8 calibration images from 'data={self.args.data}'")
-            data = check_det_dataset(self.args.data)
-            dataset = YOLODataset(data["val"], data=data, task=self.model.task, imgsz=self.imgsz[0], augment=False)
-            n = len(dataset)
-            if n < 300:
-                LOGGER.warning(f"{prefix} WARNING ⚠️ >300 images recommended for INT8 calibration, found {n} images.")
-            quantization_dataset = nncf.Dataset(dataset, transform_fn)
-
             ignored_scope = None
             if isinstance(self.model.model[-1], Detect, DetectEmb):
                 # Includes all Detect subclasses like Segment, Pose, OBB, WorldDetect
                 head_module_name = ".".join(list(self.model.named_modules())[-1][0].split(".")[:2])
-
                 ignored_scope = nncf.IgnoredScope(  # ignore operations
                     patterns=[
                         f".*{head_module_name}/.*/Add",
@@ -480,7 +487,10 @@ class Exporter:
                 )
 
             quantized_ov_model = nncf.quantize(
-                ov_model, quantization_dataset, preset=nncf.QuantizationPreset.MIXED, ignored_scope=ignored_scope
+                model=ov_model,
+                calibration_dataset=nncf.Dataset(self.get_int8_calibration_dataloader(prefix), transform_fn),
+                preset=nncf.QuantizationPreset.MIXED,
+                ignored_scope=ignored_scope,
             )
             serialize(quantized_ov_model, fq_ov)
             return fq, None
@@ -528,18 +538,20 @@ class Exporter:
             system = "macos" if MACOS else "windows" if WINDOWS else "linux-aarch64" if ARM64 else "linux"
             try:
                 _, assets = get_github_assets(repo="pnnx/pnnx")
-                url = [x for x in assets if f"{system}.zip" in x][0]
-                assert url, "Unable to retrieve PNNX repo assets"
+                asset = [x for x in assets if f"{system}.zip" in x][0]
+                assert isinstance(asset, str), "Unable to retrieve PNNX repo assets"  # i.e. pnnx-20240410-macos.zip
+                LOGGER.info(f"{prefix} successfully found latest PNNX asset file {asset}")
+                asset = attempt_download_asset(asset, repo="pnnx/pnnx", release="latest")
             except Exception as e:
                 url = f"https://github.com/pnnx/pnnx/releases/download/20240410/pnnx-20240410-{system}.zip"
                 LOGGER.warning(f"{prefix} WARNING ⚠️ PNNX GitHub assets not found: {e}, using default {url}")
-            asset = attempt_download_asset(url, repo="pnnx/pnnx", release="latest")
+                asset = safe_download(url)
             if check_is_path_safe(Path.cwd(), asset):  # avoid path traversal security vulnerability
                 unzip_dir = Path(asset).with_suffix("")
                 (unzip_dir / name).rename(pnnx)  # move binary to ROOT
-                shutil.rmtree(unzip_dir)  # delete unzip dir
-                Path(asset).unlink()  # delete zip
                 pnnx.chmod(0o777)  # set read, write, and execute permissions for everyone
+                shutil.rmtree(unzip_dir)  # delete unzip dir
+                Path(asset).unlink(missing_ok=True)  # delete zip
 
         ncnn_args = [
             f'ncnnparam={f / "model.ncnn.param"}',
@@ -584,6 +596,7 @@ class Exporter:
 
         LOGGER.info(f"\n{prefix} starting export with coremltools {ct.__version__}...")
         assert not WINDOWS, "CoreML export is not supported on Windows, please run on macOS or Linux."
+        assert self.args.batch == 1, "CoreML batch sizes > 1 are not supported. Please retry at 'batch=1'."
         f = self.file.with_suffix(".mlmodel" if mlmodel else ".mlpackage")
         if f.is_dir():
             shutil.rmtree(f)
@@ -663,6 +676,7 @@ class Exporter:
             import tensorrt as trt  # noqa
         check_version(trt.__version__, "7.0.0", hard=True)  # require tensorrt>=7.0.0
 
+        # Setup and checks
         LOGGER.info(f"\n{prefix} starting export with TensorRT {trt.__version__}...")
         is_trt10 = int(trt.__version__.split(".")[0]) >= 10  # is TensorRT >= 10
         assert Path(f_onnx).exists(), f"failed to export ONNX file: {f_onnx}"
@@ -671,6 +685,7 @@ class Exporter:
         if self.args.verbose:
             logger.min_severity = trt.Logger.Severity.VERBOSE
 
+        # Engine builder
         builder = trt.Builder(logger)
         config = builder.create_builder_config()
         workspace = int(self.args.workspace * (1 << 30))
@@ -680,10 +695,14 @@ class Exporter:
             config.max_workspace_size = workspace
         flag = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
         network = builder.create_network(flag)
+        half = builder.platform_has_fast_fp16 and self.args.half
+        int8 = builder.platform_has_fast_int8 and self.args.int8
+        # Read ONNX file
         parser = trt.OnnxParser(network, logger)
         if not parser.parse_from_file(f_onnx):
             raise RuntimeError(f"failed to load ONNX file: {f_onnx}")
 
+        # Network inputs
         inputs = [network.get_input(i) for i in range(network.num_inputs)]
         outputs = [network.get_output(i) for i in range(network.num_outputs)]
         for inp in inputs:
@@ -691,65 +710,36 @@ class Exporter:
         for out in outputs:
             LOGGER.info(f'{prefix} output "{out.name}" with shape{out.shape} {out.dtype}')
 
-        half = builder.platform_has_fast_fp16 and self.args.half
-        int8 = builder.platform_has_fast_int8 and self.args.int8
-
-        if self.args.dynamic or int8:  # always use dynamic with int8
+        if self.args.dynamic:
             shape = self.im.shape
             if shape[0] <= 1:
                 LOGGER.warning(f"{prefix} WARNING ⚠️ 'dynamic=True' model requires max batch size, i.e. 'batch=16'")
             profile = builder.create_optimization_profile()
             min_shape = (1, shape[1], 32, 32)  # minimum input shape
-            opt_shape = tuple(shape)  # optimal input shape
             max_shape = (*shape[:2], *(max(1, self.args.workspace) * d for d in shape[2:]))  # max input shape
             for inp in inputs:
-                profile.set_shape(inp.name, min_shape, opt_shape, max_shape)
+                profile.set_shape(inp.name, min=min_shape, opt=shape, max=max_shape)
             config.add_optimization_profile(profile)
 
+        LOGGER.info(f"{prefix} building {'INT8' if int8 else 'FP' + ('16' if half else '32')} engine as {f}")
         if int8:
-            from ultralytics.data import load_inference_source
-            from ultralytics.data.loaders import infer_preprocess
-
-            preprocessor = partial(
-                infer_preprocess,
-                imgsz=self.imgsz,
-                device=self.device,
-                half=False,  # enforce FP32
-                is_pt=True,  # export only for PyTorch models
-            )
+            config.set_flag(trt.BuilderFlag.INT8)
+            config.set_calibration_profile(profile)
+            config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
 
             class EngineCalibrator(trt.IInt8Calibrator):
-                TRT_INT8_CAL_ALGOS = {
-                    "LEGACY_CALIBRATION",
-                    "ENTROPY_CALIBRATION",
-                    "ENTROPY_CALIBRATION_2",
-                    "MINMAX_CALIBRATION",
-                }
-
                 def __init__(
                     self,
-                    dataset,  # ultralytics.data.loaders.LoadImagesAndVideos
+                    dataset,  # ultralytics.data.build.InfiniteDataLoader
                     batch: int,
-                    preprocess: Callable,
-                    calibration_algo: str = "ENTROPY_CALIBRATION_2",
                     cache: str = "",
                 ) -> None:
                     trt.IInt8Calibrator.__init__(self)
                     self.dataset = dataset
                     self.data_iter = iter(dataset)
-                    self.algo = self.fetch_algo(calibration_algo)
+                    self.algo = trt.CalibrationAlgoType.ENTROPY_CALIBRATION_2
                     self.batch = batch
-                    self.preprocess = preprocess
                     self.cache = Path(cache)
-
-                def fetch_algo(self, algo: str = "ENTROPY_CALIBRATION_2") -> trt.CalibrationAlgoType:
-                    """Fetch the calibration algorithm to use."""
-                    if algo not in self.TRT_INT8_CAL_ALGOS:
-                        LOGGER.warning(f"Invalid calibration algorithm: {algo}, using 'ENTROPY_CALIBRATION_2' instead")
-                        self.algo = "ENTROPY_CALIBRATION_2"
-                    else:
-                        self.algo = algo
-                    return getattr(trt.CalibrationAlgoType, self.algo)
 
                 def get_algorithm(self) -> trt.CalibrationAlgoType:
                     """Get the calibration algorithm to use."""
@@ -759,49 +749,34 @@ class Exporter:
                     """Get the batch size to use for calibration."""
                     return self.batch or 1
 
-                def get_batch(self, names) -> list[int] | None:
+                def get_batch(self, names) -> list:
                     """Get the next batch to use for calibration, as a list of device memory pointers."""
                     try:
-                        _, im0s, _ = next(self.data_iter)
-                        return [int(self.preprocess(im0s).data_ptr())]
+                        im0s = next(self.data_iter)["img"] / 255.0
+                        im0s = im0s.to("cuda") if im0s.device.type == "cpu" else im0s
+                        return [int(im0s.data_ptr())]
                     except StopIteration:
                         # Return [] or None, signal to TensorRT there is no calibration data remaining
                         return None
 
-                def read_calibration_cache(self) -> None:
-                    """
-                    If there is a cache, use it instead of calibrating again.
-
-                    Otherwise, implicitly return None.
-                    """
+                def read_calibration_cache(self) -> bytes:
+                    """Use existing cache instead of calibrating again, otherwise, implicitly return None."""
                     if self.cache.exists() and self.cache.suffix == ".cache":
-                        _ = self.cache.read_bytes()
+                        return self.cache.read_bytes()
 
                 def write_calibration_cache(self, cache) -> None:
                     """Write calibration cache to disk."""
                     _ = self.cache.write_bytes(cache)
 
-            LOGGER.info(f"{prefix} building INT8 engine as {f}")
-            data = check_det_dataset(self.args.data)
-
-            bsize = int(2 * self.args.batch)  # int8 calibration should use at least 2x batch size
-            dataset = load_inference_source(data["val"], batch=bsize)
-            n = len(dataset) * bsize
-            if n < 500:
-                LOGGER.warning(f"{prefix} WARNING ⚠️ >=500 images recommended for INT8 calibration, found {n} images.")
-            cache_file = self.file.with_suffix(".cache")
-
-            config.set_flag(trt.BuilderFlag.INT8)
-            config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
+            # Load dataset w/ builder (for batching) and calibrate
+            dataset = self.get_int8_calibration_dataloader(prefix)
             config.int8_calibrator = EngineCalibrator(
-                dataset,
-                bsize,
-                preprocessor,
-                str(self.args.trt_quant_algo).upper(),
-                cache_file,
+                dataset=dataset,
+                batch=2 * self.args.batch,
+                cache=self.file.with_suffix(".cache"),
             )
+
         elif half:
-            LOGGER.info(f"{prefix} building FP16 engine as {f}")
             config.set_flag(trt.BuilderFlag.FP16)
 
         # Free CUDA memory
@@ -841,7 +816,7 @@ class Exporter:
                 "sng4onnx>=1.0.1",
                 "onnxsim>=0.4.33",
                 "onnx_graphsurgeon>=0.3.26",
-                "tflite_support",
+                "tflite_support<=0.4.3" if IS_JETSON else "tflite_support",  # fix ImportError 'GLIBCXX_3.4.29'
                 "flatbuffers>=23.5.26,<100",  # update old 'flatbuffers' included inside tensorflow package
                 "onnxruntime-gpu" if cuda else "onnxruntime",
             ),
@@ -878,11 +853,9 @@ class Exporter:
             verbosity = "info"
             if self.args.data:
                 # Generate calibration data for integer quantization
-                LOGGER.info(f"{prefix} collecting INT8 calibration images from 'data={self.args.data}'")
-                data = check_det_dataset(self.args.data)
-                dataset = YOLODataset(data["val"], data=data, imgsz=self.imgsz[0], augment=False)
+                dataloader = self.get_int8_calibration_dataloader(prefix)
                 images = []
-                for i, batch in enumerate(dataset):
+                for i, batch in enumerate(dataloader):
                     if i >= 100:  # maximum number of calibration images
                         break
                     im = batch["img"].permute(1, 2, 0)[None]  # list to nparray, CHW to BHWC

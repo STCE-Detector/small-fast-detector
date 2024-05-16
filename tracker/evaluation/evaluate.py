@@ -65,9 +65,9 @@ def trackeval(
 if __name__ == "__main__":
     result = trackeval(
         evaluator_folder="/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval",
-        dataset_folder="/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOT20-train",
-        trackers_folder="/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/outputs/tracks/MOT20-train",
-        trackers_to_eval="ByteTrack_YOLOv8s-P2-640",
+        dataset_folder="/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
+        trackers_folder="/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/outputs/tracks/MOTHupba-train",
+        trackers_to_eval="ByteTrack_YOLOv8s-P2-640_2",
         print_output=True
     )
     print(result)
