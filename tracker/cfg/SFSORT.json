@@ -6,7 +6,7 @@
   "source_weights_path": "./detectors/8sp2_150.pt",
   "source_stream_path": "/Users/inaki-eab/Desktop/TAR_data/selection/11.mp4",
 
-  "device": "cuda",
+  "device": "mps",
   "fps_reduction": 0,
 
   "save_dir": "./outputs/",

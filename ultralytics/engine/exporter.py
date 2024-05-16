@@ -667,9 +667,7 @@ class Exporter:
         assert self.im.device.type != "cpu", "export running on CPU but must be on GPU, i.e. use 'device=0'"
         self.args.simplify = True
         f_onnx, _ = self.export_onnx()  # run before trt import https://github.com/ultralytics/ultralytics/issues/7016
-        if self.args.efficient_nms:
-            def add_efficient_nms():
-                pass
+
         try:
             import tensorrt as trt  # noqa
         except ImportError:
