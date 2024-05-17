@@ -156,13 +156,12 @@ class VideoProcessor(QObject):
                         for track in self.tracker.active_tracks:
                             self.data_dict["frame_id"].append(self.frame_capture.GetFrameCount())
                             self.data_dict["tracker_id"].append(track.track_id)
-                            self.data_dict["class_id"].append(track.class_id)
+                            self.data_dict["class_id"].append(track.cls)
                             self.data_dict["x1"].append(track.tlbr[0])
                             self.data_dict["y1"].append(track.tlbr[1])
                             self.data_dict["x2"].append(track.tlbr[2])
                             self.data_dict["y2"].append(track.tlbr[3])
                 else:
-                    # TODO: when static skipping is > 0, video not generated, solve this (skipping should start by true)
                     if self.save_video and not self.display:
                         self.video_writer.write_frame(annotated_frame)
                     fps_counter.step()
