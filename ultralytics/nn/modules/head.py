@@ -686,7 +686,8 @@ class DetectEmb(nn.Module):
         self.cv3 = nn.ModuleList(nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) for x in ch)
         # BN and no Bias in the last layer of the Embedding branch (https://arxiv.org/pdf/2305.18988)
         # TODO: maybe cv4 should be simpler and faster
-        self.cv4 = nn.ModuleList(nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), Conv(c3, self.ch_emb, 1, act=False)) for x in ch)
+        #self.cv4 = nn.ModuleList(nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), Conv(c3, self.ch_emb, 1, act=False)) for x in ch)
+        self.cv4 = nn.ModuleList(nn.Sequential(Conv(x, self.ch_emb, 1, act=False)) for x in ch)
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
 
     def forward(self, x):

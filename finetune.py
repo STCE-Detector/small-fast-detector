@@ -34,7 +34,7 @@ model.train(
     device=[1,2,3,4],
     project='fine-tune-cdv3',
     imgsz=640,
-    name=f'8sp2-{epochs}e-{batch}b-TE',
+    name=f'8sp2-{epochs}e-{batch}b-TELight',
     verbose=True,
     patience=25,
     cache=False,
