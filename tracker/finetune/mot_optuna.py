@@ -2,7 +2,7 @@ import optuna
 import joblib
 import json
 
-from tracker.finetune.byte_mot20_fitness import optuna_fitness_fn
+from tracker.finetune.byte_mot_fitness import optuna_fitness_fn
 
 def print_and_save(study, trial):
     #print("Trial Number: ", trial.number)
@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     resume = True
     if resume:
-        study = joblib.load(f"./outputs/studies/optuna/no-name-fc665668-5b6a-4625-9f94-9a5d354143f2_study.pkl")
+        study = joblib.load(f"./outputs/studies/optuna/no-name-5c697fc9-b4cb-4485-8b73-3df5eacda8fc_study.pkl")
     else:
         study = optuna.create_study(direction="maximize")
 

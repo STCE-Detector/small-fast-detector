@@ -78,9 +78,9 @@ def optuna_fitness_fn(trial):
 
     # Update the config with the solution
     tracker_config = config["tracker_args"]
-    tracker_config["track_high_thresh"] = trial.suggest_float("track_high_thresh", 0.2, 0.9, step=0.01)
+    tracker_config["track_high_thresh"] = trial.suggest_float("track_high_thresh", 0.1, 0.9, step=0.01)
     tracker_config["track_low_thresh"] = trial.suggest_float("track_low_thresh", 0.1, 0.4, step=0.01)
-    tracker_config["new_track_thresh"] = trial.suggest_float("new_track_thresh", 0.2, 0.6, step=0.01)
+    tracker_config["new_track_thresh"] = trial.suggest_float("new_track_thresh", 0.1, 0.6, step=0.01)
     tracker_config["first_match_thresh"] = trial.suggest_float("first_match_thresh", 0.2, 1.0, step=0.01)
     tracker_config["second_match_thresh"] = trial.suggest_float("second_match_thresh", 0.2, 1.0, step=0.01)
     tracker_config["new_match_thresh"] = trial.suggest_float("new_match_thresh", 0.2, 1.0, step=0.01)
