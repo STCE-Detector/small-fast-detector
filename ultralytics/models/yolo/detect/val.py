@@ -372,3 +372,52 @@ class DetectionValidator(BaseValidator):
             except Exception as e:
                 LOGGER.warning(f"pycocotools unable to run: {e}")
         return stats
+
+    def extract_cocoeval_metrics(self, eval):
+        """Extracts metrics from COCOeval object and saves them to a DataFrame."""
+
+        # Function to append metrics
+        def append_metrics(metrics, metric_type, iou, area, max_dets, value):
+            metrics.append({
+                'Metric Type': metric_type,
+                'IoU': iou,
+                'Area': area,
+                'Max Detections': max_dets,
+                'Value': value
+            })
+
+        # Initialize a list to store the metrics
+        metrics_ = []
+
+        # Extract metrics for bbox/segm evaluation
+        iou_types = ['0.50:0.95', '0.50', '0.75']
+        areas = eval.params.areaRngLbl
+        max_dets = eval.params.maxDets
+
+        # Extract AP metrics (indices 0-14: 3 IoUs * 5 areas)
+        for i, iou in enumerate(iou_types):
+            for j, area in enumerate(areas):
+                idx = i * len(areas) + j
+                append_metrics(metrics_, 'AP', iou, area, max_dets[-1], eval.stats[idx])
+
+        # Extract AR metrics (indices 15-17: 3 maxDets for 'all' area)
+        num_ap_metrics = len(iou_types) * len(areas)  # Total number of AP metrics
+
+        # Iterate over max_dets to append AR metrics
+        for i, md in enumerate(max_dets):
+            for j, area in enumerate(areas):
+                idx = num_ap_metrics + j + i * len(areas)  # Adjust index calculation for AR
+                append_metrics(metrics_, 'AR', '0.50:0.95', area, md, eval.stats[idx])
+
+        # Append AR metrics for 0.75 and 0.50 IoU
+        for i, iou in enumerate(['0.75', '0.50']):
+            append_metrics(metrics_, 'AR', iou, 'all', '300', eval.stats[idx + i + 1])
+
+        # Convert to DataFrame
+        df_metrics = pd.DataFrame(metrics_)
+
+        # Save to file
+        df_metrics.to_csv(self.save_dir / "cocoeval_results.csv", index=False)
+
+        # Write to log
+        self.metrics.cocoeval_df = df_metrics
