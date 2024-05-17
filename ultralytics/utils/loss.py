@@ -49,6 +49,10 @@ class ContrastiveLoss(nn.Module):
         # TODO: exponential loss? or top k?
         loss = torch.clamp(self.margin + positive_distances - negative_distances, min=0.0)
         # TODO: why mean?
+
+        # Average only the non-zero losses
+        #loss = loss[loss > 0].mean()
+
         return torch.mean(loss)
 
     @staticmethod
