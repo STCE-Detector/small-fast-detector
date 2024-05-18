@@ -161,8 +161,13 @@ class YOLODataset(BaseDataset):
         self.im_files = [lb["im_file"] for lb in labels]  # update im_files
 
         # Check if the dataset is all boxes or all segments
-        lengths = ((len(lb["cls"]), len(lb["bboxes"]), len(lb["segments"]), len(lb["tags"])) for lb in labels)
-        len_cls, len_boxes, len_segments, len_tags = (sum(x) for x in zip(*lengths))
+        if self.use_tag:
+            lengths = ((len(lb["cls"]), len(lb["bboxes"]), len(lb["segments"]), len(lb["tags"])) for lb in labels)
+            len_cls, len_boxes, len_segments, len_tags = (sum(x) for x in zip(*lengths))
+        else:
+            lengths = ((len(lb["cls"]), len(lb["bboxes"]), len(lb["segments"])) for lb in labels)
+            len_cls, len_boxes, len_segments = (sum(x) for x in zip(*lengths))
+
         if len_segments and len_boxes != len_segments:
             LOGGER.warning(
                 f"WARNING ⚠️ Box and segment counts should be equal, but got len(segments) = {len_segments}, "
@@ -173,13 +178,15 @@ class YOLODataset(BaseDataset):
                 lb["segments"] = []
         if len_cls == 0:
             LOGGER.warning(f"WARNING ⚠️ No labels found in {cache_path}, training may not work correctly. {HELP_URL}")
-        if len_tags != len_cls:
-            LOGGER.warning(
-                f"WARNING ⚠️ Tag and class counts should be equal, but got len(tags) = {len_tags}, "
-                f"len(cls) = {len_cls}. To resolve this all tags will be removed."
-            )
-            for lb in labels:
-                lb["tags"] = []
+
+        if self.use_tag:
+            if len_tags != len_cls:
+                LOGGER.warning(
+                    f"WARNING ⚠️ Tag and class counts should be equal, but got len(tags) = {len_tags}, "
+                    f"len(cls) = {len_cls}. To resolve this all tags will be removed."
+                )
+                for lb in labels:
+                    lb["tags"] = []
         return labels
 
     def build_transforms(self, hyp=None):
