@@ -65,6 +65,72 @@ class DetectionEmbValidator(DetectionValidator):
         prepared_batch["tags"] = batch["tags"][midx]
         return prepared_batch
 
+    def get_stats(self):
+        """Returns metrics statistics and results dictionary."""
+        stats = {k: torch.cat(v, 0).cpu().numpy() for k, v in self.stats.items()}  # to numpy
+        if len(stats) and stats["tp"].any():
+            self.metrics.process(**stats)
+        self.nt_per_class = np.bincount(
+            stats["target_cls"].astype(int), minlength=self.nc
+        )  # number of targets per class
+        #detection_results = self.metrics.results_dict
+        #TODO: aggregate embeddings mean and std per class
+        return self.metrics.results_dict
+
+    def update_metrics(self, preds, batch):
+        #self.stats['mu_emb'] = []
+        #self.stats['std_emb'] = []
+        """Metrics."""
+        for si, pred in enumerate(preds):
+            self.seen += 1
+            npr = len(pred)
+            stat = dict(
+                conf=torch.zeros(0, device=self.device),
+                pred_cls=torch.zeros(0, device=self.device),
+                tp=torch.zeros(npr, self.niou, dtype=torch.bool, device=self.device),
+            )
+            pbatch = self._prepare_batch(si, batch)
+            cls, bbox = pbatch.pop("cls"), pbatch.pop("bbox")
+            nl = len(cls)
+            stat["target_cls"] = cls
+            if npr == 0:
+                if nl:
+                    for k in self.stats.keys():
+                        self.stats[k].append(stat[k])
+                    # TODO: obb has not supported confusion_matrix yet.
+                    if self.args.plots and self.args.task != "obb":
+                        self.confusion_matrix_p.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
+                        self.confusion_matrix_r.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
+                continue
+
+            # Predictions
+            if self.args.single_cls:
+                pred[:, 5] = 0
+            predn = self._prepare_pred(pred, pbatch)
+            stat["conf"] = predn[:, 4]
+            stat["pred_cls"] = predn[:, 5]
+
+            # Evaluate
+            if nl:
+                stat["tp"] = self._process_batch(predn, bbox, cls)
+                # TODO: obb has not supported confusion_matrix yet.
+                if self.args.plots and self.args.task != "obb":
+                    self.confusion_matrix_p.process_batch(predn, bbox, cls)
+                    self.confusion_matrix_r.process_batch(predn, bbox, cls)
+            for k in self.stats.keys():
+                self.stats[k].append(stat[k])
+
+            # TODO: compute embeddings mean and std per class
+            #self.stats['mu_emb'].append(pred[:, 6:].mean())
+            #self.stats['std_emb'].append(pred[:, 6:].std())
+
+            # Save
+            if self.args.save_json:
+                self.pred_to_json(predn, batch["im_file"][si])
+            if self.args.save_txt:
+                file = self.save_dir / "labels" / f'{Path(batch["im_file"][si]).stem}.txt'
+                self.save_one_txt(predn, self.args.save_conf, pbatch["ori_shape"], file)
+
     # TODO: not sure if should be used
     #def _prepare_pred(self, pred, pbatch, proto):
     #def update_metrics(self, preds, batch):
