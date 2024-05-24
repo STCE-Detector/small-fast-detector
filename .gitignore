@@ -179,3 +179,4 @@ pnnx*
 /models/
 /tracker/evaluation/outputs/
 /tracker/finetune/outputs/
+/debug/
