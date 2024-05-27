@@ -14,7 +14,7 @@ from .tal import bbox2dist
 
 
 class ContrastiveLoss(nn.Module):
-    def __init__(self, margin=1.0, soft_margin=False, only_positive=False, mode='all', top_k=1):
+    def __init__(self, margin=0.5, soft_margin=False, only_positive=False, mode='hard', top_k=1):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
         self.soft_margin = soft_margin

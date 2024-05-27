@@ -243,7 +243,7 @@ def label_sequence(video_root, config):
 
 if __name__ == '__main__':
     # Read config
-    with open("./cfg.json", "r") as f:
+    with open("./cfg/auto_label.json", "r") as f:
         config = json.load(f)
 
     # Read all sequences

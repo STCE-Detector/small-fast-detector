@@ -13,8 +13,11 @@ def eval_sequence(video_root, config):
     gt = np.loadtxt(gt_path, delimiter=',')
 
     # Read predictions
-    pred_path = video_root + '/gt/auto_gt_mod.txt'
+    pred_path = video_root + '/gt/auto_gt.txt'
     pred = np.loadtxt(pred_path, delimiter=',')
+
+    # ONLY FOR TESTING
+    pred[0,-1] = 0
 
     # Initialize Confusion Matrix for detection and behavior evaluation
     tracking_eval_flag = config['tracking']['enable']
