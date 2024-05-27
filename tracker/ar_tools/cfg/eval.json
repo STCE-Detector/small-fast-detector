@@ -1,0 +1,19 @@
+{
+  "name": "MOTHupba-train",
+
+  "data_dir": "/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train/",
+  "pred_dir": "/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train/",
+  "output_dir": "./outputs",
+
+  "tracking": {
+    "enable": true,
+    "confidence_threshold": 0.3,
+    "iou_threshold": 0.3
+  },
+
+  "action_recognition": {
+    "enable": true,
+    "confidence_threshold": 0.3,
+    "iou_threshold": 0.3
+  }
+}

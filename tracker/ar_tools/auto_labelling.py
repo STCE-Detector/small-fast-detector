@@ -168,7 +168,8 @@ def label_sequence(video_root, config):
     frame_width, frame_height, video_fps = seq_info(info_path)
 
     # Read ground truth
-    df = pd.read_csv(gt_path, names=['frame', 'id', 'xl', 'yt', 'w', 'h'], usecols=[0, 1, 2, 3, 4, 5])
+    original_columns = ['frame', 'id', 'xl', 'yt', 'w', 'h']
+    df = pd.read_csv(gt_path, names=original_columns, usecols=[i for i in range(len(original_columns))])
 
     # Print some information
     video_name = video_root.split('/')[-1]
@@ -233,8 +234,11 @@ def label_sequence(video_root, config):
     ##############################
 
     # Save results gt with flags
-
-    # Save intervals
+    final_columns = original_columns + behaviour_columns
+    df['G'].fillna(False, inplace=True)
+    df[behaviour_columns] = df[behaviour_columns].astype(int)
+    df.to_csv(video_root + '/gt/auto_gt.txt', index=False, columns=final_columns, header=False)
+    # TODO: Save intervals
 
 
 if __name__ == '__main__':
