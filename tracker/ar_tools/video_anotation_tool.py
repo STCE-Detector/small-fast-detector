@@ -4,7 +4,7 @@ import cv2
 import csv
 import numpy as np
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, QPushButton, QFileDialog, QHBoxLayout,
-                             QTableWidget, QTableWidgetItem, QSizePolicy, QScrollArea, QCheckBox, QSplitter, QSlider, QStyleFactory)
+                             QTableWidget, QTableWidgetItem, QSizePolicy, QScrollArea, QCheckBox, QSplitter, QSlider, QStyleFactory, QMessageBox)
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
 
@@ -90,8 +90,9 @@ class VideoAnnotationTool(QWidget):
         self.button_layout.addWidget(self.slow_motion_checkbox)
 
         self.show_actions_checkbox = QCheckBox('Show Actions')
-        self.show_actions_checkbox.setChecked(True)
+        self.show_actions_checkbox.setChecked(False)
         self.show_actions_checkbox.setStyleSheet("font-weight: bold;")
+        self.show_actions_checkbox.setEnabled(False)  # Initially disabled
         self.button_layout.addWidget(self.show_actions_checkbox)
 
         self.slow_motion_checkbox.stateChanged.connect(self.adjust_playback_speed)
@@ -117,8 +118,8 @@ class VideoAnnotationTool(QWidget):
 
         self.annotations_table = QTableWidget()
         self.annotations_table.setRowCount(0)
-        self.annotations_table.setColumnCount(7)  # ID, Start Frame, End Frame, SS, G, SR, FA
-        self.annotations_table.setHorizontalHeaderLabels(['ID', 'Start Frame', 'End Frame', 'SS', 'G', 'SR', 'FA'])
+        self.annotations_table.setColumnCount(7)  # ID, Start Frame, End Frame, SS, SR, FA, G
+        self.annotations_table.setHorizontalHeaderLabels(['ID', 'Start Frame', 'End Frame', 'SS', 'SR', 'FA', 'G'])
         self.annotations_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         # Using QSplitter to allow dynamic resizing
@@ -188,39 +189,45 @@ class VideoAnnotationTool(QWidget):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select GT File", "", "Text Files (*.txt)")
         if file_path:
             self.gt_file_path = file_path
-            self.gt_coordinates_dict = self.load_gt_coordinates(self.gt_file_path)
+            self.gt_coordinates_dict, self.has_actions = self.load_gt_coordinates(self.gt_file_path)
             if change_color:
                 self.btn_load_gt.setStyleSheet("background-color: lightgreen;")
             self.update_table()
+            if not self.has_actions:
+                self.show_actions_checkbox.setChecked(False)
+                self.show_actions_checkbox.setEnabled(False)
+                QMessageBox.warning(self, "GT File Warning", "The GT file does not contain action columns.")
+            else:
+                self.show_actions_checkbox.setEnabled(True)
+                self.show_actions_checkbox.setChecked(True)
 
     def load_image_sequence(self, image_sequence_path):
         self.image_files = sorted([os.path.join(image_sequence_path, f) for f in os.listdir(image_sequence_path) if f.endswith('.jpg') or f.endswith('.png')])
 
     def load_gt_coordinates(self, gt_file_path):
         gt_coordinates_dict = {}
+        has_actions = False
         with open(gt_file_path, 'r') as gt_file:
             next(gt_file)  # Assuming the first line is a header
             for line_number, line in enumerate(gt_file, start=2):  # Ignore header
                 parts = line.strip().split(',')
                 try:
-                    # Assuming the data structure is correct
-                    if len(parts) >= 8:  # Ensure the line has enough parts
-                        label = int(parts[7])  # Get the occlusion label value
-                        if label in [4, 5, 7, 9, 10, 11, 12]:  # Filter occlusion labels
-                            continue  # Skip this row
-
-                    frame, id, x, y, w, h = map(int, parts[:6])  # Parse annotation data
-                    action_code = parts[6] if len(parts) > 8 else "Unknown"  # Check if this is the correct index
-                    action = self.action_mapping.get(action_code, "Unknown")
-
-                    if frame not in gt_coordinates_dict:
-                        gt_coordinates_dict[frame] = []
-                    gt_coordinates_dict[frame].append((x, y, w, h, id, action))
-
+                    if len(parts) >= 11:  # Check if there are at least 11 columns
+                        has_actions = True
+                        frame, id, x, y, w, h = map(int, parts[:6])  # Parse annotation data
+                        ss, sr, fa, g = map(int, parts[-4:])  # Last four columns as actions
+                        if frame not in gt_coordinates_dict:
+                            gt_coordinates_dict[frame] = []
+                        gt_coordinates_dict[frame].append((x, y, w, h, id, ss, sr, fa, g))
+                    else:
+                        frame, id, x, y, w, h = map(int, parts[:6])  # Parse annotation data without actions
+                        if frame not in gt_coordinates_dict:
+                            gt_coordinates_dict[frame] = []
+                        gt_coordinates_dict[frame].append((x, y, w, h, id))
                 except ValueError as e:
                     print(f"Error parsing line {line_number}: {e}")
                     continue  # Skip rows with conversion errors
-        return gt_coordinates_dict
+        return gt_coordinates_dict, has_actions
 
     def play_pause_video(self):
         if self.playing:
@@ -283,7 +290,12 @@ class VideoAnnotationTool(QWidget):
             # Processing detections and drawing rectangles
             detections = self.gt_coordinates_dict.get(self.current_frame, [])
             for gt_data in detections:
-                x, y, w, h, id, action = gt_data
+                if len(gt_data) > 6:
+                    x, y, w, h, id, ss, sr, fa, g = gt_data
+                else:
+                    x, y, w, h, id = gt_data
+                    ss, sr, fa, g = 0, 0, 0, 0
+
                 x_scaled = int(x * target_width / original_width)
                 y_scaled = int(y * target_height / original_height)
                 w_scaled = int(w * target_width / original_width)
@@ -303,11 +315,21 @@ class VideoAnnotationTool(QWidget):
 
                 # ID and action colors
                 id_color = (0, 255, 0) if not touches_circle else (255, 0, 255)  # Green if not touching, Pink if touching
-                action_color = self.action_colors.get(action, (255, 255, 255))  # Default to white if action unknown
 
-                cv2.putText(image, f"ID: {id}", (x_scaled, y_scaled - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, id_color, 2)
-                if self.show_actions_checkbox.isChecked():
-                    cv2.putText(image, f"Action: {action}", (x_scaled, y_scaled + h_scaled + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, action_color, 2)
+                cv2.putText(image, f"ID: {id}", (x_scaled, y_scaled - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, id_color, 1)
+
+                # Display actions if the checkbox is checked
+                if self.show_actions_checkbox.isChecked() and self.has_actions:
+                    actions_display = []
+                    if ss: actions_display.append("SS")
+                    if sr: actions_display.append("SR")
+                    if fa: actions_display.append("FA")
+                    if g: actions_display.append(f"G({g})")
+
+                    action_text = " | ".join(actions_display)
+                    if action_text:
+                        action_color = self.action_colors.get(actions_display[0], (255, 255, 255))  # Use the first action's color
+                        cv2.putText(image, f"{action_text}", (x_scaled, y_scaled + h_scaled + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, action_color, 2)
 
             # Convert to Qt format and display
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
