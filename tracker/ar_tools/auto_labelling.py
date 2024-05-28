@@ -187,12 +187,13 @@ def label_sequence(video_root, config):
 
     # Print some information
     video_name = video_root.split('/')[-1]
+    print('\n')
     print(f'Video: {video_name}')
     print(f'Frame width: {frame_width}')
     print(f'Frame height: {frame_height}')
     print(f'Video FPS: {video_fps}')
     print(f'Number of frames: {df["frame"].nunique()}')
-    print(f'Number of objects: {df["id"].nunique()}\n')
+    print(f'Number of objects: {df["id"].nunique()}')
 
     # Generic bbox transformations
     df['area'] = df['w'] * df['h']
