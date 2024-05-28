@@ -220,7 +220,7 @@ def label_sequence(video_root, config):
     if config['gather']['enabled']:
         # Iterate over frames
         unique_frames = df['frame'].unique()
-        for value in tqdm(unique_frames, desc='Recognizing gatherings'):
+        for value in tqdm(unique_frames, desc='Recognizing gatherings', unit=' frames'):
             df = recognize_gather(df, value, config['gather']['area_threshold'],
                                   config['gather']['distance_threshold'], config['gather']['min_people'])
     else:
@@ -235,7 +235,7 @@ def label_sequence(video_root, config):
 
     # Iterate over ids
     unique_ids = df['id'].unique()
-    for id in tqdm(unique_ids, desc='Computing motion descriptors'):
+    for id in tqdm(unique_ids, desc='Computing motion descriptors', unit=' ids'):
         df = get_motion_descriptors(df, id, w, dt, l)
     ##############################
 

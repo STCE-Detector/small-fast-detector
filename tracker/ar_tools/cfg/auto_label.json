@@ -10,14 +10,14 @@
 
 
   "gather": {
-    "enabled": false,
+    "enabled": true,
     "min_people": 3,
     "distance_threshold": 1.0,
     "area_threshold": 0.5
   },
 
   "stand_still": {
-    "enabled": false,
+    "enabled": true,
     "speed_threshold": 0.001
   },
 
