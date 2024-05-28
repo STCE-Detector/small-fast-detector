@@ -8,13 +8,14 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, QPushBu
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
 
+
 class VideoAnnotationTool(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('📹 Video Annotation Tool 📝')
         self.setGeometry(100, 100, 1200, 1000)
         self.setMinimumSize(1400, 800)
-        self.fa_distance_threshold = 10
+        self.fa_distance_threshold = 4
         self.layout = QVBoxLayout()
 
         # Paths
@@ -273,8 +274,9 @@ class VideoAnnotationTool(QWidget):
             original_height, original_width, _ = image.shape
 
             # Define the size to which images should be resized
-            target_width = 800
             target_height = 600
+            r = target_height / original_height
+            target_width = int(original_width * r)
 
             # Resize the image to the target size
             image = cv2.resize(image, (target_width, target_height))
@@ -302,13 +304,16 @@ class VideoAnnotationTool(QWidget):
                 h_scaled = int(h * target_height / original_height)
 
                 # Check if bounding box touches the circle
-                bbox_points = [
-                    (x_scaled, y_scaled),
-                    (x_scaled + w_scaled, y_scaled),
-                    (x_scaled, y_scaled + h_scaled),
-                    (x_scaled + w_scaled, y_scaled + h_scaled)
-                ]
-                touches_circle = any(np.linalg.norm(np.array(point) - self.interest_point) < self.trigger_radius for point in bbox_points)
+                x_min = x_scaled
+                x_max = x_scaled + w_scaled
+                y_min = y_scaled
+                y_max = y_scaled + h_scaled
+
+                closest_x = max(x_min, min(self.interest_point[0], x_max))
+                closest_y = max(y_min, min(self.interest_point[1], y_max))
+                distance = np.sqrt((closest_x - self.interest_point[0]) ** 2 + (closest_y - self.interest_point[1]) ** 2)
+                touches_circle = distance < self.trigger_radius
+
                 bbox_color = (255, 0, 30) if not touches_circle else (255, 0, 255)  # Red if not touching, Pink if touching
 
                 cv2.rectangle(image, (x_scaled, y_scaled), (x_scaled + w_scaled, y_scaled + h_scaled), bbox_color, 1)  # Thinner bounding box
@@ -410,6 +415,7 @@ class VideoAnnotationTool(QWidget):
                     self.annotations_table.insertRow(row_position)
                     for col, data in enumerate(row_data):
                         self.annotations_table.setItem(row_position, col, QTableWidgetItem(data))
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
