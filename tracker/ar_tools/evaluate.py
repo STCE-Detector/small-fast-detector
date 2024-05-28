@@ -4,7 +4,10 @@ import json
 import torch
 import numpy as np
 
-from tracker.ar_tools.confusion_matrix import ConfusionMatrix, ARConfusionMatrix
+from tqdm import tqdm
+
+from tracker.ar_tools.ar_confusion_matrix import ARConfusionMatrix
+from ultralytics.utils.metrics import ConfusionMatrix
 
 
 def eval_sequence(video_root, config):
@@ -39,8 +42,9 @@ def eval_sequence(video_root, config):
         )
 
     # Iterate over frames
-    for frame_id in list(set(gt[:, 0])):
-
+    sequence_name = video_root.split('/')[-1]
+    unique_frames = list(set(gt[:, 0]))
+    for frame_id in tqdm(unique_frames, desc=f'Evaluating {sequence_name}', unit=' frames'):
         # Get GT and predictions for this frame
         gt_frame = gt[gt[:, 0] == frame_id]
         pred_frame = pred[pred[:, 0] == frame_id]
@@ -73,11 +77,11 @@ def eval_sequence(video_root, config):
         ##############################
         # BEHAVIOR EVALUATION
         # Preprocess GT
-        gt_behaviors = gt_frame[:, 6:]
+        gt_behaviors = gt_frame[:, -4:]
         gt_behaviors = torch.from_numpy(gt_behaviors)
 
         # Preprocess predictions
-        pred_behaviors = pred_frame[:, 6:]
+        pred_behaviors = pred_frame[:, -4:]
         pred_behaviors = torch.from_numpy(pred_behaviors)
 
         # TODO: currently Gathering does not distinguish between different groups, now is just boolean
@@ -98,7 +102,6 @@ def eval_sequence(video_root, config):
 
     if ar_eval_flag:
         ar_confusion_matrix.save_results(config['output_dir'])
-
     return None
 
 
