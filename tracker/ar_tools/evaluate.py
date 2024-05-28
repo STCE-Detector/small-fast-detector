@@ -10,7 +10,7 @@ from tracker.ar_tools.ar_confusion_matrix import ARConfusionMatrix
 from ultralytics.utils.metrics import ConfusionMatrix
 
 
-def eval_sequence(video_root, config):
+def eval_sequence(video_root, config, detection_cm, ar_cm):
     # Read gt
     gt_path = video_root + '/gt/auto_gt.txt'
     gt = np.loadtxt(gt_path, delimiter=',')
@@ -23,23 +23,6 @@ def eval_sequence(video_root, config):
     pred[0,-1] = 0
 
     # TODO: filter by class in predictions
-
-    # Initialize Confusion Matrix for detection and behavior evaluation
-    tracking_eval_flag = config['tracking']['enable']
-    ar_eval_flag = config['action_recognition']['enable']
-
-    if tracking_eval_flag:
-        confusion_matrix = ConfusionMatrix(
-            nc=1,
-            conf=config['tracking']['confidence_threshold'],
-            iou_thres=config['tracking']['iou_threshold']
-        )
-    if ar_eval_flag:
-        ar_confusion_matrix = ARConfusionMatrix(
-            nc=4,
-            conf=config['action_recognition']['confidence_threshold'],
-            iou_thres=config['action_recognition']['iou_threshold']
-        )
 
     # Iterate over frames
     sequence_name = video_root.split('/')[-1]
@@ -70,8 +53,8 @@ def eval_sequence(video_root, config):
         pred_detections = torch.from_numpy(pred_detections)
 
         # Compute confusion matrix
-        if tracking_eval_flag:
-            confusion_matrix.process_batch(pred_detections, gt_xyxy, gt_cls)
+        if detection_cm is not None:
+            detection_cm.process_batch(pred_detections, gt_xyxy, gt_cls)
         ##############################
 
         ##############################
@@ -92,17 +75,8 @@ def eval_sequence(video_root, config):
         pred_behaviors = torch.cat((pred_detections[:, :5], pred_behaviors), dim=1)
 
         # Compute confusion matrix
-        if ar_eval_flag:
-            ar_confusion_matrix.process_batch(pred_behaviors, gt_xyxy, gt_behaviors)
-
-    # Aggregate confusion matrices
-    if tracking_eval_flag:
-        for normalize in [False, 'gt', 'pred']:
-            confusion_matrix.plot(normalize=normalize, save_dir=config['output_dir'])
-
-    if ar_eval_flag:
-        ar_confusion_matrix.save_results(config['output_dir'])
-    return None
+        if ar_cm is not None:
+            ar_cm.process_batch(pred_behaviors, gt_xyxy, gt_behaviors)
 
 
 if __name__ == '__main__':
@@ -117,12 +91,43 @@ if __name__ == '__main__':
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    # Initialize Confusion Matrix for detection and behavior evaluation
+    tracking_eval_flag = config['tracking']['enable']
+    ar_eval_flag = config['action_recognition']['enable']
+
+    if tracking_eval_flag:
+        confusion_matrix = ConfusionMatrix(
+            nc=1,
+            conf=config['tracking']['confidence_threshold'],
+            iou_thres=config['tracking']['iou_threshold']
+        )
+    else:
+        confusion_matrix = None
+
+    if ar_eval_flag:
+        ar_confusion_matrix = ARConfusionMatrix(
+            nc=4,
+            conf=config['action_recognition']['confidence_threshold'],
+            iou_thres=config['action_recognition']['iou_threshold']
+        )
+    else:
+        ar_confusion_matrix = None
+
     # Read all sequences
-    video_root = config['data_dir'] + 'MOT17-09'
+    #video_root = config['data_dir'] + 'MOT17-09'
+    data_dir = config['data_dir']
+    folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
     # Iterate over sequences
+    for folder in folders[2:4]:
+        video_root = data_dir + folder
+        eval_sequence(video_root, config, confusion_matrix, ar_confusion_matrix)
 
-    # Evaluate sequence
-    eval_sequence(video_root, config)
-    # Save results
+    # Aggregate confusion matrices
+    if tracking_eval_flag:
+        for normalize in [False, 'gt', 'pred']:
+            confusion_matrix.plot(normalize=normalize, save_dir=config['output_dir'])
+
+    if ar_eval_flag:
+        ar_confusion_matrix.save_results(config['output_dir'])
 
