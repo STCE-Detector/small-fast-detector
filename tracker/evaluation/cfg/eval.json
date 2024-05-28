@@ -5,7 +5,7 @@
   "pred_dir": "/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train/",
   "output_dir": "./outputs",
 
-  "action_recognition": {
+  "tracking": {
     "confidence_threshold": 0.3,
     "iou_threshold": 0.3
   }

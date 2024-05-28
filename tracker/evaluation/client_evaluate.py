@@ -6,11 +6,10 @@ import numpy as np
 
 from tqdm import tqdm
 
-from tracker.ar_tools.ar_confusion_matrix import ARConfusionMatrix
 from ultralytics.utils.metrics import ConfusionMatrix
 
 
-def eval_sequence(video_root, ar_cm):
+def eval_sequence(video_root, detection_cm):
     # Read gt
     gt_path = video_root + '/gt/auto_gt.txt'
     gt = np.loadtxt(gt_path, delimiter=',')
@@ -29,10 +28,10 @@ def eval_sequence(video_root, ar_cm):
         gt_frame = gt[gt[:, 0] == frame_id]
         pred_frame = pred[pred[:, 0] == frame_id]
 
-        ##############################
         # DETECTION EVALUATION
         # Preprocess GT
         gt_tlwh = gt_frame[:, 2:6]
+        gt_cls = torch.from_numpy(np.zeros(gt_frame.shape[0]))
         gt_xyxy = gt_tlwh.copy()
         gt_xyxy[:, 2:] += gt_xyxy[:, :2]
         gt_xyxy = torch.from_numpy(gt_xyxy)
@@ -47,30 +46,8 @@ def eval_sequence(video_root, ar_cm):
         pred_detections[:, 4] = np.ones(pred_frame.shape[0])    # Set score to 1
         pred_detections[:, 5] = np.zeros(pred_frame.shape[0])     # Set class to 1
         pred_detections = torch.from_numpy(pred_detections)
-        ##############################
 
-        ##############################
-        # BEHAVIOR EVALUATION
-        # Preprocess GT
-        gt_behaviors = gt_frame[:, -4:]
-        gt_behaviors = torch.from_numpy(gt_behaviors)
-
-        # Preprocess predictions
-        pred_behaviors = pred_frame[:, -4:]
-        pred_behaviors = torch.from_numpy(pred_behaviors)
-
-        # TODO: currently Gathering does not distinguish between different groups, now is just boolean
-        gt_behaviors[:, -1] = (gt_behaviors[:, -1] > 0).long()
-        pred_behaviors[:, -1] = (pred_behaviors[:, -1] > 0).long()
-        # TEST ONLY
-        #pred_behaviors[0,-1] = 2
-
-        # Merge the first 5 columns of pred_detections with pred_behaviors
-        pred_behaviors = torch.cat((pred_detections[:, :5], pred_behaviors), dim=1)
-
-        # Compute confusion matrix
-        if ar_cm is not None:
-            ar_cm.process_batch(pred_behaviors, gt_xyxy, gt_behaviors)
+        detection_cm.process_batch(pred_detections, gt_xyxy, gt_cls)
 
 
 if __name__ == '__main__':
@@ -80,16 +57,16 @@ if __name__ == '__main__':
 
     # Create output directory
     time_str = time.strftime("%Y%m%d-%H%M%S")
-    output_dir = config['output_dir'] + '/eval/' + config['name'] + '/' + time_str
+    output_dir = config['output_dir'] + '/client_eval/' + config['name'] + '/' + time_str
     config['output_dir'] = output_dir
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # Initialize Confusion Matrix for detection and behavior evaluation
-    ar_confusion_matrix = ARConfusionMatrix(
-        nc=4,
-        conf=config['action_recognition']['confidence_threshold'],
-        iou_thres=config['action_recognition']['iou_threshold']
+    # Initialize the Confusion Matrix for tracking evaluation
+    confusion_matrix = ConfusionMatrix(
+        nc=1,
+        conf=config['tracking']['confidence_threshold'],
+        iou_thres=config['tracking']['iou_threshold']
     )
 
     # Read all sequences
@@ -98,10 +75,10 @@ if __name__ == '__main__':
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
     # Iterate over sequences
-    for folder in folders[2:4]:
+    for folder in folders[2:3]:
         video_root = data_dir + folder
-        eval_sequence(video_root, ar_confusion_matrix)
+        eval_sequence(video_root, confusion_matrix)
 
-    # Aggregate confusion matrices
-    ar_confusion_matrix.save_results(config['output_dir'])
-
+    # Aggregate confusion matrix
+    for normalize in [False, 'gt', 'pred']:
+        confusion_matrix.plot(normalize=normalize, save_dir=config['output_dir'])
