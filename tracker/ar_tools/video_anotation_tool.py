@@ -316,7 +316,7 @@ class VideoAnnotationTool(QWidget):
 
                 bbox_color = (255, 0, 30) if not touches_circle else (255, 0, 255)  # Red if not touching, Pink if touching
 
-                cv2.rectangle(image, (x_scaled, y_scaled), (x_scaled + w_scaled, y_scaled + h_scaled), bbox_color, 1)  # Thinner bounding box
+                cv2.rectangle(image, (x_min, y_min), (x_max, y_max), bbox_color, 1)  # Thinner bounding box
 
                 # ID and action colors
                 id_color = (0, 255, 0) if not touches_circle else (255, 0, 255)  # Green if not touching, Pink if touching
@@ -329,12 +329,14 @@ class VideoAnnotationTool(QWidget):
                     if ss: actions_display.append("SS")
                     if sr: actions_display.append("SR")
                     if fa: actions_display.append("FA")
-                    if g: actions_display.append(f"G({g})")
+                    if g: actions_display.append(f"G-{g}")
 
-                    action_text = " | ".join(actions_display)
+                    action_text = ",".join(actions_display)
                     if action_text:
-                        action_color = self.action_colors.get(actions_display[0], (255, 255, 255))  # Use the first action's color
-                        cv2.putText(image, f"{action_text}", (x_scaled, y_scaled + h_scaled + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, action_color, 2)
+                        cv2.putText(image, f"{action_text}", (x_scaled, y_max + 20),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                        # action_color = self.action_colors.get(actions_display[0], (255, 255, 255))  # Use the first action's color
+                        # cv2.putText(image, f"{action_text}", (x_scaled, y_scaled + h_scaled + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, action_color, 2)
 
             # Convert to Qt format and display
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
