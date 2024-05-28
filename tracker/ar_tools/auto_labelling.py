@@ -1,9 +1,13 @@
+import os
 import json
+import configparser
+
 import numpy as np
 import pandas as pd
-import configparser
-from itertools import combinations
 import networkx as nx
+
+from tqdm import tqdm
+from itertools import combinations
 
 
 def seq_info(info_path):
@@ -79,8 +83,11 @@ def recognize_gather(df, frame_id, area_threshold, distance_threshold, min_peopl
     valid_chains = [chain for chain in independent_chains if len(chain) > (min_people - 1)]
 
     # Assing group tags to the corresponding bboxes
-    for i, chain in enumerate(valid_chains):
-        frame_df.loc[list(chain), 'G'] = i + 1
+    if len(valid_chains) > 0:
+        for i, chain in enumerate(valid_chains):
+            frame_df.loc[list(chain), 'G'] = i + 1
+    else:
+        frame_df['G'] = 0
 
     # TODO: review this merge
     df = pd.merge(df, frame_df[['frame', 'id', 'G']], on=['frame', 'id'], how='left', suffixes=('', '_dup'))
@@ -168,8 +175,15 @@ def label_sequence(video_root, config):
     frame_width, frame_height, video_fps = seq_info(info_path)
 
     # Read ground truth
-    original_columns = ['frame', 'id', 'xl', 'yt', 'w', 'h']
+    original_columns = ['frame', 'id', 'xl', 'yt', 'w', 'h', 'x/conf', 'y/class', 'z/vis']
     df = pd.read_csv(gt_path, names=original_columns, usecols=[i for i in range(len(original_columns))])
+
+    # TODO: maybe do not consider last two classes (distractor and reflection)
+    correct_classes = [1, 2, 7, 8, 12]
+    df = df[df['y/class'].isin(correct_classes)].copy()
+
+    # TODO: we can filte by visibility > X
+    # df = df[df['z/vis'] > 0.5].copy()
 
     # Print some information
     video_name = video_root.split('/')[-1]
@@ -178,7 +192,7 @@ def label_sequence(video_root, config):
     print(f'Frame height: {frame_height}')
     print(f'Video FPS: {video_fps}')
     print(f'Number of frames: {df["frame"].nunique()}')
-    print(f'Number of objects: {df["id"].nunique()}')
+    print(f'Number of objects: {df["id"].nunique()}\n')
 
     # Generic bbox transformations
     df['area'] = df['w'] * df['h']
@@ -187,50 +201,57 @@ def label_sequence(video_root, config):
 
     ##############################
     # NEAR SENSOR
-    # Define interest point and trigger radius
-    interest_point = np.array([frame_width // 2, frame_height])
-    trigger_radius = frame_height / config['fast_approach']['distance_threshold']
+    if config['fast_approach']['enabled']:
+        # Define interest point and trigger radius
+        interest_point = np.array([frame_width // 2, frame_height])
+        trigger_radius = frame_height / config['fast_approach']['distance_threshold']
 
-    # Compute minimal distance to interest point
-    def near_sensor(row):
-        bbox = (row['xc'], row['yc'], row['w'], row['h'])
-        d = minimal_distance_to_bbox(interest_point, bbox)
-        return True if d <= trigger_radius else False
+        # Compute minimal distance to interest point
+        def near_sensor(row):
+            bbox = (row['xc'], row['yc'], row['w'], row['h'])
+            d = minimal_distance_to_bbox(interest_point, bbox)
+            return True if d <= trigger_radius else False
 
-    df['near_sensor'] = df.apply(near_sensor, axis=1)
+        df['near_sensor'] = df.apply(near_sensor, axis=1)
     ##############################
 
     ##############################
     # RECOGNIZE GATHERING
-    # Iterate over frames
-    for frame_id in df['frame'].unique():
-        df = recognize_gather(df, frame_id, config['gather']['area_threshold'],
-                              config['gather']['distance_threshold'], config['gather']['min_people'])
+    if config['gather']['enabled']:
+        # Iterate over frames
+        unique_frames = df['frame'].unique()
+        for value in tqdm(unique_frames, desc='Recognizing gatherings'):
+            df = recognize_gather(df, value, config['gather']['area_threshold'],
+                                  config['gather']['distance_threshold'], config['gather']['min_people'])
+    else:
+        df['G'] = 0
     ##############################
 
     ##############################
     # COMPUTE MOTION DESCRIPTORS
     w = np.array(config["speed_projection"])
-    dt = 30  # window frames
-    l = 5  # list's length
+    dt = config["step_size"]
+    l = config["list_length"]
 
     # Iterate over ids
-    for id in df['id'].unique():
+    unique_ids = df['id'].unique()
+    for id in tqdm(unique_ids, desc='Computing motion descriptors'):
         df = get_motion_descriptors(df, id, w, dt, l)
     ##############################
 
     ##############################
     # FLAGGING
-    df['SS'] = df['aV'] < 0.001
-    df['SR'] = df['dv'] > 0.025
-    df['FA'] = (df['aidir'] > 0) & df['near_sensor']
+    behaviour_columns = ['SS', 'SR', 'FA', 'G']
+    df['SS'] = (df['aV'] < config['stand_still']['speed_threshold']) if config['stand_still']['enabled'] else False
+    df['SR'] = (df['dv'] > config['suddenly_run']['speed_threshold']) if config['suddenly_run']['enabled'] else False
+    df['FA'] = ((df['aidir'] > 0) & df['near_sensor']) if config['fast_approach']['enabled'] else False
 
     # For each column get its intervals
-    behaviour_columns = ['SS', 'SR', 'FA', 'G']
-    intervals_df = pd.DataFrame()
-    for col in behaviour_columns:
-        behaviour_df = get_intervals(df, col)
-        intervals_df = pd.concat([intervals_df, behaviour_df])
+    if config['intervals']:
+        intervals_df = pd.DataFrame()
+        for col in behaviour_columns:
+            behaviour_df = get_intervals(df, col)
+            intervals_df = pd.concat([intervals_df, behaviour_df])
     ##############################
 
     # Save results gt with flags
@@ -238,7 +259,9 @@ def label_sequence(video_root, config):
     df['G'].fillna(False, inplace=True)
     df[behaviour_columns] = df[behaviour_columns].astype(int)
     df.to_csv(video_root + '/gt/auto_gt.txt', index=False, columns=final_columns, header=False)
+
     # TODO: Save intervals
+    #if config['intervals']:
 
 
 if __name__ == '__main__':
@@ -246,8 +269,19 @@ if __name__ == '__main__':
     with open("./cfg/auto_label.json", "r") as f:
         config = json.load(f)
 
-    # Read all sequences
-    video_root = '/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train/MOT17-09'
+    data_dir = config['data_dir']
+    sequence = config['sequence']
 
-    # For each sequence run function label_sequence
-    label_sequence(video_root, config)
+    if sequence is not None:
+        video_root = data_dir + sequence
+        label_sequence(video_root, config)
+
+    else:
+        # Read all sequences
+        folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
+
+        # Iterate over sequences
+        for folder in folders:
+            video_root = data_dir + folder
+            label_sequence(video_root, config)
+

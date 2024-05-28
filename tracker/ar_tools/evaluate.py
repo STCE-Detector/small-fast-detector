@@ -19,6 +19,8 @@ def eval_sequence(video_root, config):
     # ONLY FOR TESTING
     pred[0,-1] = 0
 
+    # TODO: filter by class in predictions
+
     # Initialize Confusion Matrix for detection and behavior evaluation
     tracking_eval_flag = config['tracking']['enable']
     ar_eval_flag = config['action_recognition']['enable']
@@ -38,6 +40,7 @@ def eval_sequence(video_root, config):
 
     # Iterate over frames
     for frame_id in list(set(gt[:, 0])):
+
         # Get GT and predictions for this frame
         gt_frame = gt[gt[:, 0] == frame_id]
         pred_frame = pred[pred[:, 0] == frame_id]
