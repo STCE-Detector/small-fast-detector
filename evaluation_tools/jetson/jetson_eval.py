@@ -85,7 +85,7 @@ def pred_to_json(results, filename, class_map):
                 {
                     "image_id": image_id,
                     "category_id": class_map[int(class_id)],
-                    "bbox": [round(x, 3) for x in bbox],
+                    "bbox": [round(float(x), 3) for x in bbox],  # Ensure conversion to float
                     "score": round(float(score), 5),
                 }
             )
@@ -114,7 +114,7 @@ def main(config_path, model_config):
     coco_results = {
         'annotations': [],
         'images': [],
-        'categories': [{'id': k, 'name': v} for k, v in category_map.items()]
+        'categories': [{'id': int(k), 'name': v} for k, v in category_map.items()]
     }
 
     for img_id, (img_path, img) in tqdm(enumerate(images), total=len(images)):
@@ -124,34 +124,27 @@ def main(config_path, model_config):
         coco_results['images'].append({
             'id': img_id,
             'file_name': os.path.basename(img_path),
-            'width': img.shape[1],
-            'height': img.shape[0]
+            'width': int(img.shape[1]),
+            'height': int(img.shape[0])
         })
 
         # Convert results to COCO format
         annotations = pred_to_json(results, img_path, category_map)
         coco_results['annotations'].extend(annotations)
 
-    # Save results to a JSON file
-    output_file = 'coco_results.json'
-    with open(output_file, 'w') as f:
-        json.dump(coco_results, f, indent=4)
+    # Save full results to a JSON file
+    full_output_file = 'full_coco_results.json'
+    with open(full_output_file, 'w') as f:
+        json.dump(coco_results, f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
 
-    print(f'Results saved to {output_file}')
+    # Save only annotations to a JSON file
+    annotations_output_file = 'coco_results.json'
+    with open(annotations_output_file, 'w') as f:
+        json.dump(coco_results['annotations'], f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
+
+    print(f'Results saved to {full_output_file} and {annotations_output_file}')
     ground_truth_file = '../data/client_test/annotations/instances_val2017.json'
-    detection_file = 'coco_results.json'
-
-    # Call the custom_evaluate function
-    custom_evaluate(ground_truth_file, detection_file)
-
-    # Save results to a JSON file
-    output_file = 'coco_results.json'
-    with open(output_file, 'w') as f:
-        json.dump(coco_results, f, indent=4)
-
-    print(f'Results saved to {output_file}')
-    ground_truth_file = '../data/client_test/annotations/instances_val2017.json'
-    detection_file = 'coco_results.json'
+    detection_file = annotations_output_file
 
     # Call the custom_evaluate function
     custom_evaluate(ground_truth_file, detection_file)
