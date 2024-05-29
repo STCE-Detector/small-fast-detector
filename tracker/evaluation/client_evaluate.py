@@ -9,19 +9,21 @@ from tqdm import tqdm
 from ultralytics.utils.metrics import ConfusionMatrix
 
 
-def eval_sequence(video_root, detection_cm):
+def eval_sequence(video_root, config, detection_cm):
     # Read gt
-    gt_path = video_root + '/gt/auto_gt.txt'
+    gt_path = video_root + '/gt/gt.txt'
     gt = np.loadtxt(gt_path, delimiter=',')
 
     # Read predictions
-    pred_path = video_root + '/gt/auto_gt.txt'
+    sequence_name = video_root.split('/')[-1]
+    pred_path = config['pred_dir'] + sequence_name + '.txt'
     pred = np.loadtxt(pred_path, delimiter=',')
 
-    # TODO: filter by class in predictions
+    # Filter predictions by classes
+    classes = config['tracking']['classes']
+    pred = pred[np.isin(pred[:, 7], classes)]
 
     # Iterate over frames
-    sequence_name = video_root.split('/')[-1]
     unique_frames = list(set(gt[:, 0]))
     for frame_id in tqdm(unique_frames, desc=f'Evaluating {sequence_name}', unit=' frames'):
         # Get GT and predictions for this frame
@@ -42,8 +44,7 @@ def eval_sequence(video_root, detection_cm):
         pred_xyxy[:, 2:] += pred_xyxy[:, :2]
         pred_detections = np.zeros((pred_frame.shape[0], 6))
         pred_detections[:, :4] = pred_xyxy
-        # TODO: maybe read scores from file if available
-        pred_detections[:, 4] = np.ones(pred_frame.shape[0])    # Set score to 1
+        pred_detections[:, 4] = pred_frame[:, 6]     # Set confidence to score
         pred_detections[:, 5] = np.zeros(pred_frame.shape[0])     # Set class to 1
         pred_detections = torch.from_numpy(pred_detections)
 
@@ -70,15 +71,18 @@ if __name__ == '__main__':
     )
 
     # Read all sequences
-    #video_root = config['data_dir'] + 'MOT17-09'
     data_dir = config['data_dir']
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
     # Iterate over sequences
-    for folder in folders[2:3]:
+    for folder in folders:
         video_root = data_dir + folder
-        eval_sequence(video_root, confusion_matrix)
+        eval_sequence(video_root, config, confusion_matrix)
 
     # Aggregate confusion matrix
     for normalize in [False, 'gt', 'pred']:
-        confusion_matrix.plot(normalize=normalize, save_dir=config['output_dir'])
+        confusion_matrix.plot(
+            normalize=normalize,
+            save_dir=config['output_dir'],
+            names=[i for i in range(len(config['tracking']['classes']))]
+        )

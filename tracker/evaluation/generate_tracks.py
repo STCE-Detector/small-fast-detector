@@ -93,7 +93,7 @@ class SequenceProcessor:
         ))
 
         with open(self.txt_path, 'w') as file:
-            np.savetxt(file, mot_results, fmt='%.6f')
+            np.savetxt(file, mot_results, fmt='%.6f', delimiter=',')
 
     def get_sequence_info(self):
         seqinfo_file = os.path.join(self.dataset_sequence, 'seqinfo.ini')
