@@ -3,6 +3,10 @@ import argparse
 import csv
 import os
 
+
+
+from tracker.jetson.DeffFrameCapture import DeffFrameCapture
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
@@ -12,7 +16,9 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Signal
 
 from ultralytics.utils import IS_JETSON
-
+if IS_JETSON:
+    import jetson_utils
+    from tracker.jetson.model.model import Yolov8
 import cv2
 import numpy as np
 import supervision as sv
@@ -63,9 +69,20 @@ class VideoProcessor(QObject):
         self.target_video_path = str(self.output_dir / "annotated_video.mp4")
 
         self.device = config["device"]
+        self.class_names = {
+            0: "person",
+            1: "car",
+            2: "truck",
+            3: "uav",
+            4: "airplane",
+            5: "boat",
+        }
 
         # Load the YOLO model
-        self.model = YOLO(config["source_weights_path"])
+        if not IS_JETSON:
+            self.model = YOLO(config["source_weights_path"], task='detect')
+        else:
+            self.model = Yolov8(config, self.class_names)
 
         # TODO: CHECK IF MAINTAIN THIS
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
@@ -76,9 +93,21 @@ class VideoProcessor(QObject):
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
 
-        self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
-                                          stream_mode=config["stream_mode"], logging=config["logging"])
-        self.frame_capture.start()
+        if not IS_JETSON:
+            self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
+                                                      stream_mode=config["stream_mode"], logging=config["logging"])
+            self.frame_capture.start()
+        else:
+            try:
+                #options = { }
+                # self.frame_capture = VideoSource(self.source_video_path, options=options)
+                self.frame_capture = DeffFrameCapture(self.source_video_path)
+                self.frame_capture.start()
+            except Exception as e:
+                print(f"Failed to open video source: {e}")
+                sys.exit(1)
+
+
         self.paused = False
 
         self.frame_skip_interval = 100/(100-config["fps_reduction"])
@@ -106,14 +135,7 @@ class VideoProcessor(QObject):
                                             fps=self.frame_capture.GetFrameRate())
             self.video_writer.start()
 
-        self.class_names = {
-            0: "person",
-            1: "car",
-            2: "truck",
-            3: "uav",
-            4: "airplane",
-            5: "boat",
-        }
+
 
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
 
@@ -137,6 +159,10 @@ class VideoProcessor(QObject):
                 frame_count += 1
                 if frame is None:
                     print("No frame captured")
+                    if self.display:
+                        self.frame_ready.emit(None, fps_counter.value())
+                    if IS_JETSON:
+                        self.model.print_avg_times()
                     break
                 if frame_count >= self.frame_skip_interval:
                     annotated_frame = self.process_frame(frame, self.frame_capture.GetFrameCount(), fps_counter.value())
@@ -184,16 +210,23 @@ class VideoProcessor(QObject):
         self.cleanup()
 
     def process_frame(self, frame: np.ndarray, frame_number: int, fps: float) -> np.ndarray:
-        results = self.model.predict(
-            frame,
-            verbose=False,
-            conf=self.conf_threshold,
-            iou=self.iou_threshold,
-            imgsz=self.img_size,
-            device=self.device,
-            max_det=self.max_det,
-            agnostic_nms=self.agnostic_nms,
-        )[0]
+        if not IS_JETSON:
+            results = self.model.predict(
+                frame,
+                verbose=False,
+                conf=self.conf_threshold,
+                iou=self.iou_threshold,
+                imgsz=self.img_size,
+                device=self.device,
+                max_det=self.max_det,
+                agnostic_nms=self.agnostic_nms,
+            )[0]
+
+        else:
+            results = self.model.predict(
+                frame,
+            )[0]
+            frame = jetson_utils.cudaToNumpy(frame)
         # TODO: compare the results with the results from the ByteTrack tracker, losing detections
         detections = sv.Detections.from_ultralytics(results)
         detections, tracks = self.tracker.update(detections, frame)
