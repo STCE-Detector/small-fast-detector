@@ -13,7 +13,7 @@ from tracker.jetson.model.model import Yolov8
 from ultralytics.utils import ops
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def evaluate(cocoGt_file, cocoDt_file):
@@ -64,23 +64,33 @@ def load_images_from_folder(folder):
     return images
 
 
-def pred_to_json(predn, filename, class_map):
+def pred_to_json(results, filename, class_map):
     """Serialize YOLO predictions to COCO json format."""
     jdict = []
     stem = Path(filename).stem
     image_id = int(stem) if stem.isnumeric() else stem
-    box = ops.xyxy2xywh(predn[:, :4])  # Convert xyxy to xywh
-    box[:, :2] -= box[:, 2:] / 2  # Convert xy center to top-left corner
-    for p, b in zip(predn.tolist(), box.tolist()):
-        jdict.append(
-            {
-                "image_id": image_id,
-                "category_id": class_map[int(p[5])],
-                "bbox": [round(x, 3) for x in b],
-                "score": round(p[4], 5),
-            }
-        )
+
+    for result in results:
+        boxes = result.boxes
+        bboxes = boxes.xyxy.cpu().numpy()  # Bounding boxes in xyxy format
+        scores = boxes.conf.cpu().numpy()  # Confidence scores
+        class_ids = boxes.cls.cpu().numpy()  # Class IDs
+
+        # Convert xyxy to xywh
+        bboxes_xywh = ops.xyxy2xywh(bboxes)
+        bboxes_xywh[:, :2] -= bboxes_xywh[:, 2:] / 2  # Convert xy center to top-left corner
+
+        for bbox, score, class_id in zip(bboxes_xywh, scores, class_ids):
+            jdict.append(
+                {
+                    "image_id": image_id,
+                    "category_id": class_map[int(class_id)],
+                    "bbox": [round(x, 3) for x in bbox],
+                    "score": round(float(score), 5),
+                }
+            )
     return jdict
+
 
 
 def main(config_path, model_config):
@@ -92,7 +102,7 @@ def main(config_path, model_config):
     category_map = {int(k): v for k, v in config['names'].items()}
 
     # Initialize YOLO model
-    device = torch.device(model_config['device'], 2)
+    device = torch.device(model_config['device'], 0)
     yolov8 = Yolov8({
         'source_weights_path': model_config['source_weights_path'],
         'device': device
@@ -119,10 +129,20 @@ def main(config_path, model_config):
         })
 
         # Convert results to COCO format
-        for result in results:
-            predn = result.boxes
-            annotations = pred_to_json(predn, img_path, category_map)
-            coco_results['annotations'].extend(annotations)
+        annotations = pred_to_json(results, img_path, category_map)
+        coco_results['annotations'].extend(annotations)
+
+    # Save results to a JSON file
+    output_file = 'coco_results.json'
+    with open(output_file, 'w') as f:
+        json.dump(coco_results, f, indent=4)
+
+    print(f'Results saved to {output_file}')
+    ground_truth_file = '../data/client_test/annotations/instances_val2017.json'
+    detection_file = 'coco_results.json'
+
+    # Call the custom_evaluate function
+    custom_evaluate(ground_truth_file, detection_file)
 
     # Save results to a JSON file
     output_file = 'coco_results.json'
@@ -140,7 +160,7 @@ def main(config_path, model_config):
 if __name__ == "__main__":
     config_path = '../data/client_test/data.yaml'
     model_config = {
-        "source_weights_path": "../detectors/8sp2_150e_64b.engine",
+        "source_weights_path": "../detectors/model.engine",
         "device": "cuda"
     }
     main(config_path, model_config)

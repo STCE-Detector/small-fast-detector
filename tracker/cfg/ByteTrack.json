@@ -3,11 +3,11 @@
 
   "tracker_name": "ByteTrack",
 
-  "source_weights_path": "./detectors/8s_300e_128b.pt",
+  "source_weights_path": "./detectors/model.engine",
   "source_stream_path": "./data/fullhd_60.mp4",
 
-  "device": "mps",
-  "fps_reduction": 20,
+  "device": "cuda",
+  "fps_reduction": 0,
 
   "save_dir": "./outputs/",
   "save_results": false,
