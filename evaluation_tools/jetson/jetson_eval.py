@@ -12,6 +12,39 @@ from evaluation_tools.jetson.coco_eval import COCOeval
 from tracker.jetson.model.model import Yolov8
 from ultralytics.utils import ops
 
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+
+
+def evaluate(cocoGt_file, cocoDt_file):
+    """Evaluate predictions using COCO metrics."""
+    cocoGt = COCO(cocoGt_file)
+    cocoDt = cocoGt.loadRes(cocoDt_file)
+    cocoEval = COCOeval(cocoGt, cocoDt, 'bbox')
+    cocoEval.evaluate()
+    cocoEval.accumulate()
+    cocoEval.summarize()
+
+
+def custom_evaluate(cocoGt_file, cocoDt_file):
+    """Custom evaluation with different area ranges."""
+    anno = COCO(cocoGt_file)
+    pred = anno.loadRes(cocoDt_file)
+    eval = COCOeval(anno, pred, 'bbox')
+
+    # Set Custom Area Ranges
+    eval.params.areaRng = [[0 ** 2, 1e5 ** 2],
+                           [0 ** 2, 16 ** 2],
+                           [16 ** 2, 32 ** 2],
+                           [32 ** 2, 96 ** 2],
+                           [96 ** 2, 1e5 ** 2]]
+    eval.params.areaRngLbl = ['all', 'tiny', 'small', 'medium', 'large']
+    eval.params.maxDets = [3, 30, 300]
+
+    eval.evaluate()
+    eval.accumulate()
+    eval.summarize()
+
 
 def load_yaml(file_path):
     """Load a YAML configuration file."""
@@ -97,42 +130,17 @@ def main(config_path, model_config):
         json.dump(coco_results, f, indent=4)
 
     print(f'Results saved to {output_file}')
+    ground_truth_file = '../data/client_test/annotations/instances_val2017.json'
+    detection_file = 'coco_results.json'
 
-
-def evaluate(cocoGt_file, cocoDt_file):
-    """Evaluate predictions using COCO metrics."""
-    cocoGt = COCO(cocoGt_file)
-    cocoDt = cocoGt.loadRes(cocoDt_file)
-    cocoEval = COCOeval(cocoGt, cocoDt, 'bbox')
-    cocoEval.evaluate()
-    cocoEval.accumulate()
-    cocoEval.summarize()
-
-
-def custom_evaluate(cocoGt_file, cocoDt_file):
-    """Custom evaluation with different area ranges."""
-    anno = COCO(cocoGt_file)
-    pred = anno.loadRes(cocoDt_file)
-    eval = COCOeval(anno, pred, 'bbox')
-
-    # Set Custom Area Ranges
-    eval.params.areaRng = [[0 ** 2, 1e5 ** 2],
-                           [0 ** 2, 16 ** 2],
-                           [16 ** 2, 32 ** 2],
-                           [32 ** 2, 96 ** 2],
-                           [96 ** 2, 1e5 ** 2]]
-    eval.params.areaRngLbl = ['all', 'tiny', 'small', 'medium', 'large']
-    eval.params.maxDets = [3, 30, 300]
-
-    eval.evaluate()
-    eval.accumulate()
-    eval.summarize()
+    # Call the custom_evaluate function
+    custom_evaluate(ground_truth_file, detection_file)
 
 
 if __name__ == "__main__":
     config_path = '../data/client_test/data.yaml'
     model_config = {
-        "source_weights_path": "../detectors/8sp2_150e_64b.pt",
+        "source_weights_path": "../detectors/8sp2_150e_64b.engine",
         "device": "cuda"
     }
     main(config_path, model_config)
