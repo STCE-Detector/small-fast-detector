@@ -7,7 +7,6 @@ import numpy as np
 from tqdm import tqdm
 
 from tracker.ar_tools.ar_confusion_matrix import ARConfusionMatrix
-from ultralytics.utils.metrics import ConfusionMatrix
 
 
 def eval_sequence(video_root, ar_cm):
@@ -19,7 +18,12 @@ def eval_sequence(video_root, ar_cm):
     pred_path = video_root + '/gt/auto_gt.txt'
     pred = np.loadtxt(pred_path, delimiter=',')
 
-    # TODO: filter by class in predictions
+    # Filter predictions by classes
+    # TODO: currently only pedestrians is supported
+    pred = pred[pred[:, 7] == 1]
+
+    # TEST ONLY
+    #pred[11, -1] = 3
 
     # Iterate over frames
     sequence_name = video_root.split('/')[-1]
@@ -59,11 +63,9 @@ def eval_sequence(video_root, ar_cm):
         pred_behaviors = pred_frame[:, -4:]
         pred_behaviors = torch.from_numpy(pred_behaviors)
 
-        # TODO: currently Gathering does not distinguish between different groups, now is just boolean
-        gt_behaviors[:, -1] = (gt_behaviors[:, -1] > 0).long()
-        pred_behaviors[:, -1] = (pred_behaviors[:, -1] > 0).long()
-        # TEST ONLY
-        #pred_behaviors[0,-1] = 2
+        # Gathering does now distinguish between different groups, uncomment if needed back to bool
+        gt_behaviors[:, -1] = (gt_behaviors[:, -1] > 0).bool()
+        pred_behaviors[:, -1] = (pred_behaviors[:, -1] > 0).bool()
 
         # Merge the first 5 columns of pred_detections with pred_behaviors
         pred_behaviors = torch.cat((pred_detections[:, :5], pred_behaviors), dim=1)
@@ -98,7 +100,7 @@ if __name__ == '__main__':
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
     # Iterate over sequences
-    for folder in folders[2:4]:
+    for folder in folders[2:3]:
         video_root = data_dir + folder
         eval_sequence(video_root, ar_confusion_matrix)
 

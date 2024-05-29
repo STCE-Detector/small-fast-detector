@@ -127,7 +127,7 @@ class ARConfusionMatrix:
                 for i in range(self.nc):
                     detection_classes = detections[:, 5 + i].int()
                     for dc in detection_classes:
-                        if dc == 1:
+                        if dc != 0:
                             self.confusion_matrices[i][1, 0] += 1  # False Positive
             return
 
@@ -135,7 +135,7 @@ class ARConfusionMatrix:
             for i in range(4):
                 gt_classes = gt_cls[:, i].int()
                 for gc in gt_classes:
-                    if gc == 1:
+                    if gc != 0:
                         self.confusion_matrices[i][0, 1] += 1  # False Negative
             return
 
@@ -167,23 +167,25 @@ class ARConfusionMatrix:
                 if j in matched_gt:
                     k = m0 == j
                     dc = detection_classes_i[m1[k]][0]
-                    if gc == 1 and dc == 1:
+                    if gc == dc and gc != 0:
                         self.confusion_matrices[i][1, 1] += 1  # True Positive
-                    elif gc == 1 and dc == 0:
+                    elif gc != 0 and dc == 0:
                         self.confusion_matrices[i][0, 1] += 1  # False Negative
-                    elif gc == 0 and dc == 1:
+                    elif gc == 0 and dc != 0:
                         self.confusion_matrices[i][1, 0] += 1  # False Positive
+                    elif gc != dc and gc != 0 and dc != 0:
+                        self.confusion_matrices[i][1, 0] += 1   # False Positive
                     elif gc == 0 and dc == 0:
                         self.confusion_matrices[i][0, 0] += 1  # True Negative
                 else:
-                    if gc == 1:
+                    if gc != 0:
                         self.confusion_matrices[i][1, 0] += 1  # False Negative
                     else:
                         self.confusion_matrices[i][0, 0] += 1  # True Negative
 
             for l, dc in enumerate(detection_classes_i):
                 if l not in matched_det:
-                    if dc == 1:
+                    if dc != 0:
                         self.confusion_matrices[i][1, 0] += 1  # False Positive
                     else:
                         self.confusion_matrices[i][0, 0] += 1  # True Negative
