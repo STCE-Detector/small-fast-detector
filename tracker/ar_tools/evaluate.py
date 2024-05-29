@@ -95,12 +95,11 @@ if __name__ == '__main__':
     )
 
     # Read all sequences
-    #video_root = config['data_dir'] + 'MOT17-09'
     data_dir = config['data_dir']
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
     # Iterate over sequences
-    for folder in folders[2:3]:
+    for folder in folders:
         video_root = data_dir + folder
         eval_sequence(video_root, ar_confusion_matrix)
 
