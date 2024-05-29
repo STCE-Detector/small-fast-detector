@@ -3,19 +3,24 @@ import os
 import json
 import cv2
 import numpy as np
+from pycocotools.coco import COCO
 from tqdm import tqdm
 from pathlib import Path
 import torch
 
+from evaluation_tools.jetson.coco_eval import COCOeval
 from tracker.jetson.model.model import Yolov8
 from ultralytics.utils import ops
 
+
 def load_yaml(file_path):
+    """Load a YAML configuration file."""
     with open(file_path, 'r') as f:
         return yaml.safe_load(f)
 
 
 def load_images_from_folder(folder):
+    """Load all images from a specified folder."""
     images = []
     for filename in os.listdir(folder):
         img_path = os.path.join(folder, filename)
@@ -31,8 +36,8 @@ def pred_to_json(predn, filename, class_map):
     jdict = []
     stem = Path(filename).stem
     image_id = int(stem) if stem.isnumeric() else stem
-    box = ops.xyxy2xywh(predn[:, :4])  # xywh
-    box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
+    box = ops.xyxy2xywh(predn[:, :4])  # Convert xyxy to xywh
+    box[:, :2] -= box[:, 2:] / 2  # Convert xy center to top-left corner
     for p, b in zip(predn.tolist(), box.tolist()):
         jdict.append(
             {
@@ -46,6 +51,7 @@ def pred_to_json(predn, filename, class_map):
 
 
 def main(config_path, model_config):
+    """Main function to generate predictions and save them in COCO format."""
     config = load_yaml(config_path)
 
     dataset_path = config['path']
@@ -93,6 +99,36 @@ def main(config_path, model_config):
     print(f'Results saved to {output_file}')
 
 
+def evaluate(cocoGt_file, cocoDt_file):
+    """Evaluate predictions using COCO metrics."""
+    cocoGt = COCO(cocoGt_file)
+    cocoDt = cocoGt.loadRes(cocoDt_file)
+    cocoEval = COCOeval(cocoGt, cocoDt, 'bbox')
+    cocoEval.evaluate()
+    cocoEval.accumulate()
+    cocoEval.summarize()
+
+
+def custom_evaluate(cocoGt_file, cocoDt_file):
+    """Custom evaluation with different area ranges."""
+    anno = COCO(cocoGt_file)
+    pred = anno.loadRes(cocoDt_file)
+    eval = COCOeval(anno, pred, 'bbox')
+
+    # Set Custom Area Ranges
+    eval.params.areaRng = [[0 ** 2, 1e5 ** 2],
+                           [0 ** 2, 16 ** 2],
+                           [16 ** 2, 32 ** 2],
+                           [32 ** 2, 96 ** 2],
+                           [96 ** 2, 1e5 ** 2]]
+    eval.params.areaRngLbl = ['all', 'tiny', 'small', 'medium', 'large']
+    eval.params.maxDets = [3, 30, 300]
+
+    eval.evaluate()
+    eval.accumulate()
+    eval.summarize()
+
+
 if __name__ == "__main__":
     config_path = '../data/client_test/data.yaml'
     model_config = {
@@ -100,4 +136,3 @@ if __name__ == "__main__":
         "device": "cuda"
     }
     main(config_path, model_config)
-
