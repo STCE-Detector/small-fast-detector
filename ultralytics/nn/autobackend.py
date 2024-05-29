@@ -232,6 +232,9 @@ class AutoBackend(nn.Module):
                 device = torch.device("cuda:0")
             Binding = namedtuple("Binding", ("name", "dtype", "shape", "data", "ptr"))
             logger = trt.Logger(trt.Logger.INFO)
+            if verbose:
+                logger.min_severity = trt.Logger.Severity.VERBOSE
+            trt.init_libnvinfer_plugins(logger, namespace="")
             # Read file
             with open(w, "rb") as f, trt.Runtime(logger) as runtime:
                 try:
