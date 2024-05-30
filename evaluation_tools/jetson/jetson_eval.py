@@ -1,3 +1,4 @@
+import pandas as pd
 import yaml
 import os
 import json
@@ -11,7 +12,7 @@ import torch
 from evaluation_tools.jetson.coco_eval import COCOeval
 from tracker.jetson.model.model import Yolov8
 from ultralytics.utils import ops
-
+from ultralytics.utils.metrics import ConfusionMatrix
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -101,6 +102,10 @@ def main(config_path, model_config):
     val_images_path = os.path.join(dataset_path, config['val'])
     category_map = {int(k): v for k, v in config['names'].items()}
 
+    ground_truth_file = '../data/client_test/annotations/instances_val2017.json'
+    with open(ground_truth_file, 'r') as f:
+        gt_detections = json.load(f)
+    df_detections_gt = pd.DataFrame(gt_detections['annotations'])
     # Initialize YOLO model
     device = torch.device(model_config['device'], 0)
     yolov8 = Yolov8({
@@ -108,6 +113,7 @@ def main(config_path, model_config):
         'device': device
     }, labels=config['names'])
 
+    confusion_matrix = ConfusionMatrix(nc=6, conf=0.3, iou_thres=0.3)
     # Load images
     images = load_images_from_folder(val_images_path)
 
@@ -116,6 +122,7 @@ def main(config_path, model_config):
         'images': [],
         'categories': [{'id': int(k), 'name': v} for k, v in category_map.items()]
     }
+
 
     for img_id, (img_path, img) in tqdm(enumerate(images), total=len(images)):
         results = yolov8.predict(img)
@@ -127,11 +134,22 @@ def main(config_path, model_config):
             'width': int(img.shape[1]),
             'height': int(img.shape[0])
         })
-
+        detections = results[0].boxes.data.to("cpu")
         # Convert results to COCO format
+        image_id = int(os.path.basename(img_path).split(".")[0])
+        img_gt_det = df_detections_gt[df_detections_gt['image_id'] == image_id]
+        img_gt_cls = torch.from_numpy(img_gt_det['category_id'].values)
+        img_bboxes_gt = torch.from_numpy(np.array(img_gt_det['bbox'].tolist()))
+        img_bboxes_gt = torch.cat((img_bboxes_gt[:, :2], img_bboxes_gt[:, :2] + img_bboxes_gt[:, 2:]), dim=1)
+        confusion_matrix.process_batch(detections,img_bboxes_gt, img_gt_cls)
         annotations = pred_to_json(results, img_path, category_map)
         coco_results['annotations'].extend(annotations)
 
+    for normalize in [False, 'gt', 'pred']:
+        confusion_matrix.plot(
+            normalize=normalize,
+            save_dir="./",
+        )
     # Save full results to a JSON file
     full_output_file = 'full_coco_results.json'
     with open(full_output_file, 'w') as f:
