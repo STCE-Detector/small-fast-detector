@@ -6,6 +6,7 @@
   "output_dir": "./outputs",
 
   "action_recognition": {
+    "discriminate_groups": true,
     "confidence_threshold": 0.3,
     "iou_threshold": 0.3
   }

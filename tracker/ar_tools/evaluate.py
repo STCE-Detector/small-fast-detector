@@ -9,7 +9,7 @@ from tqdm import tqdm
 from tracker.ar_tools.ar_confusion_matrix import ARConfusionMatrix
 
 
-def eval_sequence(video_root, ar_cm):
+def eval_sequence(video_root, ar_cm, config):
     # Read gt
     gt_path = video_root + '/gt/auto_gt.txt'
     gt = np.loadtxt(gt_path, delimiter=',')
@@ -64,8 +64,9 @@ def eval_sequence(video_root, ar_cm):
         pred_behaviors = torch.from_numpy(pred_behaviors)
 
         # Gathering does now distinguish between different groups, uncomment if needed back to bool
-        gt_behaviors[:, -1] = (gt_behaviors[:, -1] > 0).bool()
-        pred_behaviors[:, -1] = (pred_behaviors[:, -1] > 0).bool()
+        if not config['action_recognition']['discriminate_groups']:
+            gt_behaviors[:, -1] = (gt_behaviors[:, -1] > 0).bool()
+            pred_behaviors[:, -1] = (pred_behaviors[:, -1] > 0).bool()
 
         # Merge the first 5 columns of pred_detections with pred_behaviors
         pred_behaviors = torch.cat((pred_detections[:, :5], pred_behaviors), dim=1)
@@ -101,7 +102,7 @@ if __name__ == '__main__':
     # Iterate over sequences
     for folder in folders:
         video_root = data_dir + folder
-        eval_sequence(video_root, ar_confusion_matrix)
+        eval_sequence(video_root, ar_confusion_matrix, config)
 
     # Aggregate confusion matrices
     ar_confusion_matrix.save_results(config['output_dir'])
