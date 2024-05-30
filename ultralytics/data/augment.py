@@ -574,7 +574,7 @@ class RandomPerspective:
         img = labels["img"]
         cls = labels["cls"]
         instances = labels.pop("instances")
-        tags = labels["tags"]
+        tags = labels["tags"] if "tags" in labels else None
         # Make sure the coord formats are right
         instances.convert_bbox(format="xyxy")
         instances.denormalize(*img.shape[:2][::-1])

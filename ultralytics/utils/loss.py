@@ -14,9 +14,13 @@ from .tal import bbox2dist
 
 
 class ContrastiveLoss(nn.Module):
-    def __init__(self, margin):
+    def __init__(self, margin=0.5, soft_margin=False, only_positive=False, mode='hard', top_k=1):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
+        self.soft_margin = soft_margin
+        self.only_positive = False if self.soft_margin else only_positive
+        self.mode = mode
+        self.top_k = top_k
 
     def forward(self, embeddings, tags):
         """
@@ -33,30 +37,39 @@ class ContrastiveLoss(nn.Module):
         assert tags.min() > 0, "Tags must be strictly positive."
 
         # Compute pairwise distances
-        # TODO: squared euclidean distance instead?
-        # non-zero distances for mm compute mode (https://github.com/pytorch/pytorch/issues/57690)
-        #distances = torch.cdist(embeddings, embeddings, p=2, compute_mode='donot_use_mm_for_euclid_dist')
-        # TODO: actual distance computation does not work with fp16
         distances = self.cdist(embeddings, embeddings, p=2, compute_mode='donot_use_mm_for_euclid_dist')
 
+        # Compute masks for positive and negative pairs
         positive_mask = tags.unsqueeze(0) == tags.unsqueeze(1)
         negative_mask = ~positive_mask
 
+        # Compute positive and negative distances
         positive_distances = distances * positive_mask
         negative_distances = distances * negative_mask
 
+        if self.mode == 'hard':
+            # Compute top k positive and negative distances
+            positive_distances, _ = positive_distances.topk(self.top_k, dim=1, largest=False)
+            negative_distances, _ = negative_distances.topk(self.top_k, dim=1, largest=True)
+
         # Compute per embedding loss and sum/mean or sum postive and negative losses and then merge
-        # TODO: exponential loss? or top k?
-        loss = torch.clamp(self.margin + positive_distances - negative_distances, min=0.0)
-        # TODO: why mean?
+        if self.soft_margin:
+            loss = F.softplus(positive_distances - negative_distances)
+        else:
+            loss = torch.clamp(self.margin + positive_distances - negative_distances, min=0.0)
+            # https://quaterion.qdrant.tech/tutorials/triplet_loss_trick
+            # loss = torch.clamp(self.margin + (positive_distances - negative_distances)/negative_distances.mean(), min=0.0)
 
         # Average only the non-zero losses
-        #loss = loss[loss > 0].mean()
+        if self.only_positive:
+            loss = loss[loss > 0]
 
         return torch.mean(loss)
 
     @staticmethod
     def cdist(x: torch.Tensor, y: torch.Tensor, p=2, compute_mode='donot_use_mm_for_euclid_dist') -> torch.Tensor:
+        # non-zero distances for mm compute mode (https://github.com/pytorch/pytorch/issues/57690)
+        # torch.cdist does not support float16 on GPU
         if x.dtype is torch.float16 and x.is_cuda:
             x = ein.rearrange(x, 'i d -> i 1 d')
             y = ein.rearrange(y, 'j d -> 1 j d')
@@ -229,7 +242,7 @@ class v8DetectionEmbLoss:
         self.assigner = TaskAlignedAssigner(topk=10, num_classes=self.nc, alpha=0.5, beta=6.0, tags=True)
         self.bbox_loss = BboxLoss(m.reg_max - 1, use_dfl=self.use_dfl).to(device)
         self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
-        self.emb_loss = ContrastiveLoss(margin=1.0)
+        self.emb_loss = ContrastiveLoss()
 
     def preprocess(self, targets, batch_size, scale_tensor):
         """Preprocesses the target counts and matches with the input batch size to output a tensor."""
