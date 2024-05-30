@@ -1,6 +1,7 @@
 import time
 from typing import List, Union
 
+import jetson_utils
 import numpy as np
 import torch
 
@@ -54,16 +55,17 @@ class Yolov8:
         start_time = time.time()
         img_tensor = torch.as_tensor(im_orig, device='cuda', dtype=torch.float32)
         same_shapes = len({im_orig.shape}) == 1
-        img_tensor, scale_ratio, pad_size = letterbox(img_tensor, new_shape=(640, 640),auto=same_shapes and self.model.pt, stride=self.model.stride, dtype=torch.float32)
+        img_tensor, scale_ratio, pad_size = letterbox_pytorch(img_tensor, new_shape=(640, 640),auto=same_shapes and self.model.pt, dtype=torch.float32)
         img_tensor = img_tensor.unsqueeze(0)
         img_tensor /= 255
-        img_tensor = img_tensor.half() # if self.half else img_tensor.float()
+        img_tensor = img_tensor.half() if self.half else img_tensor.float()
         self.preprocess_times.append(time.time() - start_time)
         return img_tensor, (scale_ratio, pad_size)
 
     def _preprocess_cpu(self, im_orig: Union[np.ndarray, List[np.ndarray]]):
         # Working
         start_time = time.time()
+        im_orig = jetson_utils.cudaToNumpy(im_orig)
         not_tensor = not isinstance(im_orig, torch.Tensor)
         if not_tensor:
             same_shapes = len({im_orig.shape}) == 1
@@ -74,12 +76,11 @@ class Yolov8:
             im = torch.from_numpy(im)
 
         im = im.to(self.device)
-        im = im.half()  # uint8 to fp16/32
+        im = im.half() if self.half else im.float()
         if not_tensor:
             im /= 255  # 0 - 255 to 0.0 - 1.0
         self.preprocess_times.append(time.time() - start_time)
         return im, (scale_ratio, pad_size)
-
 
 
     def predict(self, im_orig: Union[np.ndarray, torch.Tensor]):
