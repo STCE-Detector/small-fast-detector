@@ -23,7 +23,7 @@ def check_os():
 
 
 class DeffFrameCapture:
-    def __init__(self, source, frame_format='rgb24', verbose=False):
+    def __init__(self, source, frame_format='rgb8', verbose=False):
         self.source = source
         self.frame_format = frame_format
         self.verbose = verbose
@@ -70,7 +70,7 @@ class DeffFrameCapture:
                     self.Close()
                     return None
                 self.frame_count += 1
-                cuda_array = cudaFromNumpy(frame) if IS_JETSON else np.array(frame)
+                cuda_array = cudaFromNumpy(frame, isBGR=False) if IS_JETSON else np.array(frame)
                 if IS_JETSON:
                     cudaDeviceSynchronize()
                 return cuda_array
