@@ -58,7 +58,7 @@ def load_images_from_folder(folder):
     for filename in os.listdir(folder):
         img_path = os.path.join(folder, filename)
         if any(img_path.endswith(ext) for ext in ['.png', '.jpg', '.jpeg']):
-            img = cv2.imread(img_path)
+            img = np.array(cv2.imread(img_path)).astype(np.float32)
             if img is not None:
                 images.append((img_path, img))
     return images
@@ -72,9 +72,9 @@ def pred_to_json(results, filename, class_map):
 
     for result in results:
         boxes = result.boxes
-        bboxes = boxes.xyxy.cpu().numpy()  # Bounding boxes in xyxy format
-        scores = boxes.conf.cpu().numpy()  # Confidence scores
-        class_ids = boxes.cls.cpu().numpy()  # Class IDs
+        bboxes = boxes.xyxy.cpu().numpy().astype(np.float32)  # Bounding boxes in xyxy format
+        scores = boxes.conf.cpu().numpy().astype(np.float32)  # Confidence scores
+        class_ids = boxes.cls.cpu().numpy().astype(np.float32)  # Class IDs
 
         # Convert xyxy to xywh
         bboxes_xywh = ops.xyxy2xywh(bboxes)
@@ -153,7 +153,7 @@ def main(config_path, model_config):
 if __name__ == "__main__":
     config_path = '../data/client_test/data.yaml'
     model_config = {
-        "source_weights_path": "../detectors/model.engine",
+        "source_weights_path": "../detectors/model_v2.engine",
         "device": "cuda"
     }
     main(config_path, model_config)

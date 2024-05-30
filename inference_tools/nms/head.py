@@ -17,14 +17,14 @@ class Efficient_TRT_NMS(torch.autograd.Function):
         ctx,
         boxes,
         scores,
-        iou_threshold: float = 0.65,
-        score_threshold: float = 0.25,
-        max_output_boxes: float = 100,
+        iou_threshold: float = 0.7,
+        score_threshold: float = 0.1,
+        max_output_boxes: float = 300,
         box_coding: int = 1,
         background_class: int = -1,
         score_activation: int = 0,
         plugin_version: str = '1',
-        class_agnostic=0,
+        class_agnostic: int = 0,
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         batch_size, num_boxes, num_classes = scores.shape
         num_detections = torch.randint(0, max_output_boxes, (batch_size, 1), dtype=torch.int32)
@@ -46,7 +46,7 @@ class Efficient_TRT_NMS(torch.autograd.Function):
         background_class: int = -1,
         score_activation: int = 0,
         plugin_version: str = '1',
-        class_agnostic=0,
+        class_agnostic: int= 0,
     ) -> Tuple[Value, Value, Value, Value]:
         return g.op(
             'TRT::EfficientNMS_TRT',
