@@ -225,11 +225,11 @@ def main():
     parser.add_argument('--batch', type=int, default=1,
                         help="Total batch size for the model. Use -1 for dynamic batch size. Defaults to 1.")
     parser.add_argument('--max_boxes', type=int, default=300,
-                        help="Maximum number of detections to output per image. Defaults to 100.")
+                        help="Maximum number of detections to output per image. Defaults to 300.")
     parser.add_argument('--iou_thres', type=float, default=0.7,
-                        help="NMS IoU threshold for post-processing. Defaults to 0.45.")
+                        help="NMS IoU threshold for post-processing. Defaults to 0.7.")
     parser.add_argument('--conf_thres', type=float, default=0.1,
-                        help="Confidence threshold for object detection. Defaults to 0.25.")
+                        help="Confidence threshold for object detection. Defaults to 0.1.")
     parser.add_argument('--opset_version', type=int, default=17, help="ONNX opset version. Defaults to 11.")
     parser.add_argument('--simplify', type=bool, default=True,
                         help="Whether to simplify the exported ONNX. Defaults to True.")

@@ -85,7 +85,7 @@ class Yolov8:
 
     def predict(self, im_orig: Union[np.ndarray, torch.Tensor]):
         start_time = time.time()
-        img, padding = self._preprocess_cpu(im_orig)
+        img, padding = self._preprocess(im_orig)
         self.inference_times.append(time.time() - start_time)
 
         start_time = time.time()

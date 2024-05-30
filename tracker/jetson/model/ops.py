@@ -65,7 +65,7 @@ def letterbox_pytorch(im, new_shape=(640, 640), color=(114, 114, 114), auto=True
     dh /= 2
 
     if shape[::-1] != new_unpad:  # Resize
-        resized_im = F.interpolate(im.unsqueeze(0), size=new_unpad, mode='bilinear', align_corners=False).squeeze(0)
+        resized_im = F.interpolate(im.unsqueeze(0), size=new_unpad, mode='bilinear', align_corners=True).squeeze(0)
     else:
         resized_im = im
 
