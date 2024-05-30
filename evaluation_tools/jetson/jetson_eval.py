@@ -84,7 +84,7 @@ def pred_to_json(results, filename, class_map):
             jdict.append(
                 {
                     "image_id": image_id,
-                    "category_id": class_map[int(class_id)],
+                    "category_id": int(class_id),  # Set category_id to the integer class ID
                     "bbox": [round(float(x), 3) for x in bbox],  # Ensure conversion to float
                     "score": round(float(score), 5),
                 }
