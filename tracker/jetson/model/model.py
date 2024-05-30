@@ -65,7 +65,8 @@ class Yolov8:
     def _preprocess_cpu(self, im_orig: Union[np.ndarray, List[np.ndarray]]):
         # Working
         start_time = time.time()
-        im_orig = jetson_utils.cudaToNumpy(im_orig)
+        if isinstance(im_orig, jetson_utils.cudaImage):
+            im_orig = jetson_utils.cudaToNumpy(im_orig)
         not_tensor = not isinstance(im_orig, torch.Tensor)
         if not_tensor:
             same_shapes = len({im_orig.shape}) == 1
@@ -81,7 +82,6 @@ class Yolov8:
             im /= 255  # 0 - 255 to 0.0 - 1.0
         self.preprocess_times.append(time.time() - start_time)
         return im, (scale_ratio, pad_size)
-
 
     def predict(self, im_orig: Union[np.ndarray, torch.Tensor]):
         start_time = time.time()
