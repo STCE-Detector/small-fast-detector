@@ -82,7 +82,7 @@ def letterbox_pytorch(im, new_shape=(640, 640), color=(114, 114, 114), auto=True
 
     return empty_tensor, (ratio, ratio), (dw, dh)
 
-def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleup=True, stride=32):
+def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleup=True, stride=32, dtype=torch.float32):
     # Resize and pad image while meeting stride-multiple constraints
     shape = im.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):

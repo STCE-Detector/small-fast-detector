@@ -4,7 +4,7 @@ from typing import List, Union
 import numpy as np
 import torch
 
-from tracker.jetson.model.ops import letterbox_pytorch, process_nms_trt_results, process_nms_onnx_results
+from tracker.jetson.model.ops import letterbox_pytorch, process_nms_trt_results, process_nms_onnx_results, letterbox
 from ultralytics.engine.results import Results
 from ultralytics.nn.autobackend import AutoBackend
 from ultralytics.utils import ops
@@ -54,17 +54,37 @@ class Yolov8:
         start_time = time.time()
         img_tensor = torch.as_tensor(im_orig, device='cuda', dtype=torch.float32)
         same_shapes = len({im_orig.shape}) == 1
-        img_tensor, scale_ratio, pad_size = letterbox_pytorch(img_tensor, new_shape=(640, 640),
-                                                              auto=same_shapes and self.model.pt, dtype=torch.float32)
+        img_tensor, scale_ratio, pad_size = letterbox(img_tensor, new_shape=(640, 640),auto=same_shapes and self.model.pt, stride=self.model.stride, dtype=torch.float32)
         img_tensor = img_tensor.unsqueeze(0)
         img_tensor /= 255
         img_tensor = img_tensor.half() if self.half else img_tensor.float()
         self.preprocess_times.append(time.time() - start_time)
         return img_tensor, (scale_ratio, pad_size)
 
+    def _preprocess_cpu(self, im_orig: Union[np.ndarray, List[np.ndarray]]):
+        # Working
+        start_time = time.time()
+        not_tensor = not isinstance(im_orig, torch.Tensor)
+        if not_tensor:
+            same_shapes = len({im_orig.shape}) == 1
+            im, scale_ratio, pad_size = letterbox(im_orig, auto=same_shapes and self.model.pt, stride=self.model.stride)
+            im = np.stack(im)
+            im = im[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW, (n, 3, h, w)
+            im = np.ascontiguousarray(im)  # contiguous
+            im = torch.from_numpy(im)
+
+        im = im.to(self.device)
+        im = im.half() if self.model.fp16 else im.float()  # uint8 to fp16/32
+        if not_tensor:
+            im /= 255  # 0 - 255 to 0.0 - 1.0
+        return im
+        self.preprocess_times.append(time.time() - start_time)
+        return img_tensor, (scale_ratio, pad_size)
+
+
     def predict(self, im_orig: Union[np.ndarray, torch.Tensor]):
         start_time = time.time()
-        img, padding = self._preprocess(im_orig)
+        img, padding = self._preprocess_cpu(im_orig)
         self.inference_times.append(time.time() - start_time)
 
         start_time = time.time()
