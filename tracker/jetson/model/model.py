@@ -57,7 +57,7 @@ class Yolov8:
         img_tensor, scale_ratio, pad_size = letterbox(img_tensor, new_shape=(640, 640),auto=same_shapes and self.model.pt, stride=self.model.stride, dtype=torch.float32)
         img_tensor = img_tensor.unsqueeze(0)
         img_tensor /= 255
-        img_tensor = img_tensor.half() if self.half else img_tensor.float()
+        img_tensor = img_tensor.half() # if self.half else img_tensor.float()
         self.preprocess_times.append(time.time() - start_time)
         return img_tensor, (scale_ratio, pad_size)
 
@@ -68,18 +68,18 @@ class Yolov8:
         if not_tensor:
             same_shapes = len({im_orig.shape}) == 1
             im, scale_ratio, pad_size = letterbox(im_orig, auto=same_shapes and self.model.pt, stride=self.model.stride)
-            im = np.stack(im)
+            im = np.stack([im])
             im = im[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW, (n, 3, h, w)
             im = np.ascontiguousarray(im)  # contiguous
             im = torch.from_numpy(im)
 
         im = im.to(self.device)
-        im = im.half() if self.model.fp16 else im.float()  # uint8 to fp16/32
+        im = im.half()  # uint8 to fp16/32
         if not_tensor:
             im /= 255  # 0 - 255 to 0.0 - 1.0
-        return im
         self.preprocess_times.append(time.time() - start_time)
-        return img_tensor, (scale_ratio, pad_size)
+        return im, (scale_ratio, pad_size)
+
 
 
     def predict(self, im_orig: Union[np.ndarray, torch.Tensor]):
