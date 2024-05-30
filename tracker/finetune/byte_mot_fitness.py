@@ -5,7 +5,7 @@ import random
 import string
 
 from tracker.evaluation.generate_tracks import generate_tracks
-from tracker.evaluation.evaluate import trackeval
+from tracker.evaluation.TrackEval_evaluate import trackeval
 
 
 def generate_unique_tag():
