@@ -8,16 +8,16 @@ from ultralytics import YOLO
 
 # SETTING UP PARAMETERS
 # Better not to change these parameters
-dataset_root = './../../ultralytics/cfg/datasets/custom_dataset.yaml' #'./data/client_test/data.yaml'
-#dataset_root = './data/client_test/data.yaml'
-model_path = './models/v3/8sp2_150e_64b.pt'
+# dataset_root = './../../ultralytics/cfg/datasets/custom_dataset.yaml' #'./data/client_test/data.yaml'
+dataset_root = './data/client_test/data.yaml'
+model_path = './detectors/8sp2_150e_64b.engine'
 outputs_root = './outputs'
-experiment_name = '8sp2_150e_64b@1280'
+experiment_name = '8sp2_150e_64b@640'
 #experiment_name = time.strftime("%Y%m%d-%H%M%S")
 # Can be changed
-imgsz = 1280
-batch = 32
-device = [0]
+imgsz = 640
+batch = 1
+device = "cuda"
 
 
 #  START OF EVALUATION
