@@ -1,39 +1,36 @@
-import pandas as pd
-import yaml
 import os
 import json
+import yaml
 import cv2
 import numpy as np
-from pycocotools.coco import COCO
+import pandas as pd
+import torch
 from tqdm import tqdm
 from pathlib import Path
-import torch
-
+from pycocotools.coco import COCO
 from evaluation_tools.jetson.coco_eval import COCOeval
 from tracker.jetson.model.model import Yolov8
 from ultralytics.utils import ops
 from ultralytics.utils.metrics import ConfusionMatrix
+
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-
-def evaluate(cocoGt_file, cocoDt_file):
+def evaluate(coco_gt_file, coco_dt_file):
     """Evaluate predictions using COCO metrics."""
-    cocoGt = COCO(cocoGt_file)
-    cocoDt = cocoGt.loadRes(cocoDt_file)
-    cocoEval = COCOeval(cocoGt, cocoDt, 'bbox')
-    cocoEval.evaluate()
-    cocoEval.accumulate()
-    cocoEval.summarize()
+    coco_gt = COCO(coco_gt_file)
+    coco_dt = coco_gt.loadRes(coco_dt_file)
+    coco_eval = COCOeval(coco_gt, coco_dt, 'bbox')
+    coco_eval.evaluate()
+    coco_eval.accumulate()
+    coco_eval.summarize()
 
-
-def custom_evaluate(cocoGt_file, cocoDt_file):
+def custom_evaluate(coco_gt_file, coco_dt_file):
     """Custom evaluation with different area ranges."""
-    anno = COCO(cocoGt_file)
-    pred = anno.loadRes(cocoDt_file)
+    anno = COCO(coco_gt_file)
+    pred = anno.loadRes(coco_dt_file)
     eval = COCOeval(anno, pred, 'bbox')
 
-    # Set Custom Area Ranges
     eval.params.areaRng = [[0 ** 2, 1e5 ** 2],
                            [0 ** 2, 16 ** 2],
                            [16 ** 2, 32 ** 2],
@@ -46,12 +43,10 @@ def custom_evaluate(cocoGt_file, cocoDt_file):
     eval.accumulate()
     eval.summarize()
 
-
 def load_yaml(file_path):
     """Load a YAML configuration file."""
     with open(file_path, 'r') as f:
         return yaml.safe_load(f)
-
 
 def load_images_from_folder(folder):
     """Load all images from a specified folder."""
@@ -63,7 +58,6 @@ def load_images_from_folder(folder):
             if img is not None:
                 images.append((img_path, img))
     return images
-
 
 def pred_to_json(results, filename, class_map):
     """Serialize YOLO predictions to COCO json format."""
@@ -92,7 +86,55 @@ def pred_to_json(results, filename, class_map):
             )
     return jdict
 
+def initialize_model(model_config, labels):
+    """Initialize the YOLO model."""
+    device = torch.device(model_config['device'], 0)
+    return Yolov8({
+        'source_weights_path': model_config['source_weights_path'],
+        'device': device
+    }, labels=labels)
 
+def process_images(yolov8, images, category_map, gt_detections, confusion_matrix):
+    """Process images and generate predictions."""
+    df_detections_gt = pd.DataFrame(gt_detections['annotations'])
+    coco_results = {
+        'annotations': [],
+        'images': [],
+        'categories': [{'id': int(k), 'name': v} for k, v in category_map.items()]
+    }
+
+    for img_id, (img_path, img) in tqdm(enumerate(images), total=len(images)):
+        results = yolov8.predict(img)
+
+        coco_results['images'].append({
+            'id': img_id,
+            'file_name': os.path.basename(img_path),
+            'width': int(img.shape[1]),
+            'height': int(img.shape[0])
+        })
+
+        detections = results[0].boxes.data.to("cpu")
+        image_id = int(os.path.basename(img_path).split(".")[0])
+        img_gt_det = df_detections_gt[df_detections_gt['image_id'] == image_id]
+        img_gt_cls = torch.from_numpy(img_gt_det['category_id'].values)
+        img_bboxes_gt = torch.from_numpy(np.array(img_gt_det['bbox'].tolist()))
+        img_bboxes_gt = torch.cat((img_bboxes_gt[:, :2], img_bboxes_gt[:, :2] + img_bboxes_gt[:, 2:]), dim=1)
+        confusion_matrix.process_batch(detections, img_bboxes_gt, img_gt_cls)
+
+        annotations = pred_to_json(results, img_path, category_map)
+        coco_results['annotations'].extend(annotations)
+
+    return coco_results
+
+def save_results(coco_results, full_output_file, annotations_output_file):
+    """Save results to JSON files."""
+    with open(full_output_file, 'w') as f:
+        json.dump(coco_results, f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
+
+    with open(annotations_output_file, 'w') as f:
+        json.dump(coco_results['annotations'], f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
+
+    print(f'Results saved to {full_output_file} and {annotations_output_file}')
 
 def main(config_path, model_config):
     """Main function to generate predictions and save them in COCO format."""
@@ -105,68 +147,18 @@ def main(config_path, model_config):
     ground_truth_file = '../data/client_test/annotations/instances_val2017.json'
     with open(ground_truth_file, 'r') as f:
         gt_detections = json.load(f)
-    df_detections_gt = pd.DataFrame(gt_detections['annotations'])
-    # Initialize YOLO model
-    device = torch.device(model_config['device'], 0)
-    yolov8 = Yolov8({
-        'source_weights_path': model_config['source_weights_path'],
-        'device': device
-    }, labels=config['names'])
 
+    yolov8 = initialize_model(model_config, config['names'])
     confusion_matrix = ConfusionMatrix(nc=6, conf=0.3, iou_thres=0.3)
-    # Load images
     images = load_images_from_folder(val_images_path)
 
-    coco_results = {
-        'annotations': [],
-        'images': [],
-        'categories': [{'id': int(k), 'name': v} for k, v in category_map.items()]
-    }
-
-
-    for img_id, (img_path, img) in tqdm(enumerate(images), total=len(images)):
-        results = yolov8.predict(img)
-
-        # Append image info
-        coco_results['images'].append({
-            'id': img_id,
-            'file_name': os.path.basename(img_path),
-            'width': int(img.shape[1]),
-            'height': int(img.shape[0])
-        })
-        detections = results[0].boxes.data.to("cpu")
-        # Convert results to COCO format
-        image_id = int(os.path.basename(img_path).split(".")[0])
-        img_gt_det = df_detections_gt[df_detections_gt['image_id'] == image_id]
-        img_gt_cls = torch.from_numpy(img_gt_det['category_id'].values)
-        img_bboxes_gt = torch.from_numpy(np.array(img_gt_det['bbox'].tolist()))
-        img_bboxes_gt = torch.cat((img_bboxes_gt[:, :2], img_bboxes_gt[:, :2] + img_bboxes_gt[:, 2:]), dim=1)
-        confusion_matrix.process_batch(detections,img_bboxes_gt, img_gt_cls)
-        annotations = pred_to_json(results, img_path, category_map)
-        coco_results['annotations'].extend(annotations)
+    coco_results = process_images(yolov8, images, category_map, gt_detections, confusion_matrix)
 
     for normalize in [False, 'gt', 'pred']:
-        confusion_matrix.plot(
-            normalize=normalize,
-            save_dir="./",
-        )
-    # Save full results to a JSON file
-    full_output_file = 'full_coco_results.json'
-    with open(full_output_file, 'w') as f:
-        json.dump(coco_results, f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
+        confusion_matrix.plot(normalize=normalize, save_dir="./")
 
-    # Save only annotations to a JSON file
-    annotations_output_file = 'coco_results.json'
-    with open(annotations_output_file, 'w') as f:
-        json.dump(coco_results['annotations'], f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
-
-    print(f'Results saved to {full_output_file} and {annotations_output_file}')
-    ground_truth_file = '../data/client_test/annotations/instances_val2017.json'
-    detection_file = annotations_output_file
-
-    # Call the custom_evaluate function
-    custom_evaluate(ground_truth_file, detection_file)
-
+    save_results(coco_results, 'full_coco_results.json', 'coco_results.json')
+    custom_evaluate(ground_truth_file, 'coco_results.json')
 
 if __name__ == "__main__":
     config_path = '../data/client_test/data.yaml'
