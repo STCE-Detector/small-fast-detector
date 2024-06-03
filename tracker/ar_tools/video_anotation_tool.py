@@ -97,6 +97,12 @@ class VideoAnnotationTool(QWidget):
         self.show_actions_checkbox.setEnabled(False)  # Initially disabled
         self.button_layout.addWidget(self.show_actions_checkbox)
 
+        self.show_only_actions_checkbox = QCheckBox('Only Actions')
+        self.show_only_actions_checkbox.setChecked(False)
+        self.show_only_actions_checkbox.setStyleSheet("font-weight: bold;")
+        self.show_only_actions_checkbox.setEnabled(False)  # Initially disabled
+        self.button_layout.addWidget(self.show_only_actions_checkbox)
+
         self.slow_motion_checkbox.stateChanged.connect(self.adjust_playback_speed)
         self.repeat_checkbox.stateChanged.connect(self.adjust_playback_speed)
 
@@ -198,10 +204,14 @@ class VideoAnnotationTool(QWidget):
             if not self.has_actions:
                 self.show_actions_checkbox.setChecked(False)
                 self.show_actions_checkbox.setEnabled(False)
+                self.show_only_actions_checkbox.setChecked(False)
+                self.show_only_actions_checkbox.setEnabled(False)
                 QMessageBox.warning(self, "GT File Warning", "The GT file does not contain action columns.")
             else:
                 self.show_actions_checkbox.setEnabled(True)
                 self.show_actions_checkbox.setChecked(True)
+                self.show_only_actions_checkbox.setEnabled(True)
+                self.show_only_actions_checkbox.setChecked(False)
 
     def load_image_sequence(self, image_sequence_path):
         self.image_files = sorted([os.path.join(image_sequence_path, f) for f in os.listdir(image_sequence_path) if f.endswith('.jpg') or f.endswith('.png')])
@@ -312,6 +322,11 @@ class VideoAnnotationTool(QWidget):
                 closest_y = max(y_min, min(self.interest_point[1], y_max))
                 distance = np.sqrt((closest_x - self.interest_point[0]) ** 2 + (closest_y - self.interest_point[1]) ** 2)
                 touches_circle = distance < self.trigger_radius
+
+                if self.show_only_actions_checkbox.isChecked() and self.has_actions:
+                    # Filter bboxes with actions, that is any(ss, sr, fa, g)
+                    if not any([ss, sr, fa, g]):
+                        continue
 
                 bbox_color = (255, 0, 30) if not touches_circle else (255, 0, 255)  # Red if not touching, Pink if touching
 
