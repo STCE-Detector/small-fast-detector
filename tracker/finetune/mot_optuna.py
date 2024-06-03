@@ -15,7 +15,7 @@ def print_and_save(study, trial):
 
 if __name__ == "__main__":
 
-    resume = True
+    resume = False
     if resume:
         study = joblib.load(f"./outputs/studies/optuna/no-name-5c697fc9-b4cb-4485-8b73-3df5eacda8fc_study.pkl")
     else:
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     study.enqueue_trial(initial_params)
 
     # We could add a continuous save function to save the study every 10 trials and print the best trial
-    study.optimize(func=optuna_fitness_fn, n_trials=200, show_progress_bar=True, callbacks=[print_and_save])
+    study.optimize(func=optuna_fitness_fn, n_trials=400, show_progress_bar=True, callbacks=[print_and_save])
 
     print("\nStudy Statistics: ")
     print("Best Trial:      ", study.best_trial.number)

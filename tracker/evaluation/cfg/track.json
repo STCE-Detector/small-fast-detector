@@ -3,8 +3,8 @@
 
   "tracker_name": "ByteTrack",
 
-  "source_detections_dir": "/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/outputs/detections/YOLOv8s-P2-640/MOTHupba-train",
-  "source_gt_dir": "/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
+  "source_detections_dir": "./outputs/detections/YOLOv8s-P2-1280/MOTHupba-train",
+  "source_gt_dir": "./TrackEval/data/gt/mot_challenge/MOTHupba-train",
 
   "device": "mps",
 

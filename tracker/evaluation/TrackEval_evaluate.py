@@ -64,10 +64,10 @@ def trackeval(
 
 if __name__ == "__main__":
     result = trackeval(
-        evaluator_folder="/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval",
-        dataset_folder="/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
-        trackers_folder="/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/outputs/tracks/MOTHupba-train",
-        trackers_to_eval="ByteTrack_YOLOv8s-P2-640_2",
+        evaluator_folder="./TrackEval",
+        dataset_folder="./TrackEval/data/gt/mot_challenge/MOTHupba-train",
+        trackers_folder="./outputs/tracks/MOTHupba-train",
+        trackers_to_eval="yolov8x_clip_market1501_botsort",
         print_output=True
     )
     print(result)

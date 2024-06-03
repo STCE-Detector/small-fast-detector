@@ -46,7 +46,7 @@ class SequenceProcessor:
         }
 
     def process_sequence(self, print_bar=False):
-        for i, txt_file in enumerate(tqdm(sorted(os.listdir(self.detections_path)), desc="Processing Frames", unit="frame", disable=print_bar)):
+        for i, txt_file in enumerate(tqdm(sorted(os.listdir(self.detections_path)), desc=f"Processing {self.sequence_name}", unit=" frames", disable=not print_bar)):
             txt_path = os.path.join(self.detections_path, txt_file)
 
             # READ TXT FILE AND PROCESS IT
@@ -105,7 +105,7 @@ class SequenceProcessor:
         return sv.VideoInfo(width, height, fps)
 
 
-def generate_tracks(config, experiment_id=None, print_bar=True):
+def generate_tracks(config, experiment_id=None, print_bar=False):
     """
     Generate tracks for all sequences in the dataset using the specified tracker and reading detections from the source
     detections directory.
@@ -129,4 +129,4 @@ def generate_tracks(config, experiment_id=None, print_bar=True):
 if __name__ == "__main__":
     with open("./cfg/track.json", "r") as f:
         config = json.load(f)
-    generate_tracks(config, experiment_id=2)
+    generate_tracks(config, print_bar=True)

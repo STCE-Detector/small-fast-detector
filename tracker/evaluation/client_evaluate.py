@@ -16,7 +16,7 @@ def eval_sequence(video_root, config, detection_cm):
 
     # Read predictions
     sequence_name = video_root.split('/')[-1]
-    pred_path = config['pred_dir'] + sequence_name + '.txt'
+    pred_path = config['pred_dir'] + 'data/' + sequence_name + '.txt'
     pred = np.loadtxt(pred_path, delimiter=',')
 
     # Filter predictions by classes
@@ -56,13 +56,6 @@ if __name__ == '__main__':
     with open('cfg/eval.json') as f:
         config = json.load(f)
 
-    # Create output directory
-    time_str = time.strftime("%Y%m%d-%H%M%S")
-    output_dir = config['output_dir'] + '/client_eval/' + config['name'] + '/' + time_str
-    config['output_dir'] = output_dir
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
     # Initialize the Confusion Matrix for tracking evaluation
     confusion_matrix = ConfusionMatrix(
         nc=1,
@@ -83,6 +76,6 @@ if __name__ == '__main__':
     for normalize in [False, 'gt', 'pred']:
         confusion_matrix.plot(
             normalize=normalize,
-            save_dir=config['output_dir'],
+            save_dir=config['pred_dir'],
             names=[i for i in range(len(config['tracking']['classes']))]
         )

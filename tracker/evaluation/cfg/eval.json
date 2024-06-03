@@ -2,8 +2,7 @@
   "name": "MOTHupba-train",
 
   "data_dir": "./TrackEval/data/gt/mot_challenge/MOTHupba-train/",
-  "pred_dir": "./outputs/tracks/MOTHupba-train/ByteTrack_YOLOv8s-P2-640_2/data/",
-  "output_dir": "./outputs",
+  "pred_dir": "./outputs/tracks/MOTHupba-train/ByteTrack_YOLOv8s-P2-640_HC/",
 
   "tracking": {
     "classes": [0],
