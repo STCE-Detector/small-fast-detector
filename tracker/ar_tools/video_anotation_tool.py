@@ -3,6 +3,7 @@ import os
 import cv2
 import csv
 import numpy as np
+import pandas as pd
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, QPushButton, QFileDialog, QHBoxLayout,
                              QTableWidget, QTableWidgetItem, QSizePolicy, QScrollArea, QCheckBox, QSplitter, QSlider, QStyleFactory, QMessageBox)
 from PyQt5.QtGui import QImage, QPixmap
@@ -206,28 +207,26 @@ class VideoAnnotationTool(QWidget):
         self.image_files = sorted([os.path.join(image_sequence_path, f) for f in os.listdir(image_sequence_path) if f.endswith('.jpg') or f.endswith('.png')])
 
     def load_gt_coordinates(self, gt_file_path):
-        gt_coordinates_dict = {}
+        df = pd.read_csv(gt_file_path, header=None)
         has_actions = False
-        with open(gt_file_path, 'r') as gt_file:
-            next(gt_file)  # Assuming the first line is a header
-            for line_number, line in enumerate(gt_file, start=2):  # Ignore header
-                parts = line.strip().split(',')
-                try:
-                    if len(parts) >= 11:  # Check if there are at least 11 columns
-                        has_actions = True
-                        frame, id, x, y, w, h = map(int, parts[:6])  # Parse annotation data
-                        ss, sr, fa, g = map(int, parts[-4:])  # Last four columns as actions
-                        if frame not in gt_coordinates_dict:
-                            gt_coordinates_dict[frame] = []
-                        gt_coordinates_dict[frame].append((x, y, w, h, id, ss, sr, fa, g))
-                    else:
-                        frame, id, x, y, w, h = map(int, parts[:6])  # Parse annotation data without actions
-                        if frame not in gt_coordinates_dict:
-                            gt_coordinates_dict[frame] = []
-                        gt_coordinates_dict[frame].append((x, y, w, h, id))
-                except ValueError as e:
-                    print(f"Error parsing line {line_number}: {e}")
-                    continue  # Skip rows with conversion errors
+        if df.shape[1] > 11:
+            has_actions = True
+            df.columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis', 'SS', 'SR', 'FA', 'G']
+        else:
+            df.columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis']
+
+        # Clean up the dataframe if coming from MOT
+        # TODO: maybe do not consider last two classes (distractor and reflection)
+        if 'MOT' in gt_file_path:
+            correct_classes = [1, 2, 7, 8, 12]
+            df = df[df['y/class'].isin(correct_classes)].copy()
+
+        # Convert to dictionary
+        if has_actions:
+            gt_coordinates_dict = df.groupby('frame').apply(lambda x: x[['x', 'y', 'w', 'h', 'id', 'SS', 'SR', 'FA', 'G']].values.tolist()).to_dict()
+        else:
+            gt_coordinates_dict = df.groupby('frame').apply(lambda x: x[['x', 'y', 'w', 'h', 'id']].values.tolist()).to_dict()
+
         return gt_coordinates_dict, has_actions
 
     def play_pause_video(self):
