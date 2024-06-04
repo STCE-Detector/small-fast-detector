@@ -219,21 +219,21 @@ class VideoAnnotationTool(QWidget):
     def load_gt_coordinates(self, gt_file_path):
         df = pd.read_csv(gt_file_path, header=None)
         has_actions = False
-        if df.shape[1] > 11:
+        num_cols = df.shape[1]
+        if num_cols > 11:
             has_actions = True
-            # TODO: Hieve has one extra column without AR labels
-            # Select only the first 13 columns
-            df = df.iloc[:, :13]
+            df = df.drop(columns=[9]) if num_cols > 13 else df  # Correct Hieve 10th column
             df.columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis', 'SS', 'SR', 'FA', 'G']
         else:
             # Select only the first 9 columns
-            df = df.iloc[:, :9]
-            df.columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis']
+            df = df.iloc[:, :9] if num_cols > 9 else df     # Correct Hieve 10th column
+            col_names = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis']
+            df.columns = col_names[:num_cols]
 
         # Clean up the dataframe if coming from MOT
-        # TODO: maybe do not consider last two classes (distractor and reflection)
+        # TODO: maybe do not consider last two classes (distractor:8 and reflection:12)
         if 'MOT' in gt_file_path:
-            correct_classes = [1, 2, 7, 8, 12]
+            correct_classes = [1, 2, 7]
             df = df[df['y/class'].isin(correct_classes)].copy()
 
         # Convert to dictionary
