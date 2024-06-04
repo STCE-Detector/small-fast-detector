@@ -100,8 +100,11 @@ class ARConfusionMatrix:
         self.macro_recall = 0.0
         self.micro_precision = 0.0
         self.macro_precision = 0.0
+        self.micro_f = 0.0
+        self.macro_f = 0.0
         self.behaviour_precisions = []
         self.behaviour_recalls = []
+        self.behaviour_f = []
 
     def process_batch(self, detections, gt_bboxes, gt_cls):
         """
@@ -190,9 +193,14 @@ class ARConfusionMatrix:
                     else:
                         self.confusion_matrices[i][0, 0] += 1  # True Negative
 
-    def save_results(self, save_dir):
+    def get_metrics(self):
         self.macro_metrics()
         self.micro_metrics()
+
+        return self.micro_recall, self.micro_precision, self.macro_recall, self.macro_precision, self.micro_f, self.macro_f
+
+    def save_results(self, save_dir):
+        self.get_metrics()
 
         # Print micro and macro metrics
         print("Action Recognition Metrics:")
@@ -200,6 +208,8 @@ class ARConfusionMatrix:
         print(f"Micro Precision: {self.micro_precision}")
         print(f"Macro Recall: {self.macro_recall}")
         print(f"Macro Precision: {self.macro_precision}")
+        print(f"Micro F: {self.micro_f}")
+        print(f"Macro F: {self.macro_f}")
 
         # Save class confusion matrices
         for class_name, i in self.class_names.items():
@@ -209,6 +219,8 @@ class ARConfusionMatrix:
         combined_matrix = torch.stack(self.confusion_matrices, 0).sum(0)
         self.macro_recall = combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1])
         self.macro_precision = combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0])
+        # TODO: use F1.5 or F2
+        self.macro_f = 2 * self.macro_precision * self.macro_recall / (self.macro_precision + self.macro_recall + 1e-9)
 
     def micro_metrics(self):
         for matrix in self.confusion_matrices:
@@ -219,6 +231,10 @@ class ARConfusionMatrix:
             self.behaviour_recalls.append((tp / (tp + fn + 1e-9)).item())
         self.micro_recall = sum(self.behaviour_recalls) / len(self.behaviour_recalls)
         self.micro_precision = sum(self.behaviour_precisions) / len(self.behaviour_precisions)
+        # TODO: use F1.5 or F2
+        for precisions, recalls in zip(self.behaviour_precisions, self.behaviour_recalls):
+            self.behaviour_f.append(2 * precisions * recalls / (precisions + recalls + 1e-9))
+        self.micro_f = sum(self.behaviour_f) / len(self.behaviour_f)
 
     @plt_settings()
     def plot(self, name, save_dir="", on_plot=None):
@@ -256,7 +272,8 @@ class ARConfusionMatrix:
 
         title = f"{name} Confusion Matrix @{self.iou_thres}&{self.conf}"
         suptitle = f"Recall: {round(self.behaviour_recalls[self.class_names[name]] * 100, 2)}% " + \
-                     f"Precision: {round(self.behaviour_precisions[self.class_names[name]] * 100, 2)}%"
+                     f"Precision: {round(self.behaviour_precisions[self.class_names[name]] * 100, 2)}%" + \
+                        f" F-score: {round(self.behaviour_f[self.class_names[name]] * 100, 2)}%"
         plot_fname = str(save_dir) + f"/confusion_matrix@{self.iou_thres}&{self.conf}_{name}.png"
 
         ax.set_xlabel("True")

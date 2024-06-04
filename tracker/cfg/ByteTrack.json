@@ -63,7 +63,7 @@
 
     "gather": {
       "enabled": true,
-      "min_people": 2,
+      "min_people": 3,
       "distance_threshold": 1.0,
       "area_threshold": 0.5,
       "_comment": ""

@@ -1,0 +1,27 @@
+{
+  "name": "ByteTrack",
+
+  "tracker_name": "ByteTrack",
+
+  "source_detections_dir": "./../evaluation/outputs/detections/YOLOv8s-P2-1280/MOTHupba-train",
+  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
+
+  "device": "mps",
+
+  "action_recognition": {
+    "speed_projection_x": 0.7,
+    "speed_projection_y": 1.5,
+
+    "confidence_threshold": 0.3,
+    "iou_threshold": 0.3,
+
+    "g_distance_threshold": 1.0,
+    "g_area_threshold": 0.5,
+
+    "ss_speed_threshold": 0.001,
+
+    "fa_speed_threshold": 0.005,
+
+    "sr_speed_threshold": 0.025
+  }
+}
