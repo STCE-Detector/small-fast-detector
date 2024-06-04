@@ -43,7 +43,7 @@ def batch_resize_videos(input_folder, output_folder):
 
 # Specify the input and output folders
 input_folder = "/Users/inaki-eab/Desktop/TAR_data/videos_30fps"
-output_folder = "/Users/inaki-eab/Desktop/TAR_data/videos_30fps_resized"
+output_folder = "/Users/inaki-eab/Desktop/TAR_data/videos_30fps_resized_2ND"
 
 # Resize all videos in the input folder and save them to the output folder
 batch_resize_videos(input_folder, output_folder)
