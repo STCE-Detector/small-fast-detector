@@ -3,12 +3,10 @@ import argparse
 import csv
 import os
 
-
-
-from tracker.jetson.DeffFrameCapture import DeffFrameCapture
-
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+
+from tracker.jetson.DeffFrameCapture import DeffFrameCapture
 
 from PySide6.QtCore import QObject
 from PySide6.QtGui import QImage
