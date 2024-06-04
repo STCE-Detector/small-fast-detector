@@ -221,8 +221,12 @@ class VideoAnnotationTool(QWidget):
         has_actions = False
         if df.shape[1] > 11:
             has_actions = True
+            # Select only the first 13 columns
+            df = df.iloc[:, :13]
             df.columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis', 'SS', 'SR', 'FA', 'G']
         else:
+            # Select only the first 9 columns
+            df = df.iloc[:, :9]
             df.columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis']
 
         # Clean up the dataframe if coming from MOT
