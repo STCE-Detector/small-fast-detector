@@ -221,6 +221,7 @@ class VideoAnnotationTool(QWidget):
         has_actions = False
         if df.shape[1] > 11:
             has_actions = True
+            # TODO: Hieve has one extra column without AR labels
             # Select only the first 13 columns
             df = df.iloc[:, :13]
             df.columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis', 'SS', 'SR', 'FA', 'G']
