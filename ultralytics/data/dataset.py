@@ -112,7 +112,7 @@ class YOLODataset(BaseDataset):
                             "shape": shape,
                             "cls": lb[:, 0:1],  # n, 1
                             "bboxes": lb[:, 1:5],  # n, 4
-                            "tags": tag.reshape(-1, 1),  # n, 1
+                            "tags": tag.reshape(-1, 1) if tag is not None else None,  # n, 1
                             "segments": segments,
                             "keypoints": keypoint,
                             "normalized": True,
