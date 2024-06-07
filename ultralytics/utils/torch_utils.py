@@ -423,6 +423,21 @@ def one_cycle(y1=0.0, y2=1.0, steps=100):
     return lambda x: max((1 - math.cos(x * math.pi / steps)) / 2, 0) * (y2 - y1) + y1
 
 
+def one_decay(start=1.0, end=0.01, steps=100, decay_rate=7):
+    """
+    Returns a lambda function for exponential decay from start to end.
+
+    :param start: Initial learning rate.
+    :param end: Final learning rate.
+    :param steps: Total number of steps (epochs).
+    :param decay_rate: Decay rate for the exponential function.
+    :return: A function that computes the learning rate at each step.
+    """
+    def f(x):
+        return (start - end) * math.exp(-decay_rate * x / steps) + end
+    return f
+
+
 def init_seeds(seed=0, deterministic=False):
     """Initialize random number generator (RNG) seeds https://pytorch.org/docs/stable/notes/randomness.html."""
     random.seed(seed)
