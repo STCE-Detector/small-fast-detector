@@ -55,6 +55,13 @@ class ActionRecognizer:
         if not self.ar_enabled:
             return None
 
+        for track in tracks:
+            track.G = 0
+            track.SS = False
+            track.FA = False
+            track.SR = False
+            track.OB = False
+
         group_results = {}
         individual_results = {}
         ar_results = {}
@@ -189,6 +196,8 @@ class ActionRecognizer:
             for k, crowd in enumerate(crowds):
                 crowd_box = self.compute_crowd_box(tracks, crowd)
                 results[k] = crowd_box
+                for i in crowd:
+                    tracks[i].G = k+1
             return results
         else:
             return None
@@ -270,6 +279,7 @@ class ActionRecognizer:
                 pixel_s, _ = self.get_motion_descriptors(track)
                 if pixel_s < self.ss_speed_threshold:
                     ss_results[track.track_id] = track.tlbr
+                    track.SS = True
         return ss_results if len(ss_results.keys()) > 0 else None
 
     def get_motion_descriptors(self, track):
@@ -309,6 +319,7 @@ class ActionRecognizer:
                     distace_to_interest_point = np.sqrt(dx ** 2 + dy ** 2)
                     if distace_to_interest_point < self.trigger_radius:
                         fa_results[track.track_id] = track.tlbr
+                        track.FA = True
         return fa_results if len(fa_results.keys()) > 0 else None
 
     def recognize_suddenly_run(self, tracks):
@@ -328,6 +339,7 @@ class ActionRecognizer:
                 a = np.sqrt(track.tlwh[2] * track.tlwh[3])
                 if weighted_instant_speed/a > self.sr_speed_threshold:
                     sr_results[track.track_id] = track.tlbr
+                    track.SR = True
         return sr_results if len(sr_results.keys()) > 0 else None
 
     @staticmethod
@@ -398,6 +410,7 @@ class ActionRecognizer:
                 # TODO: use CM or Lower Center or something else?
                 if self.osb_region.contains(Point(track.mean[:2])):
                     osb_results[track.track_id] = track.tlbr
+                    track.OB = True
         return osb_results if len(osb_results.keys()) > 0 else None
 
     def init_region(self, osb_line, osb_direction):
