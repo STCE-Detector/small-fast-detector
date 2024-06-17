@@ -1,13 +1,14 @@
 {
   "name": "MOTHupba-train",
 
-  "data_dir": "/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train/",
-  "pred_dir": "/Users/inaki-eab/Desktop/small-fast-detector/tracker/evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train/",
+  "data_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train/",
+  "pred_dir": "./outputs/tracks/MOTHupba-train/BT_AR_YOLOv8s-P2-640/",
   "output_dir": "./outputs",
 
   "action_recognition": {
     "discriminate_groups": true,
     "confidence_threshold": 0.3,
-    "iou_threshold": 0.3
+    "iou_threshold": 0.3,
+    "smoothing_window": 60
   }
 }
