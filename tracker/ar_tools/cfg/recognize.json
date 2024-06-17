@@ -1,0 +1,77 @@
+{
+  "name": "BT_AR",
+
+  "tracker_name": "ByteTrack",
+
+  "source_detections_dir": "./../evaluation/outputs/detections/YOLOv8s-P2-640/MOTHupba-train",
+  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
+
+  "device": "mps",
+
+  "tracker_args": {
+    "track_high_thresh": 0.43,
+    "track_low_thresh": 0.1,
+    "new_track_thresh": 0.22,
+    "first_match_thresh": 0.84,
+    "second_match_thresh": 0.71,
+    "new_match_thresh": 0.86,
+    "first_buffer": 0.01,
+    "second_buffer": 0.04,
+    "new_buffer": 0.13,
+    "first_fuse": 0,
+    "second_fuse": 0,
+    "new_fuse": 0,
+    "first_iou": 0,
+    "second_iou": 3,
+    "new_iou": 5,
+    "cw_thresh": 0.87,
+    "nk_flag": 0,
+    "nk_alpha": 140,
+
+    "track_buffer": 50,
+
+    "proximity_thresh": 0.9,
+    "appearance_thresh": 0.8,
+    "with_reid": false,
+    "reid_default": true,
+    "weight_path": "ver12.pt",
+    "gmc_method": null,
+    "device": "cuda"
+  },
+
+  "action_recognition": {
+    "enabled": true,
+    "speed_projection": [0.7, 1.5],
+
+    "gather": {
+      "enabled": true,
+      "min_people": 3,
+      "distance_threshold": 1.0,
+      "area_threshold": 0.5
+    },
+
+    "stand_still": {
+      "enabled": true,
+      "speed_threshold": 0.001
+    },
+
+    "fast_approach": {
+      "enabled": true,
+      "draw": false,
+      "distance_threshold": 4,
+      "speed_threshold": 0.005
+    },
+
+    "suddenly_run": {
+      "enabled": true,
+      "speed_threshold": 0.025
+    },
+
+    "overstep_boundary": {
+      "enabled": false,
+      "draw": true,
+      "line": [0, 0, 1920, 1080],
+      "region": "top"
+    }
+  }
+}

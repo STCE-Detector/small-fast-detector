@@ -202,8 +202,16 @@ class ARConfusionMatrix:
     def save_results(self, save_dir):
         self.get_metrics()
 
+        # Save metrics to a csv file.
+        with open(save_dir + '/metrics.csv', 'w') as f:
+            f.write('Class,Precision,Recall,F1\n')
+            for class_name, i in self.class_names.items():
+                f.write(f'{class_name},{self.behaviour_precisions[i]},{self.behaviour_recalls[i]},{self.behaviour_f[i]}\n')
+            f.write(f'Micro,{self.micro_precision},{self.micro_recall},{self.micro_f}\n')
+            f.write(f'Macro,{self.macro_precision},{self.macro_recall},{self.macro_f}\n')
+
         # Print micro and macro metrics
-        print("Action Recognition Metrics:")
+        print("\nAction Recognition Metrics:")
         print(f"Micro Recall: {self.micro_recall}")
         print(f"Micro Precision: {self.micro_precision}")
         print(f"Macro Recall: {self.macro_recall}")
@@ -220,7 +228,7 @@ class ARConfusionMatrix:
         self.macro_recall = combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1])
         self.macro_precision = combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0])
         # TODO: use F1.5 or F2
-        self.macro_f = 2 * self.macro_precision * self.macro_recall / (self.macro_precision + self.macro_recall + 1e-9)
+        self.macro_f = self.f_metric(self.macro_precision, self.macro_recall, beta=2.0)
 
     def micro_metrics(self):
         for matrix in self.confusion_matrices:
@@ -233,8 +241,12 @@ class ARConfusionMatrix:
         self.micro_precision = sum(self.behaviour_precisions) / len(self.behaviour_precisions)
         # TODO: use F1.5 or F2
         for precisions, recalls in zip(self.behaviour_precisions, self.behaviour_recalls):
-            self.behaviour_f.append(2 * precisions * recalls / (precisions + recalls + 1e-9))
+            self.behaviour_f.append(self.f_metric(precisions, recalls, beta=2.0))
         self.micro_f = sum(self.behaviour_f) / len(self.behaviour_f)
+
+    @staticmethod
+    def f_metric(precision, recall, beta=1.0):
+        return (1 + beta ** 2) * precision * recall / (beta ** 2 * precision + recall + 1e-9)
 
     @plt_settings()
     def plot(self, name, save_dir="", on_plot=None):

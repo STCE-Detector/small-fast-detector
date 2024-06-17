@@ -154,7 +154,7 @@ for image_file in os.listdir(val_images_dir):
         ann_dict = {
             "id": len(coco_dataset["annotations"]),
             "image_id": int(image_file.split('.')[0]),
-            "category_id": int(ann.strip().split()[0]),
+            "category_id": int(float(ann.strip().split()[0])),
             "bbox": [x_min, y_min, x_max - x_min, y_max - y_min],
             "area": (x_max - x_min) * (y_max - y_min),
             "iscrowd": 0

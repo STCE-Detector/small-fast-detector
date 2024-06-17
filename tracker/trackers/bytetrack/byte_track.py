@@ -88,6 +88,13 @@ class STrack(BaseTrack):
         self.prev_EMA_accel = None
         """
 
+        # Action recognition: init flags
+        self.SS = False
+        self.SR = False
+        self.FA = False
+        self.G = False
+        self.OB = False
+
     def update_features(self, feat):
         feat /= np.linalg.norm(feat)
         self.curr_feat = feat
