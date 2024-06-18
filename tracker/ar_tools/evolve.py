@@ -1,54 +1,77 @@
+import os
 import optuna
 import joblib
 import json
 
-from functools import partial
-
-from tracker.evaluation.generate_tracks import generate_tracks
+from tracker.ar_tools.evaluate import AREvaluator
+from tracker.ar_tools.generate_behaviors import generate_behaviors
 from tracker.finetune.byte_mot_fitness import generate_unique_tag
 
-def ar_optuna_fitness_fn(trial, names):
+
+def ar_optuna_fitness_fn(trial):
+    ###############################
+    # OVERRIDE CONFIG WITH SOLUTION
+    ###############################
     # Read common config
-    with open("./../cfg/ByteTrack.json", "r") as f:
+    with open("./cfg/evolve.json", "r") as f:
         default_config = json.load(f)
 
     # Update the config with the solution
+    # TODO: set appropriate values for the parameters
     ar_config = default_config["action_recognition"]
-    ar_config["speed_projection"][0] = trial.suggest_float("speed_projection_x", 0.0, 1.0)
-    ar_config["speed_projection"][1] = trial.suggest_float("speed_projection_y", 0.0, 1.0)
-    ar_config["gather"]["distance_threshold"] = trial.suggest_float("g_distance_threshold", 0.0, 1.0)
-    ar_config["gather"]["area_threshold"] = trial.suggest_float("g_area_threshold", 0.0, 1.0)
-    ar_config["stand_still"]["speed_threshold"] = trial.suggest_float("ss_speed_threshold", 0.0, 1.0)
-    ar_config["fast_approach"]["speed_threshold"] = trial.suggest_float("fa_speed_threshold", 0.0, 1.0)
-    ar_config["suddenly_run"]["speed_threshold"] = trial.suggest_float("sr_speed_threshold", 0.0, 1.0)
+    ar_config["speed_projection"][0] = trial.suggest_float("speed_projection_x", 0.5, 2.0)
+    ar_config["speed_projection"][1] = trial.suggest_float("speed_projection_y", 0.5, 2.0)
+    ar_config["gather"]["distance_threshold"] = trial.suggest_float("g_distance_threshold", 0.1, 1.5)
+    ar_config["gather"]["area_threshold"] = trial.suggest_float("g_area_threshold", 0.1, 1.0)
+    ar_config["stand_still"]["speed_threshold"] = trial.suggest_float("ss_speed_threshold", 0.0001, 0.1)
+    ar_config["fast_approach"]["speed_threshold"] = trial.suggest_float("fa_speed_threshold", 0.0001, 0.1)
+    ar_config["suddenly_run"]["speed_threshold"] = trial.suggest_float("sr_speed_threshold", 0.0001, 0.1)
 
+    ###############################
+    # PERFORM INFERENCE AND SAVE CONFIG
+    ###############################
     # Perform Inference on the dataset
     experiment_id = generate_unique_tag()
-    # Use default track_recognize but no display, only save the results in the desired folder
-
-    processor = generate_tracks(
+    processor = generate_behaviors(
         config=default_config,
         experiment_id=experiment_id,
-        ar=True
+        print_bar=False
     )
 
-    # Generate tracks
+    # Save the config file
+    trackers_folder = os.path.abspath("./outputs/tracks/" + processor.dataset)
+    trackers_to_eval = processor.experiment_name
+    json_path = trackers_folder + "/" + trackers_to_eval + "/config.json"
+    with open(json_path, "w") as f:
+        json.dump(ar_config, f)
 
-    # Evaluate tracks
+    ###############################
+    # EVALUATE THE PERFORMANCE
+    ###############################
+    # Read evaluation config
+    with open("./cfg/eval.json", "r") as f:
+        eval_config = json.load(f)
 
+    # Override the config to include the experiment_id in the pred_dir and disable printing the confusion matrix
+    eval_config["pred_dir"] = trackers_folder + "/" + trackers_to_eval + "/"
+    eval_config["action_recognition"]["smoothing_window"] = 0   # TODO: Set to 0 for now
+    eval_config["action_recognition"]["save_results"] = False
+    eval_config["action_recognition"]["print_results"] = False
+
+    evaluator = AREvaluator(eval_config)
+    metrics_df = evaluator.evaluate()
+
+    return metrics_df[metrics_df['Class'] == 'Macro']['F2'].values[0]
 
 
 def print_and_save(study, trial):
-    #print("Trial Number: ", trial.number)
-    #print("Study Best Value: ", study.best_value)
-    #print("Study Best Params: ", study.best_params)
-    #print("Study Best Trial: ", study.best_trial.number)
-
-    joblib.dump(study, f"./outputs/studies/optuna/{study.study_name}_study.pkl")
+    output_root = "./outputs/studies/"
+    if not os.path.exists(output_root):
+        os.makedirs(output_root, exist_ok=True)
+    joblib.dump(study, output_root + f"{study.study_name}_study.pkl")
 
 
 if __name__ == "__main__":
-
     resume = False
     if resume:
         study = joblib.load(f"./outputs/studies/optuna/no-name-5c697fc9-b4cb-4485-8b73-3df5eacda8fc_study.pkl")
@@ -62,13 +85,20 @@ if __name__ == "__main__":
     params_to_optimize = ["speed_projection_x", "speed_projection_y",  "g_distance_threshold", "g_area_threshold",
                           "ss_speed_threshold", "fa_speed_threshold", "sr_speed_threshold"]
 
-    initial_params = {key: config["tracker_args"][key] for key in params_to_optimize}
     # Enqueue trial for good starting point
+    initial_params = {
+        "speed_projection_x": config["action_recognition"]["speed_projection"][0],
+        "speed_projection_y": config["action_recognition"]["speed_projection"][1],
+        "g_distance_threshold": config["action_recognition"]["gather"]["distance_threshold"],
+        "g_area_threshold": config["action_recognition"]["gather"]["area_threshold"],
+        "ss_speed_threshold": config["action_recognition"]["stand_still"]["speed_threshold"],
+        "fa_speed_threshold": config["action_recognition"]["fast_approach"]["speed_threshold"],
+        "sr_speed_threshold": config["action_recognition"]["suddenly_run"]["speed_threshold"]
+    }
     study.enqueue_trial(initial_params)
 
     # We could add a continuous save function to save the study every 10 trials and print the best trial
-    objective = partial(ar_optuna_fitness_fn, names=params_to_optimize)
-    study.optimize(func=objective, n_trials=400, show_progress_bar=True, callbacks=[print_and_save])
+    study.optimize(func=ar_optuna_fitness_fn, n_trials=50, show_progress_bar=True, callbacks=[print_and_save])
 
     print("\nStudy Statistics: ")
     print("Best Trial:      ", study.best_trial.number)
