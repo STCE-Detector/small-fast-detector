@@ -13,17 +13,21 @@ class AREvaluator:
     def __init__(self, config):
         self.config = config
 
+        # Results flags
+        self.save_results = config['action_recognition']['save_results']
+        self.print_results = config['action_recognition']['print_results']
+
         # Create output directory
         time_str = time.strftime("%Y%m%d-%H%M%S")
         self.output_dir = config['output_dir'] + '/eval/' + config['name'] + '/' + time_str
-        if not os.path.exists(self.output_dir):
+        if not os.path.exists(self.output_dir) and self.save_results:
             os.makedirs(self.output_dir)
 
         # Initialize confusion matrices
         self.ar_confusion_matrix = ARConfusionMatrix(
             nc=4,
             conf=config['action_recognition']['confidence_threshold'],
-            iou_thres=config['action_recognition']['iou_threshold']
+            iou_thres=config['action_recognition']['iou_threshold'],
         )
 
         # Read all sequences
@@ -41,11 +45,12 @@ class AREvaluator:
             self.evaluate_sequence(video_path)
 
         # Aggregate results and save
-        self.ar_confusion_matrix.save_results(self.output_dir)
+        return self.ar_confusion_matrix.save_results(self.output_dir, save=self.save_results, print_results=self.print_results)
 
     def load_dataframe(self, df_path, seq_name):
         if not os.path.exists(df_path):
-            print(f'No dataframe found for sequence {seq_name}, skipping')
+            if not self.print_results:
+                print(f'No dataframe found for sequence {seq_name}, skipping')
             return None
 
         df = pd.read_csv(df_path, header=None)
@@ -110,7 +115,7 @@ class AREvaluator:
 
         # Iterate over frames
         unique_frames = pred_df['frame'].unique()
-        for frame_id in tqdm(unique_frames, desc=f'Evaluating {seq_name}', unit=' frames'):
+        for frame_id in tqdm(unique_frames, desc=f'Evaluating {seq_name}', unit=' frames', disable=not self.print_results):
             # Filter by frame
             gt_frame = gt_df[gt_df['frame'] == frame_id]
             pred_frame = pred_df[pred_df['frame'] == frame_id]
@@ -135,6 +140,6 @@ if __name__ == '__main__':
 
     # Initialize evaluator
     evaluator = AREvaluator(config)
-    evaluator.evaluate()
+    metrics_df = evaluator.evaluate()
 
 

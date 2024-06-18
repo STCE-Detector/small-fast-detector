@@ -199,35 +199,36 @@ class ARConfusionMatrix:
 
         return self.micro_recall, self.micro_precision, self.macro_recall, self.macro_precision, self.micro_f, self.macro_f
 
-    def save_results(self, save_dir):
+    def save_results(self, save_dir, save=True, print_results=True):
         self.get_metrics()
 
-        # Save metrics to a csv file.
-        with open(save_dir + '/metrics.csv', 'w') as f:
-            f.write('Class,Precision,Recall,F1\n')
-            for class_name, i in self.class_names.items():
-                f.write(f'{class_name},{self.behaviour_precisions[i]},{self.behaviour_recalls[i]},{self.behaviour_f[i]}\n')
-            f.write(f'Micro,{self.micro_precision},{self.micro_recall},{self.micro_f}\n')
-            f.write(f'Macro,{self.macro_precision},{self.macro_recall},{self.macro_f}\n')
-
-        # Print micro and macro metrics
-        print("\nAction Recognition Metrics:")
-        print(f"Micro Recall: {self.micro_recall}")
-        print(f"Micro Precision: {self.micro_precision}")
-        print(f"Macro Recall: {self.macro_recall}")
-        print(f"Macro Precision: {self.macro_precision}")
-        print(f"Micro F: {self.micro_f}")
-        print(f"Macro F: {self.macro_f}")
-
-        # Save class confusion matrices
+        # Store metrics into a DataFrame and save it to a CSV file
+        import pandas as pd
+        metrics = [
+            {'Class': 'Micro', 'Precision': self.micro_precision, 'Recall': self.micro_recall, 'F2': self.micro_f},
+            {'Class': 'Macro', 'Precision': self.macro_precision, 'Recall': self.macro_recall, 'F2': self.macro_f}]
         for class_name, i in self.class_names.items():
-            self.plot(class_name, save_dir=save_dir)
+            metrics.append({'Class': class_name, 'Precision': self.behaviour_precisions[i], 'Recall': self.behaviour_recalls[i], 'F2': self.behaviour_f[i]})
+        metrics_df = pd.DataFrame(metrics)
+
+        if print_results:
+            # Display the DataFrame
+            print("\nAction Recognition Metrics:")
+            print(metrics_df.to_string(float_format="{:.4f}".format, index=False, col_space=10))
+
+        if save:
+            metrics_df.to_csv(save_dir + '/metrics.csv', index=False)
+
+            # Save class confusion matrices
+            for class_name, i in self.class_names.items():
+                self.plot(class_name, save_dir=save_dir)
+
+        return metrics_df
 
     def macro_metrics(self):
         combined_matrix = torch.stack(self.confusion_matrices, 0).sum(0)
-        self.macro_recall = combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1])
-        self.macro_precision = combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0])
-        # TODO: use F1.5 or F2
+        self.macro_recall = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1])).item()
+        self.macro_precision = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0])).item()
         self.macro_f = self.f_metric(self.macro_precision, self.macro_recall, beta=2.0)
 
     def micro_metrics(self):
@@ -239,7 +240,7 @@ class ARConfusionMatrix:
             self.behaviour_recalls.append((tp / (tp + fn + 1e-9)).item())
         self.micro_recall = sum(self.behaviour_recalls) / len(self.behaviour_recalls)
         self.micro_precision = sum(self.behaviour_precisions) / len(self.behaviour_precisions)
-        # TODO: use F1.5 or F2
+
         for precisions, recalls in zip(self.behaviour_precisions, self.behaviour_recalls):
             self.behaviour_f.append(self.f_metric(precisions, recalls, beta=2.0))
         self.micro_f = sum(self.behaviour_f) / len(self.behaviour_f)
