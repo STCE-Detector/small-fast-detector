@@ -31,6 +31,7 @@ class SequenceProcessor:
         self.dataset_root = config["source_gt_dir"]
         self.dataset_sequence = self.dataset_root + '/' + self.sequence_name
         self.sequence_info = self.get_sequence_info()
+        self.should_skip = not os.path.exists(self.dataset_sequence + '/gt/manual_gt.txt')
 
         self.device = config["device"]
 
@@ -53,34 +54,38 @@ class SequenceProcessor:
         }
 
     def process_sequence(self, print_bar=False):
-        for i, txt_file in enumerate(tqdm(sorted(os.listdir(self.detections_path)), desc=f"Processing {self.sequence_name}", unit=" frames", disable=not print_bar)):
-            txt_path = os.path.join(self.detections_path, txt_file)
+        if self.should_skip:
+            # print(f"Skipping {self.sequence_name}, no actions found.")
+            return
+        else:
+            for i, txt_file in enumerate(tqdm(sorted(os.listdir(self.detections_path)), desc=f"Processing {self.sequence_name}", unit=" frames", disable=not print_bar)):
+                txt_path = os.path.join(self.detections_path, txt_file)
 
-            # READ TXT FILE AND PROCESS IT
-            detections = self.get_detections(txt_path)
+                # READ TXT FILE AND PROCESS IT
+                detections = self.get_detections(txt_path)
 
-            # UPDATE TRACKER
-            _, tracks = self.tracker.update(detections, i+1)
+                # UPDATE TRACKER
+                _, tracks = self.tracker.update(detections, i+1)
 
-            # UPDATE ACTION RECOGNIZER
-            _ = self.action_recognizer.recognize_frame(tracks)
+                # UPDATE ACTION RECOGNIZER
+                _ = self.action_recognizer.recognize_frame(tracks)
 
-            # ACCUMULATE RESULTS
-            for track in tracks:
-                self.data_dict["frame_id"].append(i+1)
-                self.data_dict["tracker_id"].append(track.track_id)
-                self.data_dict["class_id"].append(track.class_ids)
-                self.data_dict["xl"].append(track.tlwh[0])
-                self.data_dict["yt"].append(track.tlwh[1])
-                self.data_dict["w"].append(track.tlwh[2])
-                self.data_dict["h"].append(track.tlwh[3])
-                self.data_dict["conf"].append(track.score)
-                self.data_dict["SS"].append(track.SS)
-                self.data_dict["SR"].append(track.SR)
-                self.data_dict["FA"].append(track.FA)
-                self.data_dict["G"].append(track.G)
+                # ACCUMULATE RESULTS
+                for track in tracks:
+                    self.data_dict["frame_id"].append(i+1)
+                    self.data_dict["tracker_id"].append(track.track_id)
+                    self.data_dict["class_id"].append(track.class_ids)
+                    self.data_dict["xl"].append(track.tlwh[0])
+                    self.data_dict["yt"].append(track.tlwh[1])
+                    self.data_dict["w"].append(track.tlwh[2])
+                    self.data_dict["h"].append(track.tlwh[3])
+                    self.data_dict["conf"].append(track.score)
+                    self.data_dict["SS"].append(track.SS)
+                    self.data_dict["SR"].append(track.SR)
+                    self.data_dict["FA"].append(track.FA)
+                    self.data_dict["G"].append(track.G)
 
-        self.save_results_to_txt()
+            self.save_results_to_txt()
 
     def get_detections(self, txt_path):
         """
@@ -125,9 +130,9 @@ class SequenceProcessor:
         return sv.VideoInfo(width, height, fps)
 
 
-def generate_tracks(config, experiment_id=None, print_bar=False):
+def generate_behaviors(config, experiment_id=None, print_bar=False):
     """
-    Generate tracks for all sequences in the dataset using the specified tracker and reading detections from the source
+    Generate tracks and behaviors for all sequences in the dataset using the specified tracker and reading detections from the source
     detections directory.
     Args:
         config: Configuration dictionary
@@ -149,4 +154,4 @@ def generate_tracks(config, experiment_id=None, print_bar=False):
 if __name__ == "__main__":
     with open("./cfg/recognize.json", "r") as f:
         config = json.load(f)
-    generate_tracks(config, print_bar=True)
+    generate_behaviors(config, print_bar=True)

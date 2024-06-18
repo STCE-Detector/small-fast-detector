@@ -5,6 +5,7 @@
 
   "source_detections_dir": "./../evaluation/outputs/detections/YOLOv8s-P2-640/MOTHupba-train",
   "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
+  "only_behavior": true,
 
   "device": "mps",
 
