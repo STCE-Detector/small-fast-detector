@@ -339,8 +339,8 @@ class VideoAnnotationTool(QWidget):
 
                 # ID and action colors
                 id_color = (0, 255, 0) if not touches_circle else (255, 0, 255)  # Green if not touching, Pink if touching
-
-                cv2.putText(image, f"ID: {id}", (x_scaled, y_scaled - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, id_color, 1)
+                text_y = y_scaled - 10 if y_scaled > 10 else 15
+                cv2.putText(image, f"ID: {id}", (x_scaled, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, id_color, 1)
 
                 # Display actions if the checkbox is checked
                 if self.show_actions_checkbox.isChecked() and self.has_actions:
@@ -352,7 +352,10 @@ class VideoAnnotationTool(QWidget):
 
                     action_text = ",".join(actions_display)
                     if action_text:
-                        cv2.putText(image, f"{action_text}", (x_scaled, y_max + 20),
+                        if self.current_frame == 130 and id == 19:
+                            x=0
+                        text_y = y_max + 15 if y_max + 60 < target_height else target_height - 60
+                        cv2.putText(image, f"{action_text}", (x_scaled, text_y),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                         # action_color = self.action_colors.get(actions_display[0], (255, 255, 255))  # Use the first action's color
                         # cv2.putText(image, f"{action_text}", (x_scaled, y_scaled + h_scaled + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, action_color, 2)
