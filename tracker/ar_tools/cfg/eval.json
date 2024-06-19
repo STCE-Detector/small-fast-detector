@@ -9,7 +9,7 @@
     "discriminate_groups": true,
     "confidence_threshold": 0.3,
     "iou_threshold": 0.3,
-    "smoothing_window": 60,
+    "smoothing_window": 0,
     "save_results": true,
     "print_results": true
   }

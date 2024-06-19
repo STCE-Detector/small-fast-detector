@@ -1,5 +1,5 @@
 {
-  "name": "BT_AR",
+  "name": "OPT_BT_AR",
 
   "tracker_name": "ByteTrack",
 
@@ -42,30 +42,30 @@
 
   "action_recognition": {
     "enabled": true,
-    "speed_projection": [0.7, 1.5],
+    "speed_projection": [1.04, 1.297],
 
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "distance_threshold": 1.0,
-      "area_threshold": 0.5
+      "distance_threshold": 0.947,
+      "area_threshold": 0.464
     },
 
     "stand_still": {
       "enabled": true,
-      "speed_threshold": 0.001
+      "speed_threshold": 0.00609
     },
 
     "fast_approach": {
       "enabled": true,
       "draw": false,
       "distance_threshold": 4,
-      "speed_threshold": 0.005
+      "speed_threshold": 0.00525
     },
 
     "suddenly_run": {
       "enabled": true,
-      "speed_threshold": 0.025
+      "speed_threshold": 0.0811
     },
 
     "overstep_boundary": {
