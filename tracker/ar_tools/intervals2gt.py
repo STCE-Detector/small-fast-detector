@@ -105,6 +105,7 @@ if __name__ == "__main__":
 
     # Get all sequences
     sequences = [sequence for sequence in os.listdir(dataset_root) if os.path.isdir(os.path.join(dataset_root, sequence))]
+    # sequences = ['dancetrack0079']
 
     # Iterate over all sequences
     for sequence in tqdm(sequences, desc='Evaluating sequences', unit=' sequences'):
