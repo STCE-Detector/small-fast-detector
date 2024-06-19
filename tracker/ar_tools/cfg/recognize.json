@@ -48,7 +48,8 @@
       "enabled": true,
       "min_people": 3,
       "distance_threshold": 0.947,
-      "area_threshold": 0.464
+      "area_threshold": 0.464,
+      "speed_threshold": 0.001
     },
 
     "stand_still": {

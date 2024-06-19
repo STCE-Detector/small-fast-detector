@@ -25,6 +25,7 @@ class ActionRecognizer:
         self.g_min_people = config["gather"]["min_people"]
         self.g_distance_threshold = config["gather"]["distance_threshold"]
         self.g_area_threshold = config["gather"]["area_threshold"]
+        self.g_speed_threshold = config["gather"]["speed_threshold"]
         # Standing still parameters
         self.ss_enabled = config["stand_still"]["enabled"]
         self.ss_speed_threshold = config["stand_still"]["speed_threshold"]
@@ -179,12 +180,11 @@ class ActionRecognizer:
             if (det1.class_ids == 0) and (det2.class_ids == 0):
                 distance, a1, a2 = self.compute_ned(det1, det2)
                 # If the distance between the detections is less than the threshold and the areas are similar
-                if distance <= self.g_distance_threshold and (self.g_area_threshold <= a1/a2 <= (1/self.g_area_threshold)):
+                if distance <= self.g_distance_threshold and max(a1, a2) / min(a1, a2) <= self.g_area_threshold:
                     pixel_s1, _ = self.get_motion_descriptors(det1)
                     pixel_s2, _ = self.get_motion_descriptors(det2)
                     # If both detections are standing still
-                    # TODO: maybe use different threshold or other condition (group of people moving slowly?)
-                    if pixel_s1 < self.fa_speed_threshold and pixel_s2 < self.fa_speed_threshold:
+                    if pixel_s1 < self.g_speed_threshold and pixel_s2 < self.g_speed_threshold:
                         pairs.append([i, j])
 
         # Find independent chains in the graph
