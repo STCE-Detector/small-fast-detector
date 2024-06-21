@@ -73,11 +73,21 @@ class SequenceProcessor:
         Read detections from a txt file and return a Detections object.
         """
         txt_data = np.loadtxt(txt_path)
-        detections = sv.Detections(
-            xyxy=txt_data[:, 1:5],
-            class_id=txt_data[:, 0],
-            confidence=txt_data[:, 5],
-        )
+        if txt_data.ndim == 1:
+            txt_data = txt_data.reshape(1, -1)
+
+        if txt_data.size == 0:
+            detections = sv.Detections(
+                xyxy=np.empty((0, 4), dtype=np.float32),
+                class_id=np.empty(0, dtype=int),
+                confidence=np.empty(0, dtype=np.float32),
+            )
+        else:
+            detections = sv.Detections(
+                xyxy=txt_data[:, 1:5],
+                class_id=txt_data[:, 0],
+                confidence=txt_data[:, 5],
+            )
         return detections
 
     def save_results_to_txt(self):
@@ -101,7 +111,7 @@ class SequenceProcessor:
         config.read(seqinfo_file)
         width = int(config['Sequence']['imWidth'])
         height = int(config['Sequence']['imHeight'])
-        fps = int(config['Sequence']['frameRate'])
+        fps = int(float(config['Sequence']['frameRate']))
         return sv.VideoInfo(width, height, fps)
 
 
