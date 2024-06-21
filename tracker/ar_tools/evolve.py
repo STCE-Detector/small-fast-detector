@@ -5,7 +5,7 @@ import json
 
 from tracker.ar_tools.evaluate import AREvaluator
 from tracker.ar_tools.generate_behaviors import generate_behaviors
-from tracker.finetune.byte_mot_fitness import generate_unique_tag
+from tracker.finetune.evolve import generate_unique_tag
 
 
 def ar_optuna_fitness_fn(trial):
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     study.enqueue_trial(initial_params)
 
     # We could add a continuous save function to save the study every 10 trials and print the best trial
-    study.optimize(func=ar_optuna_fitness_fn, n_trials=50, show_progress_bar=True, callbacks=[print_and_save])
+    study.optimize(func=ar_optuna_fitness_fn, n_trials=100, show_progress_bar=True, callbacks=[print_and_save])
 
     print("\nStudy Statistics: ")
     print("Best Trial:      ", study.best_trial.number)

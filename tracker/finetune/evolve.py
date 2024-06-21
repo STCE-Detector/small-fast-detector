@@ -1,11 +1,14 @@
-import json
-import os.path
-import time
+import os
 import random
 import string
+import time
 
-from tracker.evaluation.generate_tracks import generate_tracks
+import optuna
+import joblib
+import json
+
 from tracker.evaluation.TrackEval_evaluate import trackeval
+from tracker.evaluation.generate_tracks import generate_tracks
 
 
 def generate_unique_tag():
@@ -13,53 +16,6 @@ def generate_unique_tag():
     random_suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=6))  # Random 6-character alphanumeric string
     tag = f"exp_{timestamp}_{random_suffix}"
     return tag
-
-
-def fitness_fn(ga_instance, solution, solution_idx):
-    """
-    Fitness function for the genetic algorithm. This function evaluates the fitness of a solution by running the tracker
-    with the specified parameters and evaluating the results using the TrackEval evaluation script.
-    Args:
-        ga_instance: The genetic algorithm instance
-        solution: The solution to evaluate
-        solution_idx: The index of the solution in the population
-    Returns:
-        The fitness value of the solution
-    """
-
-    # Read common config
-    with open("./cfg/evolve.json", "r") as f:
-        config = json.load(f)
-
-    # Update the config with the solution
-    tracker_config = config["tracker_args"]
-    for gene_value, gene_key in zip(solution, tracker_config):
-        tracker_config[gene_key] = gene_value
-
-    # Perform Inference on the dataset
-    experiment_id = generate_unique_tag()
-    processor = generate_tracks(
-        config=config,
-        experiment_id=experiment_id
-    )
-
-    # Save the tracker config
-    trackers_folder = os.path.abspath("./outputs/tracks/" + processor.dataset)
-    trackers_to_eval = processor.experiment_name
-    json_path = trackers_folder + "/" + trackers_to_eval + "/config.json"
-    with open(json_path, "w") as f:
-        json.dump(tracker_config, f)
-
-    # Run evaluation
-    combined_metrics = trackeval(
-        evaluator_folder=os.path.abspath("./../evaluation/TrackEval"),
-        dataset_folder=config["source_gt_dir"],
-        trackers_folder=trackers_folder,
-        trackers_to_eval=trackers_to_eval,
-        metrics=["HOTA"],   # uncomment this line to only evaluate HOTA, single-object fitness
-    )
-    print(combined_metrics)
-    return combined_metrics["HOTA"] #list(combined_metrics.values())
 
 
 def optuna_fitness_fn(trial):
@@ -124,8 +80,43 @@ def optuna_fitness_fn(trial):
     #return list(combined_metrics.values())
 
 
+def print_and_save(study, trial):
+    #print("Trial Number: ", trial.number)
+    #print("Study Best Value: ", study.best_value)
+    #print("Study Best Params: ", study.best_params)
+    #print("Study Best Trial: ", study.best_trial.number)
+
+    joblib.dump(study, f"./outputs/studies/optuna/{study.study_name}_study.pkl")
+
+
 if __name__ == "__main__":
-    solution = [0.6, 0.3]
-    h = fitness_fn(None, solution, 0)
-    print(h)
+
+    resume = False
+    if resume:
+        study = joblib.load(f"./outputs/studies/optuna/no-name-5c697fc9-b4cb-4485-8b73-3df5eacda8fc_study.pkl")
+    else:
+        study = optuna.create_study(direction="maximize")
+
+    # Load config from default params
+    with open("./cfg/evolve.json", "r") as f:
+        config = json.load(f)
+
+    params_to_optimize = ["track_high_thresh", "track_low_thresh", "new_track_thresh", "first_match_thresh",
+                          "second_match_thresh", "new_match_thresh", "first_buffer", "second_buffer", "new_buffer",
+                          "first_fuse", "second_fuse", "new_fuse", "first_iou", "second_iou", "new_iou", "cw_thresh",
+                          "nk_flag", "nk_alpha", "track_buffer"]
+
+    initial_params = {key: config["tracker_args"][key] for key in params_to_optimize}
+    # Enqueue trial for good starting point
+    study.enqueue_trial(initial_params)
+
+    # We could add a continuous save function to save the study every 10 trials and print the best trial
+    study.optimize(func=optuna_fitness_fn, n_trials=100, show_progress_bar=True, callbacks=[print_and_save])
+
+    print("\nStudy Statistics: ")
+    print("Best Trial:      ", study.best_trial.number)
+    print("Best Value:      ", study.best_value)
+    print("Best Parameters: ")
+    for key, value in study.best_params.items():
+        print(f"\t{key}: {value}")
 
