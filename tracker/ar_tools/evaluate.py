@@ -7,6 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from tracker.ar_tools.ar_confusion_matrix import ARConfusionMatrix
+from ultralytics.utils.ops import clip_boxes
 
 
 class AREvaluator:
@@ -37,6 +38,9 @@ class AREvaluator:
         # DataFrame column names
         self.behavior_columns = ['SS', 'SR', 'FA', 'G']
         self.df_columns = ['frame', 'id', 'xl', 'yt', 'w', 'h', 'x/conf', 'y/class', 'z/vis'] + self.behavior_columns
+
+        # Frame shape
+        self.frame_shape = None
 
     def evaluate(self):
         # Evaluate all sequences
@@ -88,6 +92,12 @@ class AREvaluator:
         return pred_df
 
     def preprocess_predictions(self, pred_df, smoothing_window=60):
+        # Clip predictions
+        pred_df['yt'] = pred_df['yt'].clip(lower=0, upper=self.frame_shape[0])
+        pred_df['yb'] = pred_df['yb'].clip(lower=0, upper=self.frame_shape[0])
+        pred_df['xl'] = pred_df['xl'].clip(lower=0, upper=self.frame_shape[1])
+        pred_df['xr'] = pred_df['xr'].clip(lower=0, upper=self.frame_shape[1])
+
         # Filter by class
         pred_df = pred_df[pred_df['y/class'] == 0]  # TODO: currently only pedestrian class is supported
 
@@ -99,6 +109,13 @@ class AREvaluator:
 
     def evaluate_sequence(self, video_path):
         seq_name = video_path.split('/')[-1]
+
+        # Read frame shape
+        config = configparser.ConfigParser()
+        config.read(video_path + '/seqinfo.ini')
+        frame_width = int(config['Sequence']['imWidth'])
+        frame_height = int(config['Sequence']['imHeight'])
+        self.frame_shape = (frame_height, frame_width)
 
         # Load ground truth
         gt_path = os.path.join(video_path, 'gt', 'manual_gt.txt')
@@ -127,6 +144,7 @@ class AREvaluator:
 
             # Extract data
             gt_xyxy = torch.from_numpy(gt_frame[['xl', 'yt', 'xr', 'yb']].to_numpy())
+            gt_xyxy = clip_boxes(gt_xyxy, self.frame_shape)
             gt_behaviors = torch.from_numpy(gt_frame[self.behavior_columns].to_numpy())
             preds = torch.from_numpy(pred_frame[['xl', 'yt', 'xr', 'yb', 'x/conf'] + self.behavior_columns].to_numpy())
 

@@ -1,3 +1,4 @@
+import configparser
 import os
 import time
 import json
@@ -7,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 from ultralytics.utils.metrics import ConfusionMatrix
+from ultralytics.utils.ops import clip_boxes
 
 
 def eval_sequence(video_root, config, detection_cm):
@@ -23,6 +25,13 @@ def eval_sequence(video_root, config, detection_cm):
     classes = config['tracking']['classes']
     pred = pred[np.isin(pred[:, 7], classes)]
 
+    # Read frame shape
+    config = configparser.ConfigParser()
+    config.read(video_root + '/seqinfo.ini')
+    frame_width = int(config['Sequence']['imWidth'])
+    frame_height = int(config['Sequence']['imHeight'])
+    frame_shape = (frame_height, frame_width)
+
     # Iterate over frames
     unique_frames = list(set(gt[:, 0]))
     for frame_id in tqdm(unique_frames, desc=f'Evaluating {sequence_name}', unit=' frames'):
@@ -37,11 +46,13 @@ def eval_sequence(video_root, config, detection_cm):
         gt_xyxy = gt_tlwh.copy()
         gt_xyxy[:, 2:] += gt_xyxy[:, :2]
         gt_xyxy = torch.from_numpy(gt_xyxy)
+        gt_xyxy = clip_boxes(gt_xyxy, frame_shape)
 
         # Preprocess predictions
         pred_tlwh = pred_frame[:, 2:6]
         pred_xyxy = pred_tlwh.copy()
         pred_xyxy[:, 2:] += pred_xyxy[:, :2]
+        pred_xyxy = clip_boxes(pred_xyxy, frame_shape)
         pred_detections = np.zeros((pred_frame.shape[0], 6))
         pred_detections[:, :4] = pred_xyxy
         pred_detections[:, 4] = pred_frame[:, 6]     # Set confidence to score
