@@ -9,7 +9,6 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, QPushBu
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
 
-
 class VideoAnnotationTool(QWidget):
     def __init__(self):
         super().__init__()
@@ -45,6 +44,9 @@ class VideoAnnotationTool(QWidget):
         self.gt_coordinates_dict = {}
         self.current_frame = 0
         self.frame_rate = 30  # Assuming 30 fps for calculation
+
+        # Color state for each tracker ID
+        self.tracker_color_state = {}
 
         # Scroll area for the image
         self.scroll_area = QScrollArea()
@@ -130,12 +132,21 @@ class VideoAnnotationTool(QWidget):
         self.annotations_table.setHorizontalHeaderLabels(['ID', 'Start Frame', 'End Frame', 'SS', 'SR', 'FA', 'G'])
         self.annotations_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
+        # New table for tracker IDs
+        self.tracker_table = QTableWidget()
+        self.tracker_table.setRowCount(0)
+        self.tracker_table.setColumnCount(1)  # Tracker IDs
+        self.tracker_table.setHorizontalHeaderLabels(['Tracker IDs'])
+        self.tracker_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.tracker_table.cellClicked.connect(self.highlight_tracker_id)
+
         # Using QSplitter to allow dynamic resizing
         self.splitter = QSplitter(Qt.Vertical)
         self.splitter.addWidget(self.scroll_area)  # Add scroll area to splitter
         self.tables_splitter = QSplitter(Qt.Horizontal)
         self.tables_splitter.addWidget(self.table_widget)
         self.tables_splitter.addWidget(self.annotations_table)
+        self.tables_splitter.addWidget(self.tracker_table)  # Add the tracker table
         self.splitter.addWidget(self.tables_splitter)  # Add tables splitter to main splitter
 
         self.layout.addWidget(self.splitter)  # Add splitter to the main layout
@@ -238,9 +249,9 @@ class VideoAnnotationTool(QWidget):
 
         # Convert to dictionary
         if has_actions:
-            gt_coordinates_dict = df.groupby('frame').apply(lambda x: x[['x', 'y', 'w', 'h', 'id', 'SS', 'SR', 'FA', 'G']].values.tolist()).to_dict()
+            gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id', 'SS', 'SR', 'FA', 'G']].values.tolist()).to_dict()
         else:
-            gt_coordinates_dict = df.groupby('frame').apply(lambda x: x[['x', 'y', 'w', 'h', 'id']].values.tolist()).to_dict()
+            gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id']].values.tolist()).to_dict()
 
         return gt_coordinates_dict, has_actions
 
@@ -305,6 +316,7 @@ class VideoAnnotationTool(QWidget):
 
             # Processing detections and drawing rectangles
             detections = self.gt_coordinates_dict.get(self.current_frame, [])
+            tracker_ids = []  # Collect tracker IDs for this frame
             for gt_data in detections:
                 if len(gt_data) > 6:
                     x, y, w, h, id, ss, sr, fa, g = gt_data
@@ -333,12 +345,14 @@ class VideoAnnotationTool(QWidget):
                     if not any([ss, sr, fa, g]):
                         continue
 
-                bbox_color = (255, 0, 30) if not touches_circle else (255, 0, 255)  # Red if not touching, Pink if touching
+                # Get the color state of the tracker ID
+                color_state = self.tracker_color_state.get(id, 'green')
+                bbox_color = (0, 255, 0) if color_state == 'green' else (0, 0, 255)  # Green or Red
 
                 cv2.rectangle(image, (x_min, y_min), (x_max, y_max), bbox_color, 1)  # Thinner bounding box
 
                 # ID and action colors
-                id_color = (0, 255, 0) if not touches_circle else (255, 0, 255)  # Green if not touching, Pink if touching
+                id_color = (0, 255, 0) if color_state == 'green' else (0, 0, 255)  # Green or Red
                 text_y = y_scaled - 10 if y_scaled > 10 else 15
                 cv2.putText(image, f"ID: {int(id)}", (x_scaled, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, id_color, 1)
 
@@ -357,6 +371,16 @@ class VideoAnnotationTool(QWidget):
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                         # action_color = self.action_colors.get(actions_display[0], (255, 255, 255))  # Use the first action's color
                         # cv2.putText(image, f"{action_text}", (x_scaled, y_scaled + h_scaled + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, action_color, 2)
+
+                # Add tracker ID to the list
+                tracker_ids.append(id)
+
+            # Update tracker table
+            self.tracker_table.setRowCount(len(tracker_ids))
+            for row, tracker_id in enumerate(tracker_ids):
+                item = QTableWidgetItem(str(int(tracker_id)))  # Convert to int before setting the item text
+                item.setBackground(Qt.white)  # Set initial background color to white
+                self.tracker_table.setItem(row, 0, item)
 
             # Convert to Qt format and display
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -437,6 +461,22 @@ class VideoAnnotationTool(QWidget):
                     self.annotations_table.insertRow(row_position)
                     for col, data in enumerate(row_data):
                         self.annotations_table.setItem(row_position, col, QTableWidgetItem(data))
+
+    def highlight_tracker_id(self, row, column):
+        # Get the tracker ID item
+        item = self.tracker_table.item(row, column)
+        if item:
+            tracker_id = int(float(item.text()))  # Ensure the tracker ID is an integer
+            # Toggle color state
+            current_color = self.tracker_color_state.get(tracker_id, 'green')
+            new_color = 'red' if current_color == 'green' else 'green'
+            self.tracker_color_state[tracker_id] = new_color
+
+            # Update the item background color
+            item.setBackground(Qt.red if new_color == 'red' else Qt.white)
+
+            # Update the frame to reflect the new bounding box color
+            self.update_frame()
 
 
 if __name__ == "__main__":
