@@ -23,7 +23,7 @@ def check_os():
 
 
 class DeffFrameCapture:
-    def __init__(self, source, frame_format='rgb8', verbose=False):
+    def __init__(self, source, frame_format='rgb24', verbose=False):
         self.source = source
         self.frame_format = frame_format
         self.verbose = verbose
@@ -55,8 +55,15 @@ class DeffFrameCapture:
                 "-framerate": "null",  # discard source `-framerate`
             }
 
-        self.decoder = FFdecoder(self.source, frame_format=self.frame_format, verbose=self.verbose, **ffparams)
-        self.fps = int(Sourcer(self.source).probe_stream().retrieve_metadata().get('source_video_framerate'))
+        self.decoder = FFdecoder(self.source, frame_format=self.frame_format, verbose=self.verbose)
+        if self.source != 0:
+            self.fps = int(Sourcer(self.source).probe_stream().retrieve_metadata().get('source_video_framerate'))
+        else:
+            self.fps = 30
+            self.decoder.metadata = {
+                "source_video_resolution": [1920, 1080],  # 1920x1080 frame-size
+                "source_video_framerate": 30.0
+            }
         self.decoder = self.decoder.formulate()
         self.streaming = True
         self.frame_count = 0

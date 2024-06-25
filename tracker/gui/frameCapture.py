@@ -19,7 +19,7 @@ class FrameCapture:
                                   time_delay=2)
             height, width, _ = self.vcap.stream.frame.shape
             self.fps = self.vcap.stream.framerate
-        self.video_info = sv.VideoInfo.from_video_path(self.source)
+            self.video_info = sv.VideoInfo.from_video_path(self.source)
         self.frame_count = 0
         self.frame_size = (width, height)
         self.streaming = False

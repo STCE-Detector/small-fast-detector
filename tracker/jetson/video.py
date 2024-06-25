@@ -56,6 +56,7 @@ class VideoSource(Plugin):
         self.options = options
         self.resource = video_input  # self.stream.GetOptions().resource['string']
         self.return_tensors = return_tensors
+        self.streaming = self.stream.IsStreaming()
 
     def Capture(self, timeout=2500, retries=8, return_tensors=None):
         """
@@ -134,7 +135,7 @@ class VideoSource(Plugin):
     def GetFrameCount(self):
         return self.num_outputs
 
-    @property
+
     def IsStreaming(self):
         """
         Returns true if the stream is currently open, false if closed or EOS.
@@ -147,6 +148,9 @@ class VideoSource(Plugin):
         Returns true if the stream is currently closed (EOS has been reached)
         """
         return not self.streaming
+
+    def GetFrameRate(self):
+        return self.stream.GetFrameRate()
 
 
 class VideoOutput(Plugin):

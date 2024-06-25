@@ -118,9 +118,14 @@ class Yolov8:
 
     def print_avg_times(self):
         start_time = time.time()
-        preprocess_avg = sum(self.preprocess_times) / len(self.preprocess_times) * 1000
-        inference_avg = sum(self.inference_times) / len(self.inference_times) * 1000
-        postprocess_avg = sum(self.postprocess_times) / len(self.postprocess_times) * 1000
+        try:
+            preprocess_avg = sum(self.preprocess_times) / len(self.preprocess_times) * 1000
+            inference_avg = sum(self.inference_times) / len(self.inference_times) * 1000
+            postprocess_avg = sum(self.postprocess_times) / len(self.postprocess_times) * 1000
+        except:
+            preprocess_avg = 1
+            inference_avg = 1
+            postprocess_avg = 1
         total_avg_time = (preprocess_avg + inference_avg + postprocess_avg) / 1000  # Convert to seconds
         fps = 1 / total_avg_time if total_avg_time > 0 else float('inf')
 
