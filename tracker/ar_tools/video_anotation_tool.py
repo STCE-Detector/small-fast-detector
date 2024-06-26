@@ -339,6 +339,8 @@ class VideoAnnotationTool(QWidget):
                 closest_y = max(y_min, min(self.interest_point[1], y_max))
                 distance = np.sqrt((closest_x - self.interest_point[0]) ** 2 + (closest_y - self.interest_point[1]) ** 2)
                 touches_circle = distance < self.trigger_radius
+                bbox_color = (255, 0, 30) if not touches_circle else (255, 0, 255)
+                id_color = (0, 255, 0) if not touches_circle else (255, 0, 255)
 
                 if self.show_only_actions_checkbox.isChecked() and self.has_actions:
                     # Filter bboxes with actions, that is any(ss, sr, fa, g)
@@ -347,12 +349,12 @@ class VideoAnnotationTool(QWidget):
 
                 # Get the color state of the tracker ID
                 color_state = self.tracker_color_state.get(id, 'green')
-                bbox_color = (0, 255, 0) if color_state == 'green' else (0, 0, 255)  # Green or Red
+                bbox_color = bbox_color if color_state == 'green' else (0, 0, 255)  # Red
 
                 cv2.rectangle(image, (x_min, y_min), (x_max, y_max), bbox_color, 1)  # Thinner bounding box
 
                 # ID and action colors
-                id_color = (0, 255, 0) if color_state == 'green' else (0, 0, 255)  # Green or Red
+                id_color = id_color if color_state == 'green' else (0, 0, 255)  # Red
                 text_y = y_scaled - 10 if y_scaled > 10 else 15
                 cv2.putText(image, f"ID: {int(id)}", (x_scaled, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, id_color, 1)
 
@@ -379,7 +381,7 @@ class VideoAnnotationTool(QWidget):
             self.tracker_table.setRowCount(len(tracker_ids))
             for row, tracker_id in enumerate(tracker_ids):
                 item = QTableWidgetItem(str(int(tracker_id)))  # Convert to int before setting the item text
-                item.setBackground(Qt.white)  # Set initial background color to white
+                # item.setBackground(Qt.white)  # Set initial background color to white
                 self.tracker_table.setItem(row, 0, item)
 
             # Convert to Qt format and display
