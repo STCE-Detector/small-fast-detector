@@ -108,6 +108,13 @@ class VideoAnnotationTool(QWidget):
         self.slow_motion_checkbox.stateChanged.connect(self.adjust_playback_speed)
         self.repeat_checkbox.stateChanged.connect(self.adjust_playback_speed)
 
+        # Add Gardering Annotation Button
+        self.btn_add_gardering_annotation = QPushButton('Add Gardering Annotation')
+        self.btn_add_gardering_annotation.setEnabled(False)  # Initially disabled
+        self.btn_add_gardering_annotation.clicked.connect(self.add_gardering_annotation)
+        self.btn_add_gardering_annotation.setStyleSheet("background-color: #32CD32; font-weight: bold;")
+        self.button_layout.addWidget(self.btn_add_gardering_annotation)
+
         # Slider for video navigation
         self.video_slider = QSlider(Qt.Horizontal)
         self.video_slider.setMinimum(0)
@@ -381,7 +388,8 @@ class VideoAnnotationTool(QWidget):
             self.tracker_table.setRowCount(len(tracker_ids))
             for row, tracker_id in enumerate(tracker_ids):
                 item = QTableWidgetItem(str(int(tracker_id)))  # Convert to int before setting the item text
-                # item.setBackground(Qt.white)  # Set initial background color to white
+                color_state = self.tracker_color_state.get(tracker_id, 'green')
+                item.setBackground(Qt.white if color_state == 'green' else Qt.red)  # Set color based on state
                 self.tracker_table.setItem(row, 0, item)
 
             # Convert to Qt format and display
@@ -438,6 +446,27 @@ class VideoAnnotationTool(QWidget):
         for col in range(3, self.annotations_table.columnCount()):
             self.annotations_table.setItem(row_position, col, QTableWidgetItem("0"))
 
+    def add_gardering_annotation(self):
+        selected_rows = self.tracker_table.selectionModel().selectedRows()
+        if len(selected_rows) < 3:
+            QMessageBox.warning(self, "Selection Error", "Please select at least 3 tracker IDs.")
+            return
+
+        current_frame = self.current_frame
+        for row in selected_rows:
+            tracker_id = int(self.tracker_table.item(row.row(), 0).text())
+            row_position = self.annotations_table.rowCount()
+            self.annotations_table.insertRow(row_position)
+            self.annotations_table.setItem(row_position, 0, QTableWidgetItem(str(tracker_id)))
+            self.annotations_table.setItem(row_position, 1, QTableWidgetItem(str(current_frame)))
+            self.annotations_table.setItem(row_position, 2, QTableWidgetItem(str(current_frame)))
+            self.annotations_table.setItem(row_position, 3, QTableWidgetItem("0"))  # SS
+            self.annotations_table.setItem(row_position, 4, QTableWidgetItem("0"))  # SR
+            self.annotations_table.setItem(row_position, 5, QTableWidgetItem("0"))  # FA
+            self.annotations_table.setItem(row_position, 6, QTableWidgetItem("1"))  # Set G column to 1
+
+        self.update_gardering_button_state()
+
     def export_annotations(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Annotations", "", "CSV Files (*.csv)")
         if file_path:
@@ -479,6 +508,11 @@ class VideoAnnotationTool(QWidget):
 
             # Update the frame to reflect the new bounding box color
             self.update_frame()
+            self.update_gardering_button_state()
+
+    def update_gardering_button_state(self):
+        selected_rows = self.tracker_table.selectionModel().selectedRows()
+        self.btn_add_gardering_annotation.setEnabled(len(selected_rows) >= 3)
 
 
 if __name__ == "__main__":
