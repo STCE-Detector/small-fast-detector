@@ -133,6 +133,11 @@ def generate_tracks(config, experiment_id=None, print_bar=False):
     for sequence_path in sequence_paths:
         processor = SequenceProcessor(config, sequence_path, experiment_id)
         processor.process_sequence(print_bar)
+
+    config_path = '/'.join(processor.output_dir.split('/')[:-1]) + '/config.json'
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=4)
+
     return processor
 
 

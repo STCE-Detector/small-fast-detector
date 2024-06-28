@@ -67,7 +67,7 @@ if __name__ == "__main__":
         evaluator_folder="./TrackEval",
         dataset_folder="./TrackEval/data/gt/mot_challenge/MOTHupba-train",
         trackers_folder="./outputs/tracks/MOTHupba-train",
-        trackers_to_eval="yolov8x_clip_market1501_botsort",
+        trackers_to_eval="BT_2stagesbest_cdv3_8sp2_150e_128b",
         print_output=True
     )
     print(result)
