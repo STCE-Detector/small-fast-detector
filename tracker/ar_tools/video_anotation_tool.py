@@ -108,12 +108,12 @@ class VideoAnnotationTool(QWidget):
         self.slow_motion_checkbox.stateChanged.connect(self.adjust_playback_speed)
         self.repeat_checkbox.stateChanged.connect(self.adjust_playback_speed)
 
-        # Add Gardering Annotation Button
-        self.btn_add_gardering_annotation = QPushButton('Add Gardering Annotation')
-        self.btn_add_gardering_annotation.setEnabled(False)  # Initially disabled
-        self.btn_add_gardering_annotation.clicked.connect(self.add_gardering_annotation)
-        self.btn_add_gardering_annotation.setStyleSheet("background-color: #32CD32; font-weight: bold;")
-        self.button_layout.addWidget(self.btn_add_gardering_annotation)
+        # Add gathering Annotation Button
+        self.btn_add_gathering_annotation = QPushButton('Add gathering Annotation')
+        self.btn_add_gathering_annotation.setEnabled(False)  # Initially disabled
+        self.btn_add_gathering_annotation.clicked.connect(self.add_gathering_annotation)
+        self.btn_add_gathering_annotation.setStyleSheet("background-color: #32CD32; font-weight: bold;")
+        self.button_layout.addWidget(self.btn_add_gathering_annotation)
 
         # Slider for video navigation
         self.video_slider = QSlider(Qt.Horizontal)
@@ -446,7 +446,7 @@ class VideoAnnotationTool(QWidget):
         for col in range(3, self.annotations_table.columnCount()):
             self.annotations_table.setItem(row_position, col, QTableWidgetItem("0"))
 
-    def add_gardering_annotation(self):
+    def add_gathering_annotation(self):
         selected_rows = self.tracker_table.selectionModel().selectedRows()
         if len(selected_rows) < 3:
             QMessageBox.warning(self, "Selection Error", "Please select at least 3 tracker IDs.")
@@ -465,7 +465,7 @@ class VideoAnnotationTool(QWidget):
             self.annotations_table.setItem(row_position, 5, QTableWidgetItem("0"))  # FA
             self.annotations_table.setItem(row_position, 6, QTableWidgetItem("1"))  # Set G column to 1
 
-        self.update_gardering_button_state()
+        self.update_gathering_button_state()
 
     def export_annotations(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Annotations", "", "CSV Files (*.csv)")
@@ -508,11 +508,11 @@ class VideoAnnotationTool(QWidget):
 
             # Update the frame to reflect the new bounding box color
             self.update_frame()
-            self.update_gardering_button_state()
+            self.update_gathering_button_state()
 
-    def update_gardering_button_state(self):
+    def update_gathering_button_state(self):
         selected_rows = self.tracker_table.selectionModel().selectedRows()
-        self.btn_add_gardering_annotation.setEnabled(len(selected_rows) >= 3)
+        self.btn_add_gathering_annotation.setEnabled(len(selected_rows) >= 3)
 
 
 if __name__ == "__main__":
