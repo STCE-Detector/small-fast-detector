@@ -7,6 +7,8 @@ import optuna
 import joblib
 import json
 
+from functools import partial
+
 from tracker.evaluation.TrackEval_evaluate import trackeval
 from tracker.evaluation.generate_tracks import generate_tracks
 
@@ -18,7 +20,7 @@ def generate_unique_tag():
     return tag
 
 
-def optuna_fitness_fn(trial):
+def optuna_fitness_fn(trial, config):
     """
     Fitness function for the Optuna optimization library. This function evaluates the fitness of a solution by running
     the tracker with the specified parameters and evaluating the results using the TrackEval evaluation script.
@@ -28,18 +30,16 @@ def optuna_fitness_fn(trial):
         The fitness value of the solution
     """
 
-    # Read common config
-    with open("./cfg/evolve.json", "r") as f:
-        config = json.load(f)
-
     # Update the config with the solution
     tracker_config = config["tracker_args"]
-    tracker_config["track_high_thresh"] = trial.suggest_float("track_high_thresh", 0.1, 0.9, step=0.01)
+    tracker_config["track_high_thresh"] = trial.suggest_float("track_high_thresh", 0.3, 0.9, step=0.01)
+    #tracker_config["track_low_thresh"] = trial.suggest_float("track_low_thresh", 0.1, tracker_config["track_high_thresh"], step=0.01)
+    #tracker_config["new_track_thresh"] = trial.suggest_float("new_track_thresh", tracker_config["track_low_thresh"], 0.9, step=0.01)
     tracker_config["track_low_thresh"] = trial.suggest_float("track_low_thresh", 0.1, 0.4, step=0.01)
-    tracker_config["new_track_thresh"] = trial.suggest_float("new_track_thresh", 0.1, 0.6, step=0.01)
-    tracker_config["first_match_thresh"] = trial.suggest_float("first_match_thresh", 0.2, 1.0, step=0.01)
-    tracker_config["second_match_thresh"] = trial.suggest_float("second_match_thresh", 0.2, 1.0, step=0.01)
-    tracker_config["new_match_thresh"] = trial.suggest_float("new_match_thresh", 0.2, 1.0, step=0.01)
+    tracker_config["new_track_thresh"] = trial.suggest_float("new_track_thresh", 0.1, 0.9, step=0.01)
+    tracker_config["first_match_thresh"] = trial.suggest_float("first_match_thresh", 0.5, 1.0, step=0.01)
+    tracker_config["second_match_thresh"] = trial.suggest_float("second_match_thresh", 0.4, 1.0, step=0.01)
+    tracker_config["new_match_thresh"] = trial.suggest_float("new_match_thresh", 0.5, 1.0, step=0.01)
     tracker_config["first_buffer"] = trial.suggest_float("first_buffer", 0.0, 0.5, step=0.01)
     tracker_config["second_buffer"] = trial.suggest_float("second_buffer", 0.0, 0.5, step=0.01)
     tracker_config["new_buffer"] = trial.suggest_float("new_buffer", 0.0, 0.5, step=0.01)
@@ -66,7 +66,7 @@ def optuna_fitness_fn(trial):
     trackers_to_eval = processor.experiment_name
     json_path = trackers_folder + "/" + trackers_to_eval + "/config.json"
     with open(json_path, "w") as f:
-        json.dump(tracker_config, f)
+        json.dump(tracker_config, f, indent=4)
 
     # Run evaluation
     combined_metrics = trackeval(
@@ -85,8 +85,11 @@ def print_and_save(study, trial):
     #print("Study Best Value: ", study.best_value)
     #print("Study Best Params: ", study.best_params)
     #print("Study Best Trial: ", study.best_trial.number)
+    studies_path = "./outputs/studies"
+    if not os.path.exists(studies_path):
+        os.makedirs(studies_path)
 
-    joblib.dump(study, f"./outputs/studies/optuna/{study.study_name}_study.pkl")
+    joblib.dump(study, f"./outputs/studies/{study.study_name}_study.pkl")
 
 
 if __name__ == "__main__":
@@ -111,7 +114,12 @@ if __name__ == "__main__":
     study.enqueue_trial(initial_params)
 
     # We could add a continuous save function to save the study every 10 trials and print the best trial
-    study.optimize(func=optuna_fitness_fn, n_trials=100, show_progress_bar=True, callbacks=[print_and_save])
+    study.optimize(
+        func=partial(optuna_fitness_fn, config=config),
+        n_trials=300,
+        show_progress_bar=True,
+        callbacks=[print_and_save]
+    )
 
     print("\nStudy Statistics: ")
     print("Best Trial:      ", study.best_trial.number)
