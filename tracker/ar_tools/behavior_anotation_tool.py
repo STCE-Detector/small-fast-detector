@@ -389,7 +389,7 @@ class VideoAnnotationTool(QWidget):
             for row, tracker_id in enumerate(tracker_ids):
                 item = QTableWidgetItem(str(int(tracker_id)))  # Convert to int before setting the item text
                 color_state = self.tracker_color_state.get(tracker_id, 'green')
-                item.setBackground(Qt.white if color_state == 'green' else Qt.red)  # Set color based on state
+                #item.setBackground(Qt.white if color_state == 'green' else Qt.red)  # Set color based on state
                 self.tracker_table.setItem(row, 0, item)
 
             # Convert to Qt format and display
