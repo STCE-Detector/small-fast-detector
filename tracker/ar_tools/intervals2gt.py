@@ -2,8 +2,6 @@ import os
 import pandas as pd
 from tqdm import tqdm
 
-from tracker.ar_tools.auto_labelling import get_intervals
-
 
 def update_sequential_df(sequential_df, intervals_df):
     behavior_columns = ['SS', 'SR', 'FA', 'G']
@@ -101,11 +99,11 @@ def add_actions(sequence_path):
 
 if __name__ == "__main__":
 
-    dataset_root = './../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train'
+    dataset_root = './../evaluation/TrackEval/data/gt/mot_challenge/MOTcustom'
 
     # Get all sequences
     sequences = [sequence for sequence in os.listdir(dataset_root) if os.path.isdir(os.path.join(dataset_root, sequence))]
-    # sequences = ['dancetrack0079']
+    sequences = ['36']
 
     # Iterate over all sequences
     for sequence in tqdm(sequences, desc='Evaluating sequences', unit=' sequences'):
