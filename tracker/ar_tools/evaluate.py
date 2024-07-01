@@ -1,6 +1,9 @@
+import configparser
 import os
 import time
 import json
+
+import numpy as np
 import torch
 import pandas as pd
 
@@ -19,14 +22,22 @@ class AREvaluator:
         self.print_results = config['action_recognition']['print_results']
 
         # Create output directory
-        time_str = time.strftime("%Y%m%d-%H%M%S")
-        self.output_dir = config['output_dir'] + '/eval/' + config['name'] + '/' + time_str
-        if not os.path.exists(self.output_dir) and self.save_results:
+        output_sufix = time.strftime("%Y%m%d-%H%M%S") if config['name'] is None else config['name']
+        self.output_dir = config['pred_dir'] + 'eval/' + output_sufix + '/'
+        if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
+
+        # Save config
+        with open(self.output_dir + 'config.json', 'w') as f:
+            json.dump(config, f, indent=4)
+
+        # Read active behavior classes
+        self.active_behaviors = config['action_recognition']['active_behaviors']
 
         # Initialize confusion matrices
         self.ar_confusion_matrix = ARConfusionMatrix(
-            nc=4,
+            nc=len(self.active_behaviors),
+            class_names=self.active_behaviors,
             conf=config['action_recognition']['confidence_threshold'],
             iou_thres=config['action_recognition']['iou_threshold'],
         )
@@ -42,6 +53,12 @@ class AREvaluator:
         # Frame shape
         self.frame_shape = None
 
+        # Smoothing and padding parameters
+        self.smoothing_window = config['action_recognition']['smoothing_window']
+        self.initial_pad = config['action_recognition']['initial_pad']
+        self.final_pad = config['action_recognition']['final_pad']
+        self.should_smooth_or_pad = self.smoothing_window > 0 or self.initial_pad > 0 or self.final_pad > 0
+
     def evaluate(self):
         # Evaluate all sequences
         for seq in self.sequences:
@@ -52,13 +69,24 @@ class AREvaluator:
         return self.ar_confusion_matrix.save_results(self.output_dir, save=self.save_results, print_results=self.print_results)
 
     def load_dataframe(self, df_path, seq_name):
+        """
+        Load a dataframe from a txt file. If the file does not exist, it prints a message and returns None.
+        args:
+            df_path: str, path to the txt file
+            seq_name: str, sequence name
+        returns:
+            df: pd.DataFrame, dataframe with the loaded data
+        """
         if not os.path.exists(df_path):
             if not self.print_results:
                 print(f'No dataframe found for sequence {seq_name}, skipping')
             return None
 
-        df = pd.read_csv(df_path, header=None)
-        df.columns = self.df_columns
+        try:
+            df = pd.read_csv(df_path, header=None)
+            df.columns = self.df_columns
+        except pd.errors.EmptyDataError:
+            df = pd.DataFrame(columns=self.df_columns)
 
         # Cast columns to correct types
         df[self.behavior_columns] = df[self.behavior_columns].astype(int)
@@ -67,9 +95,20 @@ class AREvaluator:
         # Compute xr, yb columns
         df['xr'] = df['xl'] + df['w']
         df['yb'] = df['yt'] + df['h']
+
+        # Clip boxes to frame shape
+        df['yt'] = df['yt'].clip(lower=0, upper=self.frame_shape[0])
+        df['yb'] = df['yb'].clip(lower=0, upper=self.frame_shape[0])
+        df['xl'] = df['xl'].clip(lower=0, upper=self.frame_shape[1])
+        df['xr'] = df['xr'].clip(lower=0, upper=self.frame_shape[1])
+
+        # Gathering discrimination: if not discriminating groups, convert G column to 1 if any number is bigger than 0
+        if not self.config['action_recognition']['discriminate_groups']:
+            df['G'] = (df['G'] > 0).astype(int)
+
         return df
 
-    def smooth_predictions(self, pred_df, window=1):
+    def smooth_n_pad_predictions(self, pred_df, smoothing_window=0, initial_pad=0, final_pad=0):
         """
         Smooth predictions by forward filling and backward filling. Since limit_area is not specified, it also performs
         a forward fill and backward fill for the first and last frames of each track (padding).
@@ -77,33 +116,48 @@ class AREvaluator:
         pred_df = pred_df.sort_values(by=['id', 'frame']).reset_index(drop=True)
 
         def smooth_column(group, col):
-            # Forward fill, backward fill
-            group[col] = group[col].replace(0, pd.NA)
 
-            # Smooth
-            # TODO: for SS column, bfill could have bigger limit to avoid initial gap
-            group[col] = group[col].ffill(limit=window).bfill(limit=window * 2 if col == 'SS' else window)
+            # If the column is entirely 0, return the group as is
+            if group[col].sum() == 0:
+                return group
+
+            # Replace 0s with NaNs for forward and backward filling
+            group[col] = group[col].replace(0, np.nan)
+
+            # Smooth inner values
+            if smoothing_window > 0:
+                group[col] = group[col].ffill(limit=smoothing_window, limit_area='inside')
+
+            # Initial padding
+            if col == 'SS' and initial_pad > 0:
+                group[col] = group[col].bfill(limit=initial_pad)
+
+            # Final padding
+            # TODO: is it necessary to pad the final values?
+            if final_pad > 0:
+                group[col] = group[col].ffill(limit=final_pad)
+
+            # Replace NaNs with 0s
             group[col] = group[col].fillna(0)
             return group
 
-        for flag in self.behavior_columns:
+        for flag in self.active_behaviors:
             pred_df = pred_df.groupby('id').apply(lambda group: smooth_column(group, flag)).reset_index(drop=True)
 
         return pred_df
 
-    def preprocess_predictions(self, pred_df, smoothing_window=60):
-        # Clip predictions
-        pred_df['yt'] = pred_df['yt'].clip(lower=0, upper=self.frame_shape[0])
-        pred_df['yb'] = pred_df['yb'].clip(lower=0, upper=self.frame_shape[0])
-        pred_df['xl'] = pred_df['xl'].clip(lower=0, upper=self.frame_shape[1])
-        pred_df['xr'] = pred_df['xr'].clip(lower=0, upper=self.frame_shape[1])
-
+    def preprocess_predictions(self, pred_df):
         # Filter by class
-        pred_df = pred_df[pred_df['y/class'] == 0]  # TODO: currently only pedestrian class is supported
+        pred_df = pred_df[pred_df['y/class'] == 0]
 
         # Smooth predictions
-        if smoothing_window > 0:
-            pred_df = self.smooth_predictions(pred_df, window=smoothing_window)
+        if self.should_smooth_or_pad:
+            pred_df = self.smooth_n_pad_predictions(
+                pred_df,
+                smoothing_window=self.smoothing_window,
+                initial_pad=self.initial_pad,
+                final_pad=self.final_pad
+            )
 
         return pred_df
 
@@ -126,9 +180,11 @@ class AREvaluator:
         # Load predictions
         pred_path = os.path.join(self.config["pred_dir"], 'data', f'{seq_name}.txt')
         pred_df = self.load_dataframe(pred_path, seq_name)
+        if pred_df is None:
+            return
 
         # Preprocess predictions
-        pred_df = self.preprocess_predictions(pred_df, smoothing_window=self.config['action_recognition']['smoothing_window'])
+        pred_df = self.preprocess_predictions(pred_df)
 
         # Iterate over frames
         unique_frames = pred_df['frame'].unique()
@@ -137,16 +193,10 @@ class AREvaluator:
             gt_frame = gt_df[gt_df['frame'] == frame_id]
             pred_frame = pred_df[pred_df['frame'] == frame_id]
 
-            # Gathering discrimination
-            if not self.config['action_recognition']['discriminate_groups']:
-                gt_frame['G'] = gt_frame['G'].astype(bool).astype(int)
-                pred_frame['G'] = pred_frame['G'].astype(bool).astype(int)
-
             # Extract data
             gt_xyxy = torch.from_numpy(gt_frame[['xl', 'yt', 'xr', 'yb']].to_numpy())
-            gt_xyxy = clip_boxes(gt_xyxy, self.frame_shape)
-            gt_behaviors = torch.from_numpy(gt_frame[self.behavior_columns].to_numpy())
-            preds = torch.from_numpy(pred_frame[['xl', 'yt', 'xr', 'yb', 'x/conf'] + self.behavior_columns].to_numpy())
+            gt_behaviors = torch.from_numpy(gt_frame[self.active_behaviors].to_numpy())
+            preds = torch.from_numpy(pred_frame[['xl', 'yt', 'xr', 'yb', 'x/conf'] + self.active_behaviors].to_numpy())
 
             self.ar_confusion_matrix.process_batch(preds, gt_xyxy, gt_behaviors)
 
