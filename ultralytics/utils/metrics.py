@@ -453,7 +453,7 @@ class ConfusionMatrix:
             array = self.matrix / (self.matrix.sum(0).reshape(1, -1) + 1e-9)  # normalize columns
             self.macro_recall = array.diagonal()[:-1].mean()
             tp, fn = self.tp_fn()
-            self.micro_recall = tp.sum() / (tp.sum() + fn.sum())
+            self.micro_recall = tp.sum() / (tp.sum() + fn.sum() + 1e-9)
         elif normalize == "pred":
             self.matrix[np.isnan(self.matrix)] = 0
             array = self.matrix / (self.matrix.sum(1).reshape(-1, 1) + 1e-9)  # normalize rows
