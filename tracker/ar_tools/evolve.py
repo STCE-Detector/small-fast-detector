@@ -1,4 +1,6 @@
 import os
+from functools import partial
+
 import optuna
 import joblib
 import json
@@ -8,21 +10,19 @@ from tracker.ar_tools.generate_behaviors import generate_behaviors
 from tracker.finetune.evolve import generate_unique_tag
 
 
-def ar_optuna_fitness_fn(trial):
+def ar_optuna_fitness_fn(trial, config):
     ###############################
     # OVERRIDE CONFIG WITH SOLUTION
     ###############################
-    # Read common config
-    with open("./cfg/evolve.json", "r") as f:
-        default_config = json.load(f)
 
     # Update the config with the solution
     # TODO: set appropriate values for the parameters
-    ar_config = default_config["action_recognition"]
+    ar_config = config["action_recognition"]
     ar_config["speed_projection"][0] = trial.suggest_float("speed_projection_x", 0.5, 2.0)
     ar_config["speed_projection"][1] = trial.suggest_float("speed_projection_y", 0.5, 2.0)
     ar_config["gather"]["distance_threshold"] = trial.suggest_float("g_distance_threshold", 0.1, 1.5)
     ar_config["gather"]["area_threshold"] = trial.suggest_float("g_area_threshold", 0.1, 1.0)
+    ar_config["gather"]["speed_threshold"] = trial.suggest_float("g_speed_threshold", 0.0001, 0.1)
     ar_config["stand_still"]["speed_threshold"] = trial.suggest_float("ss_speed_threshold", 0.0001, 0.1)
     ar_config["fast_approach"]["speed_threshold"] = trial.suggest_float("fa_speed_threshold", 0.0001, 0.1)
     ar_config["suddenly_run"]["speed_threshold"] = trial.suggest_float("sr_speed_threshold", 0.0001, 0.1)
@@ -33,7 +33,7 @@ def ar_optuna_fitness_fn(trial):
     # Perform Inference on the dataset
     experiment_id = generate_unique_tag()
     processor = generate_behaviors(
-        config=default_config,
+        config=config,
         experiment_id=experiment_id,
         print_bar=False
     )
@@ -54,7 +54,8 @@ def ar_optuna_fitness_fn(trial):
 
     # Override the config to include the experiment_id in the pred_dir and disable printing the confusion matrix
     eval_config["pred_dir"] = trackers_folder + "/" + trackers_to_eval + "/"
-    eval_config["action_recognition"]["smoothing_window"] = 0   # TODO: Set to 0 for now
+    eval_config["action_recognition"]["smoothing_window"] = 0
+    eval_config["action_recognition"]["final_pad"] = 0
     eval_config["action_recognition"]["save_results"] = False
     eval_config["action_recognition"]["print_results"] = False
 
@@ -65,10 +66,11 @@ def ar_optuna_fitness_fn(trial):
 
 
 def print_and_save(study, trial):
-    output_root = "./outputs/studies/"
-    if not os.path.exists(output_root):
-        os.makedirs(output_root, exist_ok=True)
-    joblib.dump(study, output_root + f"{study.study_name}_study.pkl")
+    studies_path = "./outputs/studies"
+    if not os.path.exists(studies_path):
+        os.makedirs(studies_path)
+
+    joblib.dump(study, f"./outputs/studies/{study.study_name}.pkl")
 
 
 if __name__ == "__main__":
@@ -91,14 +93,22 @@ if __name__ == "__main__":
         "speed_projection_y": config["action_recognition"]["speed_projection"][1],
         "g_distance_threshold": config["action_recognition"]["gather"]["distance_threshold"],
         "g_area_threshold": config["action_recognition"]["gather"]["area_threshold"],
+        "g_speed_threshold": config["action_recognition"]["gather"]["speed_threshold"],
         "ss_speed_threshold": config["action_recognition"]["stand_still"]["speed_threshold"],
         "fa_speed_threshold": config["action_recognition"]["fast_approach"]["speed_threshold"],
         "sr_speed_threshold": config["action_recognition"]["suddenly_run"]["speed_threshold"]
     }
+
+    # TODO: SHOULD WE INCLUDE EVAL HYPERPARAMS IN THE OPTIMIZATION?
     study.enqueue_trial(initial_params)
 
     # We could add a continuous save function to save the study every 10 trials and print the best trial
-    study.optimize(func=ar_optuna_fitness_fn, n_trials=100, show_progress_bar=True, callbacks=[print_and_save])
+    study.optimize(
+        func=partial(ar_optuna_fitness_fn, config=config),
+        n_trials=100,
+        show_progress_bar=True,
+        callbacks=[print_and_save]
+    )
 
     print("\nStudy Statistics: ")
     print("Best Trial:      ", study.best_trial.number)
