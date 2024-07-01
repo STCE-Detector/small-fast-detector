@@ -81,15 +81,11 @@ def optuna_fitness_fn(trial, config):
 
 
 def print_and_save(study, trial):
-    #print("Trial Number: ", trial.number)
-    #print("Study Best Value: ", study.best_value)
-    #print("Study Best Params: ", study.best_params)
-    #print("Study Best Trial: ", study.best_trial.number)
     studies_path = "./outputs/studies"
     if not os.path.exists(studies_path):
         os.makedirs(studies_path)
 
-    joblib.dump(study, f"./outputs/studies/{study.study_name}_study.pkl")
+    joblib.dump(study, f"./outputs/studies/{study.study_name}.pkl")
 
 
 if __name__ == "__main__":
