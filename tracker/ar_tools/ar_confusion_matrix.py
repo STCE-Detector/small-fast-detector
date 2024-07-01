@@ -88,7 +88,7 @@ class ARConfusionMatrix:
         iou_thres (float): The Intersection over Union threshold.
     """
 
-    def __init__(self, nc=4, conf=0.25, iou_thres=0.45, class_names=['SS', 'SR', 'FA', 'G']):
+    def __init__(self, nc=4, conf=0.25, iou_thres=0.45, class_names=()):
         """Initialize attributes for the YOLO model."""
         self.confusion_matrices = [torch.zeros((2, 2)) for _ in range(nc)]
         self.nc = nc  # number of classes
@@ -114,7 +114,7 @@ class ARConfusionMatrix:
             detections (Array[N, 9]): Detected bounding boxes and their associated information.
                                       Each row should contain (x1, y1, x2, y2, conf, class1_conf, class2_conf, class3_conf, class4_conf).
             gt_bboxes (Array[M, 4]): Ground truth bounding boxes with xyxy format.
-            gt_cls (Array[M, 4]): The class labels for each category.
+            gt_cls (Array[M, B]): The class labels for each category.
         """
         # Check dimensions
         assert detections.shape[1] == 5 + self.nc, f"Detected {detections.shape[1]} classes, expected {5 + self.nc}"
@@ -135,7 +135,7 @@ class ARConfusionMatrix:
             return
 
         if detections is None:
-            for i in range(4):
+            for i in range(self.nc):
                 gt_classes = gt_cls[:, i].int()
                 for gc in gt_classes:
                     if gc != 0:
@@ -266,7 +266,7 @@ class ARConfusionMatrix:
         fig, ax = plt.subplots(1, 1, figsize=(8, 6), tight_layout=True)
         nc, nn = 2, 2  # number of classes, names
         sn.set(font_scale=1.2 if nc < 50 else 0.8)  # for label size
-        ticklabels = "auto"
+        ticklabels = ["Null", "Active"]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")  # suppress empty matrix RuntimeWarning: All-NaN slice encountered
             sn.heatmap(
