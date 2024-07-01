@@ -1,15 +1,20 @@
 {
-  "name": "MOTHupba-train",
+  "name": null,
 
   "data_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train/",
-  "pred_dir": "./outputs/tracks/MOTHupba-train/BT_AR_YOLOv8s-P2-640/",
-  "output_dir": "./outputs",
+  "pred_dir": "./outputs/tracks/MOTHupba-train/BT_1stagebest-AR_original_cdv3_8sp2_150e_128b/",
 
   "action_recognition": {
+    "active_behaviors": ["SS", "SR", "FA", "G"],
     "discriminate_groups": true,
+
     "confidence_threshold": 0.3,
     "iou_threshold": 0.3,
-    "smoothing_window": 0,
+
+    "smoothing_window": 50,
+    "initial_pad": 150,
+    "final_pad": 30,
+
     "save_results": true,
     "print_results": true
   }

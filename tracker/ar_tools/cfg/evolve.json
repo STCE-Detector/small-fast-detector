@@ -1,35 +1,35 @@
 {
-  "name": "BT_AR",
+  "name": "GS-ByteTrack",
 
   "tracker_name": "ByteTrack",
 
-  "source_detections_dir": "./../evaluation/outputs/detections/YOLOv8s-P2-640/MOTHupba-train",
+  "source_detections_dir": "./../evaluation/outputs/detections/cdv3_8sp2_150e_128b/MOTHupba-train",
   "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
   "only_behavior": true,
 
   "device": "mps",
 
   "tracker_args": {
-    "track_high_thresh": 0.43,
-    "track_low_thresh": 0.1,
-    "new_track_thresh": 0.22,
-    "first_match_thresh": 0.84,
-    "second_match_thresh": 0.71,
-    "new_match_thresh": 0.86,
+    "track_high_thresh": 0.1,
+    "track_low_thresh": 0.21,
+    "new_track_thresh": 0.38,
+    "first_match_thresh": 0.96,
+    "second_match_thresh": 0.8,
+    "new_match_thresh": 0.51,
     "first_buffer": 0.01,
-    "second_buffer": 0.04,
-    "new_buffer": 0.13,
-    "first_fuse": 0,
+    "second_buffer": 0.37,
+    "new_buffer": 0.0,
+    "first_fuse": 1,
     "second_fuse": 0,
-    "new_fuse": 0,
-    "first_iou": 0,
-    "second_iou": 3,
-    "new_iou": 5,
-    "cw_thresh": 0.87,
+    "new_fuse": 1,
+    "first_iou": 3,
+    "second_iou": 1,
+    "new_iou": 3,
+    "cw_thresh": 0.58,
     "nk_flag": 0,
-    "nk_alpha": 140,
+    "nk_alpha": 70,
 
-    "track_buffer": 50,
+    "track_buffer": 350,
 
     "proximity_thresh": 0.9,
     "appearance_thresh": 0.8,
@@ -48,7 +48,7 @@
       "enabled": true,
       "min_people": 3,
       "distance_threshold": 1.0,
-      "area_threshold": 2,
+      "area_threshold": 0.5,
       "speed_threshold": 0.001
     },
 
