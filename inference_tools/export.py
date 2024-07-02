@@ -5,8 +5,7 @@ import torch
 from torch import Tensor
 import json
 import onnx
-from onnxsim import simplify
-from onnxoptimizer import optimize
+import onnxslim
 
 def export_to_onnx(
     model: torch.nn.Module,
@@ -87,16 +86,10 @@ if __name__ == "__main__":
         # Simplify ONNX file
         onnx_model = onnx.load(onnx_output_file + ".onnx")
         onnx.checker.check_model(onnx_model)
-        onnx_model_simp, check = simplify(onnx_model)
-        assert check, "Simplified ONNX model could not be validated"
+        try:
+            onnx_model_simp = onnxslim.slim(onnx_model)
+        except Exception as e:
+            print(f"❌ Error while simplifying ONNX file: {e}")
+            onnx_model_simp = onnx_model
         onnx.save(onnx_model_simp, onnx_output_file + "_simplified.onnx")
-
-    if config["optimize_onnx"] and config["simplify_onnx"]:
-        print("🔧 Optimizing ONNX file...")
-        # Optimize ONNX file
-        onnx_model = onnx.load(onnx_output_file + "_simplified.onnx")
-        passes = ["fuse_bn_into_conv", "fuse_add_bias_into_conv", ]
-        onnx_model_opt = optimize(onnx_model, passes)
-        onnx.save(onnx_model_opt, onnx_output_file + "_simplified" + "_optimized.onnx")
-
     print("✅ Model exported successfully! 🎉")

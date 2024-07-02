@@ -2,7 +2,6 @@
 # Example: pip install -r requirements.txt
 
 # Base ----------------------------------------
-cmake
 lapx
 matplotlib>=3.8.4
 numpy>=1.26.4 # pinned by Snyk to avoid a vulnerability
@@ -33,9 +32,7 @@ onnxruntime>=1.17.3; python_version != '3.9' and sys_platform == 'darwin' and pl
 onnxruntime-coreml>=1.13.1; python_version == '3.9' and sys_platform == 'darwin' and platform_machine != 'arm64'
 onnxruntime-silicon>=1.16.3; sys_platform == 'darwin' and platform_machine == 'arm64'
 # onnxruntime-gpu>=1.16.3; sys_platform != 'darwin'
-onnxsim>=0.4.36
-onnxoptimizer>=0.3.13
-
+onnxslim>=0.1.31  # ONNX slimming
 # nvidia-pyindex; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
 # nvidia-tensorrt; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
 # scikit-learn==0.19.2  # CoreML quantization
