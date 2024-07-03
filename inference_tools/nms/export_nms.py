@@ -183,26 +183,15 @@ def torch_export(
     for node in model_onnx.graph.output:
         for idx, dim in enumerate(node.type.tensor_type.shape.dim):
             dim.dim_param = str(shapes[node.name][idx])
-
-    if simplify:
+    if slim:
         try:
-            import onnxsim
-
-            logger.success(f"Simplifying with onnxsim {onnxsim.__version__}...")
-            model_onnx, check = onnxsim.simplify(model_onnx)
-            assert check, "Simplified ONNX model could not be validated"
+            import onnxslim
+            logger.info(f"Slimming with {onnxslim.__version__}...")
+            model_onnx, check = onnxslim.slim(model_onnx)
+            print("Finish! Here is the difference:")
+            assert check, "Slimmer ONNX model could not be validated"
         except Exception as e:
-            logger.warning(f"Simplifier failure: {e}")
-
-        if slim:
-            try:
-                import onnxslim
-                logger.info(f"Slimming with {onnxslim.__version__}...")
-                model_onnx, check = onnxslim.slim(model_onnx)
-                print("Finish! Here is the difference:")
-                assert check, "Slimmer ONNX model could not be validated"
-            except Exception as e:
-                logger.warning(f"slimmer failure: {e}")
+            logger.warning(f"slimmer failure: {e}")
 
     onnx.save(model_onnx, onnx_filepath)
     onnx.save(model_onnx, onnx_filepath)
