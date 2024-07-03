@@ -114,7 +114,6 @@ def torch_export(
     iou_thres: Optional[float] = 0.7,
     conf_thres: Optional[float] = 0.1,
     opset_version: Optional[int] = 17,
-    simplify: Optional[bool] = True,
     slim: Optional[bool] = False,
     repo_dir: Optional[str] = None,
 ) -> None:
@@ -131,7 +130,6 @@ def torch_export(
         iou_thres (Optional[float], optional): NMS IoU threshold for post-processing. Defaults to 0.45.
         conf_thres (Optional[float], optional): Confidence threshold for object detection. Defaults to 0.25.
         opset_version (Optional[int], optional): ONNX opset version. Defaults to 11.
-        simplify (Optional[bool], optional): Whether to simplify the exported ONNX. Defaults to True.
         repo_dir (Optional[str], optional): Directory containing the local repository (if using torch.hub.load). Defaults to None.
     """
     logger.info("Starting export with Pytorch.")
@@ -220,8 +218,6 @@ def main():
     parser.add_argument('--conf_thres', type=float, default=0.1,
                         help="Confidence threshold for object detection. Defaults to 0.1.")
     parser.add_argument('--opset_version', type=int, default=17, help="ONNX opset version. Defaults to 11.")
-    parser.add_argument('--simplify', type=bool, default=True,
-                        help="Whether to simplify the exported ONNX. Defaults to True.")
     parser.add_argument('--slim', type=bool, default=False, help="Whether to slim the exported ONNX. Defaults to True.")
     parser.add_argument('--repo_dir', type=str,
                         help="Directory containing the local repository (if using torch.hub.load).")
@@ -237,7 +233,6 @@ def main():
         iou_thres=args.iou_thres,
         conf_thres=args.conf_thres,
         opset_version=args.opset_version,
-        simplify=args.simplify,
         slim=args.slim,
         repo_dir=args.repo_dir,
     )
