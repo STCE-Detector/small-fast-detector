@@ -236,7 +236,7 @@ class Mosaic(BaseMixTransform):
             padw, padh = c[:2]
             x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coords
 
-            img3[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img3[ymin:ymax, xmin:xmax]
+            img3[y1:y2, x1:x2] = img[y1 - padh:, x1 - padw:]  # img3[ymin:ymax, xmin:xmax]
             # hp, wp = h, w  # height, width previous for next iteration
 
             # Labels assuming imgsz*2 mosaic size
@@ -244,7 +244,7 @@ class Mosaic(BaseMixTransform):
             mosaic_labels.append(labels_patch)
         final_labels = self._cat_labels(mosaic_labels)
 
-        final_labels["img"] = img3[-self.border[0] : self.border[0], -self.border[1] : self.border[1]]
+        final_labels["img"] = img3[-self.border[0]: self.border[0], -self.border[1]: self.border[1]]
         return final_labels
 
     def _mosaic4(self, labels):
@@ -320,7 +320,7 @@ class Mosaic(BaseMixTransform):
             x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coords
 
             # Image
-            img9[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img9[ymin:ymax, xmin:xmax]
+            img9[y1:y2, x1:x2] = img[y1 - padh:, x1 - padw:]  # img9[ymin:ymax, xmin:xmax]
             hp, wp = h, w  # height, width previous for next iteration
 
             # Labels assuming imgsz*2 mosaic size
@@ -328,7 +328,7 @@ class Mosaic(BaseMixTransform):
             mosaic_labels.append(labels_patch)
         final_labels = self._cat_labels(mosaic_labels)
 
-        final_labels["img"] = img9[-self.border[0] : self.border[0], -self.border[1] : self.border[1]]
+        final_labels["img"] = img9[-self.border[0]: self.border[0], -self.border[1]: self.border[1]]
         return final_labels
 
     @staticmethod
@@ -420,7 +420,7 @@ class RandomPerspective:
     """
 
     def __init__(
-        self, degrees=0.0, translate=0.1, scale=0.5, shear=0.0, perspective=0.0, border=(0, 0), pre_transform=None
+            self, degrees=0.0, translate=0.1, scale=0.5, shear=0.0, perspective=0.0, border=(0, 0), pre_transform=None
     ):
         """Initializes RandomPerspective object with transformation parameters."""
 
@@ -674,6 +674,42 @@ class RandomHSV:
 
             im_hsv = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val)))
             cv2.cvtColor(im_hsv, cv2.COLOR_HSV2BGR, dst=img)  # no return needed
+        return labels
+
+
+class RandomToInfrared:
+    """
+    This class is responsible for randomly converting an image to infrared by setting all channels to the red channel.
+    """
+
+    def __init__(self, p=0.2) -> None:
+        """
+        Initialize RandomToInfrared class.
+
+        Args:
+            probability (float): Probability of converting the image to infrared. Default is 0.5.
+        """
+        self.p = p
+
+    def __call__(self, labels):
+        """
+        Randomly converts the image in 'labels' dict to infrared by setting all channels to the red channel.
+
+        Args:
+            labels (dict): A dictionary containing the image under the key 'img'.
+
+        Returns:
+            dict: The updated labels dictionary with the image converted to infrared if the random condition is met.
+        """
+        img = labels["img"]
+        if img.shape[-1] == 3:  # Color image
+            if np.random.random() < self.p:
+                # Extract the red channel (assuming image is in BGR format)
+                red_channel = img[:, :, 2]  # BGR format, red channel is the third channel
+
+                # Create an infrared image by replicating the red channel across all three channels
+                infrared_img = np.stack((red_channel, red_channel, red_channel), axis=-1)
+                labels["img"] = infrared_img
         return labels
 
 
@@ -942,16 +978,16 @@ class Format:
     """
 
     def __init__(
-        self,
-        bbox_format="xywh",
-        normalize=True,
-        return_mask=False,
-        return_keypoint=False,
-        return_obb=False,
-        mask_ratio=4,
-        mask_overlap=True,
-        batch_idx=True,
-        bgr=0.0,
+            self,
+            bbox_format="xywh",
+            normalize=True,
+            return_mask=False,
+            return_keypoint=False,
+            return_obb=False,
+            mask_ratio=4,
+            mask_overlap=True,
+            batch_idx=True,
+            bgr=0.0,
     ):
         """Initializes the Format class with given parameters."""
         self.bbox_format = bbox_format
@@ -1043,12 +1079,12 @@ class RandomLoadText:
     """
 
     def __init__(
-        self,
-        prompt_format: str = "{}",
-        neg_samples: Tuple[int, int] = (80, 80),
-        max_samples: int = 80,
-        padding: bool = False,
-        padding_value: str = "",
+            self,
+            prompt_format: str = "{}",
+            neg_samples: Tuple[int, int] = (80, 80),
+            max_samples: int = 80,
+            padding: bool = False,
+            padding_value: str = "",
     ) -> None:
         """Initializes the RandomLoadText class with given parameters."""
         self.prompt_format = prompt_format
@@ -1140,17 +1176,19 @@ def v8_transforms(dataset, imgsz, hyp, stretch=False):
             RandomHSV(hgain=hyp.hsv_h, sgain=hyp.hsv_s, vgain=hyp.hsv_v),
             RandomFlip(direction="vertical", p=hyp.flipud),
             RandomFlip(direction="horizontal", p=hyp.fliplr, flip_idx=flip_idx),
+            RandomToInfrared(p=hyp.infrared),
+
         ]
     )  # transforms
 
 
 # Classification augmentations -----------------------------------------------------------------------------------------
 def classify_transforms(
-    size=224,
-    mean=DEFAULT_MEAN,
-    std=DEFAULT_STD,
-    interpolation=Image.BILINEAR,
-    crop_fraction: float = DEFAULT_CROP_FRACTION,
+        size=224,
+        mean=DEFAULT_MEAN,
+        std=DEFAULT_STD,
+        interpolation=Image.BILINEAR,
+        crop_fraction: float = DEFAULT_CROP_FRACTION,
 ):
     """
     Classification transforms for evaluation/inference. Inspired by timm/data/transforms_factory.py.
@@ -1196,20 +1234,20 @@ def classify_transforms(
 
 # Classification training augmentations --------------------------------------------------------------------------------
 def classify_augmentations(
-    size=224,
-    mean=DEFAULT_MEAN,
-    std=DEFAULT_STD,
-    scale=None,
-    ratio=None,
-    hflip=0.5,
-    vflip=0.0,
-    auto_augment=None,
-    hsv_h=0.015,  # image HSV-Hue augmentation (fraction)
-    hsv_s=0.4,  # image HSV-Saturation augmentation (fraction)
-    hsv_v=0.4,  # image HSV-Value augmentation (fraction)
-    force_color_jitter=False,
-    erasing=0.0,
-    interpolation=Image.BILINEAR,
+        size=224,
+        mean=DEFAULT_MEAN,
+        std=DEFAULT_STD,
+        scale=None,
+        ratio=None,
+        hflip=0.5,
+        vflip=0.0,
+        auto_augment=None,
+        hsv_h=0.015,  # image HSV-Hue augmentation (fraction)
+        hsv_s=0.4,  # image HSV-Saturation augmentation (fraction)
+        hsv_v=0.4,  # image HSV-Value augmentation (fraction)
+        force_color_jitter=False,
+        erasing=0.0,
+        interpolation=Image.BILINEAR,
 ):
     """
     Classification transforms with augmentation for training. Inspired by timm/data/transforms_factory.py.
@@ -1337,7 +1375,7 @@ class ClassifyLetterBox:
 
         # Create padded image
         im_out = np.full((hs, ws, 3), 114, dtype=im.dtype)
-        im_out[top : top + h, left : left + w] = cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
+        im_out[top: top + h, left: left + w] = cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
         return im_out
 
 
@@ -1365,7 +1403,7 @@ class CenterCrop:
         imh, imw = im.shape[:2]
         m = min(imh, imw)  # min dimension
         top, left = (imh - m) // 2, (imw - m) // 2
-        return cv2.resize(im[top : top + m, left : left + m], (self.w, self.h), interpolation=cv2.INTER_LINEAR)
+        return cv2.resize(im[top: top + m, left: left + m], (self.w, self.h), interpolation=cv2.INTER_LINEAR)
 
 
 # NOTE: keep this class for backward compatibility
