@@ -205,10 +205,10 @@ class ARConfusionMatrix:
         # Store metrics into a DataFrame and save it to a CSV file
         import pandas as pd
         metrics = [
-            {'Class': 'Micro', 'Precision': self.micro_precision, 'Recall': self.micro_recall, 'F2': self.micro_f},
-            {'Class': 'Macro', 'Precision': self.macro_precision, 'Recall': self.macro_recall, 'F2': self.macro_f}]
+            {'Class': 'Micro', 'Precision': self.micro_precision, 'Recall': self.micro_recall, 'F': self.micro_f},
+            {'Class': 'Macro', 'Precision': self.macro_precision, 'Recall': self.macro_recall, 'F': self.macro_f}]
         for class_name, i in self.class_names.items():
-            metrics.append({'Class': class_name, 'Precision': self.behaviour_precisions[i], 'Recall': self.behaviour_recalls[i], 'F2': self.behaviour_f[i]})
+            metrics.append({'Class': class_name, 'Precision': self.behaviour_precisions[i], 'Recall': self.behaviour_recalls[i], 'F': self.behaviour_f[i]})
         metrics_df = pd.DataFrame(metrics)
 
         if print_results:
@@ -229,7 +229,7 @@ class ARConfusionMatrix:
         combined_matrix = torch.stack(self.confusion_matrices, 0).sum(0)
         self.macro_recall = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1])).item()
         self.macro_precision = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0])).item()
-        self.macro_f = self.f_metric(self.macro_precision, self.macro_recall, beta=2.0)
+        self.macro_f = self.f_metric(self.macro_precision, self.macro_recall, beta=0.5)
 
     def micro_metrics(self):
         for matrix in self.confusion_matrices:
@@ -242,7 +242,7 @@ class ARConfusionMatrix:
         self.micro_precision = sum(self.behaviour_precisions) / len(self.behaviour_precisions)
 
         for precisions, recalls in zip(self.behaviour_precisions, self.behaviour_recalls):
-            self.behaviour_f.append(self.f_metric(precisions, recalls, beta=2.0))
+            self.behaviour_f.append(self.f_metric(precisions, recalls, beta=0.5))
         self.micro_f = sum(self.behaviour_f) / len(self.behaviour_f)
 
     @staticmethod
