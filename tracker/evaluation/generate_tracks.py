@@ -33,7 +33,7 @@ class SequenceProcessor:
 
         self.device = config["device"]
 
-        self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.sequence_info)
+        self.tracker = getattr(trackers, config["tracker_name"])(config, self.sequence_info)
         self.data_dict = {
             "frame_id": [],
             "tracker_id": [],

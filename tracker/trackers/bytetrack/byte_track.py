@@ -50,7 +50,7 @@ class STrack(BaseTrack):
 
     shared_kalman = KalmanFilterXYAH()
 
-    def __init__(self, tlwh, score, cls, feat=None, feat_history=50):
+    def __init__(self, tlwh, score, cls, feat=None, feat_history=50, speed_buffer_len=5, frame_stride=30):
         """Initialize new STrack instance."""
         self._tlwh = np.asarray(self.tlbr_to_tlwh(tlwh[:-1]), dtype=np.float32)
         self.kalman_filter = None
@@ -75,8 +75,8 @@ class STrack(BaseTrack):
 
         # Action recognition: widow of previous states
         self.prev_states = []
-        self.speed_buffer_len = 5
-        self.frame_stride = 30
+        self.speed_buffer_len = speed_buffer_len
+        self.frame_stride = frame_stride
 
         # Action recognition: EMA speed
         """
@@ -302,7 +302,7 @@ class ByteTrack:
         remove_duplicate_stracks(stracksa, stracksb): Removes duplicate stracks based on IOU.
     """
 
-    def __init__(self, args, video_info):
+    def __init__(self, config, video_info):
         """Initialize a YOLOv8 object to track objects with given arguments and frame rate."""
 
         self.active_tracks = []     # Only for csv writing
@@ -312,20 +312,20 @@ class ByteTrack:
         self.reset_id()
 
         self.frame_id = 0
-        self.args = args
+        self.args = config["tracker_args"]
 
-        self.track_high_thresh = args["track_high_thresh"]
-        self.track_low_thresh = args["track_low_thresh"]
-        self.new_track_thresh = args["new_track_thresh"]
-        self.first_match_thresh = args["first_match_thresh"]
-        self.second_match_thresh = args["second_match_thresh"]
-        self.new_match_thresh = args["new_match_thresh"]
-        self.first_buffer = args["first_buffer"]
-        self.second_buffer = args["second_buffer"]
-        self.new_buffer = args["new_buffer"]
-        self.first_fuse = args["first_fuse"]
-        self.second_fuse = args["second_fuse"]
-        self.new_fuse = args["new_fuse"]
+        self.track_high_thresh = self.args["track_high_thresh"]
+        self.track_low_thresh = self.args["track_low_thresh"]
+        self.new_track_thresh = self.args["new_track_thresh"]
+        self.first_match_thresh = self.args["first_match_thresh"]
+        self.second_match_thresh = self.args["second_match_thresh"]
+        self.new_match_thresh = self.args["new_match_thresh"]
+        self.first_buffer = self.args["first_buffer"]
+        self.second_buffer = self.args["second_buffer"]
+        self.new_buffer = self.args["new_buffer"]
+        self.first_fuse = self.args["first_fuse"]
+        self.second_fuse = self.args["second_fuse"]
+        self.new_fuse = self.args["new_fuse"]
 
         self.iou_type_dict = {
             0: 'iou',
@@ -335,26 +335,26 @@ class ByteTrack:
             4: 'bbsi',
             5: 'hmiou',
         }
-        self.first_iou = self.iou_type_dict[args["first_iou"]]
-        self.second_iou = self.iou_type_dict[args["second_iou"]]
-        self.new_iou = self.iou_type_dict[args["new_iou"]]
+        self.first_iou = self.iou_type_dict[self.args["first_iou"]]
+        self.second_iou = self.iou_type_dict[self.args["second_iou"]]
+        self.new_iou = self.iou_type_dict[self.args["new_iou"]]
 
-        self.buffer_size = np.int8(video_info.fps / 30.0 * args["track_buffer"])
+        self.buffer_size = np.int8(video_info.fps / 30.0 * self.args["track_buffer"])
         self.max_time_lost = self.buffer_size
-        self.cw_thresh = args["cw_thresh"]   # 0 to deactivate
-        self.nk_flag = args["nk_flag"]
-        self.nk_alpha = args["nk_alpha"]
+        self.cw_thresh = self.args["cw_thresh"]   # 0 to deactivate
+        self.nk_flag = self.args["nk_flag"]
+        self.nk_alpha = self.args["nk_alpha"]
         self.kalman_filter = self.get_kalmanfilter()
 
         # ReID module
-        self.with_reid = args["with_reid"]
-        self.device = args["device"]
-        self.proximity_thresh = args["proximity_thresh"]
-        self.appearance_thresh = args["appearance_thresh"]
+        self.with_reid = self.args["with_reid"]
+        self.device = self.args["device"]
+        self.proximity_thresh = self.args["proximity_thresh"]
+        self.appearance_thresh = self.args["appearance_thresh"]
 
         if self.with_reid:
-            if args["reid_default"]:
-                self.weight_path = args["weight_path"]
+            if self.args["reid_default"]:
+                self.weight_path = self.args["weight_path"]
                 # check if self.weight_path is exists if not asset
                 if not os.path.exists(self.weight_path):
                     safe_download('https://drive.google.com/file/d/1RDuVo7jYBkyBR4ngnBaVQUtHL8nAaGaL/view',
@@ -371,7 +371,17 @@ class ByteTrack:
                 self.with_reid = False
 
         # GMC module
-        self.gmc = GMC(method=args["gmc_method"])   # TODO: review the GMC module, bouncing boxes
+        self.gmc = GMC(method=self.args["gmc_method"])   # TODO: review the GMC module, bouncing boxes
+
+        # Action Recognition
+        # TODO: solve when config is ConfigParser
+        if "action_recognition" in config:
+            self.speed_buffer_len = config["action_recognition"]["speed_buffer_len"]
+            self.frame_stride = config["action_recognition"]["frame_stride"]
+        else:
+            # TODO: use best known values
+            self.speed_buffer_len = 5
+            self.frame_stride = 30
 
     def update(self, results, img=None):
         """Updates object tracker with new detections and returns tracked object bounding boxes."""
@@ -577,9 +587,17 @@ class ByteTrack:
         if len(dets) > 0:
             """Detections."""
             if self.with_reid and features is not None:
-                detections = [STrack(xyxy, s, c, f) for (xyxy, s, c, f) in zip(dets, scores, cls, features)]
+                detections = [STrack(xyxy,
+                                     s, c, f,
+                                     speed_buffer_len=self.speed_buffer_len,
+                                     frame_stride=self.frame_stride)
+                              for (xyxy, s, c, f) in zip(dets, scores, cls, features)]
             else:
-                detections = [STrack(xyxy, s, c) for (xyxy, s, c) in zip(dets, scores, cls)]
+                detections = [STrack(xyxy,
+                                     s, c,
+                                     speed_buffer_len=self.speed_buffer_len,
+                                     frame_stride=self.frame_stride)
+                              for (xyxy, s, c) in zip(dets, scores, cls)]
         else:
             detections = []
 

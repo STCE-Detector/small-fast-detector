@@ -86,7 +86,7 @@ class VideoProcessor(QObject):
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
         # TODO : CHECK TO PUT IN A THREAD
-        self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.video_info)
+        self.tracker = getattr(trackers, config["tracker_name"])(config, self.video_info)
 
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)

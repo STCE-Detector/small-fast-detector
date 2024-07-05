@@ -3,11 +3,18 @@
 
   "tracker_name": "ByteTrack",
 
-  "source_detections_dir": "./../evaluation/outputs/detections/cdv3_8sp2_150e_128b/MOTHupba-train",
-  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
-  "only_behavior": true,
+  "source_detections_dir": "./../evaluation/outputs/detections/cdv3_8sp2_150e_128b/MOTcustom",
+  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTcustom",
 
-  "device": "mps",
+  "device": "cpu",
+
+  "evolve": {
+    "n_trials": 100,
+    "objective": "FA",
+    "projection": false,
+    "post_process": false,
+    "buffer": false
+  },
 
   "tracker_args": {
     "track_high_thresh": 0.1,
@@ -42,7 +49,9 @@
 
   "action_recognition": {
     "enabled": true,
-    "speed_projection": [0.7, 1.5],
+    "speed_buffer_len": 3,
+    "frame_stride": 20,
+    "speed_projection": [1.4368130286285825, 1.358710274910445],
 
     "gather": {
       "enabled": true,
@@ -54,7 +63,7 @@
 
     "stand_still": {
       "enabled": true,
-      "speed_threshold": 0.001
+      "speed_threshold": 0.004367490463323766
     },
 
     "fast_approach": {

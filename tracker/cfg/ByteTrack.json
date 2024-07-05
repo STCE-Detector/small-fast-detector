@@ -58,10 +58,12 @@
 
   "action_recognition": {
     "enabled": true,
-    "speed_projection": [0.7, 1.5],
+    "speed_buffer_len": 3,
+    "frame_stride": 20,
+    "speed_projection": [1.4368130286285825, 1.358710274910445],
 
     "gather": {
-      "enabled": true,
+      "enabled": false,
       "min_people": 3,
       "distance_threshold": 1.0,
       "area_threshold": 0.5,
@@ -70,23 +72,23 @@
 
     "stand_still": {
       "enabled": true,
-      "speed_threshold": 0.001
+      "speed_threshold": 0.004367490463323766
     },
 
     "fast_approach": {
-      "enabled": true,
+      "enabled": false,
       "draw": true,
       "distance_threshold": 4,
       "speed_threshold": 0.005
     },
 
     "suddenly_run": {
-      "enabled": true,
+      "enabled": false,
       "speed_threshold": 0.025
     },
 
     "overstep_boundary": {
-      "enabled": true,
+      "enabled": false,
       "draw": true,
       "line": [0, 0, 1920, 1080],
       "region": "top"
