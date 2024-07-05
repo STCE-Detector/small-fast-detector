@@ -78,7 +78,7 @@ class AREvaluator:
             df: pd.DataFrame, dataframe with the loaded data
         """
         if not os.path.exists(df_path):
-            if not self.print_results:
+            if self.print_results:
                 print(f'No dataframe found for sequence {seq_name}, skipping')
             return None
 

@@ -85,6 +85,7 @@ def add_actions(sequence_path):
 
     intervals_columns = ['id', 'start_frame', 'end_frame', 'SS', 'SR', 'FA', 'G']
     intervals_df = pd.read_csv(actions_path, names=intervals_columns, usecols=[i for i in range(len(intervals_columns))], header=0)
+    intervals_df = intervals_df.astype(int)
     # Correct visualization tool's 0-based indexing
     intervals_df['start_frame'] = intervals_df['start_frame'] + 1
     intervals_df['end_frame'] = intervals_df['end_frame'] + 1
@@ -103,7 +104,7 @@ if __name__ == "__main__":
 
     # Get all sequences
     sequences = [sequence for sequence in os.listdir(dataset_root) if os.path.isdir(os.path.join(dataset_root, sequence))]
-    sequences = ['36']
+    sequences = ['11']
 
     # Iterate over all sequences
     for sequence in tqdm(sequences, desc='Evaluating sequences', unit=' sequences'):
