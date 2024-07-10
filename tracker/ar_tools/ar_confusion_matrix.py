@@ -225,25 +225,25 @@ class ARConfusionMatrix:
 
         return metrics_df
 
-    def macro_metrics(self):
-        combined_matrix = torch.stack(self.confusion_matrices, 0).sum(0)
-        self.macro_recall = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1])).item()
-        self.macro_precision = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0])).item()
-        self.macro_f = self.f_metric(self.macro_precision, self.macro_recall, beta=0.5)
-
     def micro_metrics(self):
+        combined_matrix = torch.stack(self.confusion_matrices, 0).sum(0)
+        self.micro_recall = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1])).item()
+        self.micro_precision = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0])).item()
+        self.micro_f = self.f_metric(self.micro_precision, self.micro_recall, beta=1.0)
+
+    def macro_metrics(self):
         for matrix in self.confusion_matrices:
             tp = matrix[1, 1]
             fp = matrix[1, 0]
             fn = matrix[0, 1]
             self.behaviour_precisions.append((tp / (tp + fp + 1e-9)).item())
             self.behaviour_recalls.append((tp / (tp + fn + 1e-9)).item())
-        self.micro_recall = sum(self.behaviour_recalls) / len(self.behaviour_recalls)
-        self.micro_precision = sum(self.behaviour_precisions) / len(self.behaviour_precisions)
+        self.macro_recall = sum(self.behaviour_recalls) / len(self.behaviour_recalls)
+        self.macro_precision = sum(self.behaviour_precisions) / len(self.behaviour_precisions)
 
         for precisions, recalls in zip(self.behaviour_precisions, self.behaviour_recalls):
-            self.behaviour_f.append(self.f_metric(precisions, recalls, beta=0.5))
-        self.micro_f = sum(self.behaviour_f) / len(self.behaviour_f)
+            self.behaviour_f.append(self.f_metric(precisions, recalls, beta=1.0))
+        self.macro_f = sum(self.behaviour_f) / len(self.behaviour_f)
 
     @staticmethod
     def f_metric(precision, recall, beta=1.0):
