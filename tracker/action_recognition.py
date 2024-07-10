@@ -180,11 +180,12 @@ class ActionRecognizer:
             if (det1.class_ids == 0) and (det2.class_ids == 0):
                 distance, a1, a2 = self.compute_ned(det1, det2)
                 # If the distance between the detections is less than the threshold and the areas are similar
-                if distance <= self.g_distance_threshold and min(a1, a2) / max(a1, a2) <= self.g_area_threshold:
+                if distance <= self.g_distance_threshold and min(a1, a2) / (max(a1, a2) + 1e-9) <= self.g_area_threshold:
                     pixel_s1, _ = self.get_motion_descriptors(det1)
                     pixel_s2, _ = self.get_motion_descriptors(det2)
-                    # If both detections are standing still
-                    # TODO: similar speed?
+                    # Enforce that both detections have similar speeds
+                    # if min(pixel_s1, pixel_s2) / (max(pixel_s1, pixel_s2) + 1e-9) <= self.g_speed_threshold:
+                    # If both detections have low speed
                     if pixel_s1 < self.g_speed_threshold and pixel_s2 < self.g_speed_threshold:
                         pairs.append([i, j])
 
@@ -299,11 +300,13 @@ class ActionRecognizer:
         # Area normalizer
         a = np.sqrt(track.tlwh[2] * track.tlwh[3])
         # Average speed
-        # TODO: right now its using whole sequence, for instant speed use only last 2 states. Is sequence too long?
-        avg_speed = np.mean(np.sqrt(np.sum(increments ** 2, axis=1))) / (track.frame_stride * a)
-        # Sign of the increments in Y axis
-        direction = np.mean(np.sign(increments[:, 1]))
-        return avg_speed, direction
+        if len(increments) == 0:
+            return 0, 0
+        else:
+            avg_speed = np.mean(np.sqrt(np.sum(increments ** 2, axis=1))) / (track.frame_stride * a)
+            # Sign of the increments in Y axis
+            direction = np.mean(np.sign(increments[:, 1]))
+            return avg_speed, direction
 
     def recognize_fast_approach(self, tracks):
         valid_classes = [0,1,2]  # TODO: should also include car and truck, different thresholds? v*X
