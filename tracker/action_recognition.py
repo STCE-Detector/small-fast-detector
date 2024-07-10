@@ -180,10 +180,11 @@ class ActionRecognizer:
             if (det1.class_ids == 0) and (det2.class_ids == 0):
                 distance, a1, a2 = self.compute_ned(det1, det2)
                 # If the distance between the detections is less than the threshold and the areas are similar
-                if distance <= self.g_distance_threshold and max(a1, a2) / min(a1, a2) <= self.g_area_threshold:
+                if distance <= self.g_distance_threshold and min(a1, a2) / max(a1, a2) <= self.g_area_threshold:
                     pixel_s1, _ = self.get_motion_descriptors(det1)
                     pixel_s2, _ = self.get_motion_descriptors(det2)
                     # If both detections are standing still
+                    # TODO: similar speed?
                     if pixel_s1 < self.g_speed_threshold and pixel_s2 < self.g_speed_threshold:
                         pairs.append([i, j])
 
