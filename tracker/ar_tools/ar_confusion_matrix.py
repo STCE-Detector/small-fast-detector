@@ -227,8 +227,8 @@ class ARConfusionMatrix:
 
     def micro_metrics(self):
         combined_matrix = torch.stack(self.confusion_matrices, 0).sum(0)
-        self.micro_recall = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1])).item()
-        self.micro_precision = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0])).item()
+        self.micro_recall = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1] + 1e-9)).item()
+        self.micro_precision = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0] + 1e-9)).item()
         self.micro_f = self.f_metric(self.micro_precision, self.micro_recall, beta=1.0)
 
     def macro_metrics(self):
