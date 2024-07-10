@@ -21,7 +21,7 @@ device = [0]
 
 
 #  START OF EVALUATION
-print("🚀...WELCOME TO EVALUATION DETECTOR MODEL...")
+print("🚀...WELCOME TO EVALUATION INFRARED DETECTOR MODEL...")
 
 print("🚀...Initializing model...")
 model = YOLO(model_path, task='detect')
