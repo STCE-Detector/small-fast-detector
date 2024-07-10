@@ -1,0 +1,14 @@
+path: /data-fast/128-data1/ierregue/datasets/IR_test_set  # dataset root dir
+# path: /data-fast/128-data1/ierregue/datasets/custom_dataset_v4
+train: images/train  # train images (relative to 'path')
+val: images/val  # val images (relative to 'path')
+test:
+
+# Classes
+names:
+  0: person
+  1: car
+  2: truck
+  3: uav
+  4: airplane
+  5: boat
