@@ -15,7 +15,6 @@ def ar_optuna_fitness_fn(trial, config, objective, param_names):
     # OVERRIDE CONFIG WITH SOLUTION
     ###############################
 
-    objective = config["evolve"]["objective"]
     include_projection = config["evolve"]["projection"]
     include_buffer = config["evolve"]["buffer"]
 
