@@ -8,9 +8,9 @@ import torch
 from tqdm import tqdm
 from pathlib import Path
 from pycocotools.coco import COCO
-from evaluation_tools.jetson.coco_eval import COCOeval
 from tracker.jetson.model.model import Yolov8
 from ultralytics.utils import ops
+from ultralytics.utils.cocoeval import COCOeval
 from ultralytics.utils.metrics import ConfusionMatrix
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"

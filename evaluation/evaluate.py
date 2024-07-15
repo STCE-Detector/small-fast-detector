@@ -12,6 +12,9 @@ with open("./eval_config.json", "r") as f:
     config = json.load(f)
 print("Loaded config: ", config)
 
+# TODO: if "nms_wrapper":
+# NMS Wrapper Evaluation CALLED HERE
+
 
 #  START OF EVALUATION
 print("🚀...WELCOME TO EVALUATION DETECTOR MODEL...")
