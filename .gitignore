@@ -180,4 +180,5 @@ pnnx*
 /tracker/evaluation/outputs/
 /tracker/finetune/outputs/
 /debug/
-/tracker/ar_tools/outputs/
+/tracker/action_recognition/outputs/
+/data/
