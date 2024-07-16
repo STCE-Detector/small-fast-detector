@@ -1,5 +1,7 @@
 import os
 import json
+import time
+
 import yaml
 import cv2
 import numpy as np
@@ -139,7 +141,9 @@ def save_results(coco_results, full_output_file, annotations_output_file):
 def wrapper_run(config):
     """Main function to generate predictions and save them in COCO format."""
     config_path = load_yaml(config["input_data_dir"])
-
+    name = time.strftime("%Y%m%d-%H%M%S") if config["name"] is None else config["name"]
+    output_dir = config['output_dir'] + "/" + name
+    os.makedirs(output_dir, exist_ok=True)
     path = config["input_data_dir"]
     val_images_path = f"{path[:path.rfind('/')]}/{config_path['val']}"
     category_map = {int(k): v for k, v in config_path['names'].items()}
@@ -154,7 +158,7 @@ def wrapper_run(config):
     coco_results = process_images(yolov8, images, category_map, gt_detections, confusion_matrix)
 
     for normalize in [False, 'gt', 'pred']:
-        confusion_matrix.plot(normalize=normalize, save_dir="./")
+        confusion_matrix.plot(normalize=normalize, save_dir=output_dir)
 
-    save_results(coco_results, 'full_coco_results.json', 'coco_results.json')
-    custom_evaluate(ground_truth_file, 'coco_results.json')
+    save_results(coco_results, output_dir + '/full_coco_results.json', output_dir + '/coco_results.json')
+    custom_evaluate(ground_truth_file, output_dir + '/coco_results.json')
