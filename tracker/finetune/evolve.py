@@ -80,12 +80,12 @@ def optuna_fitness_fn(trial, config):
     #return list(combined_metrics.values())
 
 
-def print_and_save(study, trial):
+def print_and_save(study, trial, name):
     studies_path = "./outputs/studies"
     if not os.path.exists(studies_path):
         os.makedirs(studies_path)
 
-    joblib.dump(study, f"./outputs/studies/{study.study_name}.pkl")
+    joblib.dump(study, f"./outputs/studies/{name}.pkl")
 
 
 if __name__ == "__main__":
@@ -112,9 +112,9 @@ if __name__ == "__main__":
     # We could add a continuous save function to save the study every 10 trials and print the best trial
     study.optimize(
         func=partial(optuna_fitness_fn, config=config),
-        n_trials=300,
+        n_trials=config["n_trials"],
         show_progress_bar=True,
-        callbacks=[print_and_save]
+        callbacks=[partial(print_and_save, name=config["name"])]
     )
 
     print("\nStudy Statistics: ")

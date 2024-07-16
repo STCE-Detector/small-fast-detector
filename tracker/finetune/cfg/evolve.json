@@ -1,12 +1,14 @@
 {
-  "name": "ByteTrack",
+  "name": "cdv4_MOTHupba-train_300trials",
 
   "tracker_name": "ByteTrack",
 
-  "source_detections_dir": "./../evaluation/outputs/detections/cdv3_8sp2_150e_128b/MOTHupba-train",
+  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/MOTHupba-train",
   "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
 
   "device": "cpu",
+
+  "n_trials": 300,
 
   "tracker_args": {
     "track_high_thresh": 0.1,
