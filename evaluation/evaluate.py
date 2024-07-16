@@ -1,5 +1,8 @@
 import json
 import matplotlib
+
+from evaluation.nms_wrapper_eval import wrapper_run
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
@@ -14,7 +17,8 @@ print("Loaded config: ", config)
 
 # TODO: if "nms_wrapper":
 # NMS Wrapper Evaluation CALLED HERE
-
+if config['nms_wrapper']:
+    wrapper_run(config)
 
 #  START OF EVALUATION
 print("🚀...WELCOME TO EVALUATION DETECTOR MODEL...")

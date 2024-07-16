@@ -7,10 +7,11 @@ from typing import Optional
 import onnx
 import torch
 from loguru import logger
+
+from .head import UltralyticsDetect
 from ultralytics import YOLO
 from ultralytics.utils.checks import check_imgsz
 
-from head import UltralyticsDetect
 
 __all__ = ['torch_export', ]
 
@@ -156,7 +157,7 @@ def torch_export(
 
     output_path = Path(output)
     output_path.mkdir(parents=True, exist_ok=True)
-    onnx_filepath = output_path / (Path(weights).stem + ".onnx")
+    onnx_filepath = output_path / (Path(weights).stem + "_nms" + ".onnx")
 
     torch.onnx.export(
         model=model,
@@ -200,43 +201,17 @@ def torch_export(
 
 
 
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Export YOLO model to ONNX format.")
-    parser.add_argument('--weights', type=str, default='../detectors/8sp2_150e_64b.pt',
-                        help="Path to YOLO weights for PyTorch.")
-    parser.add_argument('--output', type=str, default='./', help="Directory path to save the exported model.")
-    parser.add_argument('--version', type=str, default='yolov8', choices=['yolov8'], help="YOLO version.")
-    parser.add_argument('--imgsz', type=int, default=640, help="Inference image size. Defaults to 640.")
-    parser.add_argument('--batch', type=int, default=1,
-                        help="Total batch size for the model. Use -1 for dynamic batch size. Defaults to 1.")
-    parser.add_argument('--max_boxes', type=int, default=300,
-                        help="Maximum number of detections to output per image. Defaults to 300.")
-    parser.add_argument('--iou_thres', type=float, default=0.7,
-                        help="NMS IoU threshold for post-processing. Defaults to 0.7.")
-    parser.add_argument('--conf_thres', type=float, default=0.1,
-                        help="Confidence threshold for object detection. Defaults to 0.1.")
-    parser.add_argument('--opset_version', type=int, default=17, help="ONNX opset version. Defaults to 11.")
-    parser.add_argument('--slim', type=bool, default=False, help="Whether to slim the exported ONNX. Defaults to True.")
-    parser.add_argument('--repo_dir', type=str,
-                        help="Directory containing the local repository (if using torch.hub.load).")
-
-    args = parser.parse_args()
+def nms_export(config):
     torch_export(
-        weights=args.weights,
-        output=args.output,
-        version=args.version,
-        imgsz=args.imgsz,
-        batch=args.batch,
-        max_boxes=args.max_boxes,
-        iou_thres=args.iou_thres,
-        conf_thres=args.conf_thres,
-        opset_version=args.opset_version,
-        slim=args.slim,
-        repo_dir=args.repo_dir,
+        weights=config["model_path"],
+        output=config["output"],
+        version="yolov8",
+        imgsz=config["imgsz"],
+        batch=config["batch"],
+        max_boxes=config["max_boxes"],
+        iou_thres=config["iou_thres"],
+        conf_thres=config["conf_thres"],
+        opset_version=config["opset"],
+        slim=config["simplify"],
     )
 
-
-if __name__ == "__main__":
-    main()

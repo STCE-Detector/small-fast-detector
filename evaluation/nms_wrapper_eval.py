@@ -136,7 +136,7 @@ def save_results(coco_results, full_output_file, annotations_output_file):
 
     print(f'Results saved to {full_output_file} and {annotations_output_file}')
 
-def main(config_path, model_config):
+def wrapper_run(config_path):
     """Main function to generate predictions and save them in COCO format."""
     config = load_yaml(config_path)
 
@@ -148,7 +148,7 @@ def main(config_path, model_config):
     with open(ground_truth_file, 'r') as f:
         gt_detections = json.load(f)
 
-    yolov8 = initialize_model(model_config, config['names'])
+    yolov8 = initialize_model(config['model_path'], config['names'])
     confusion_matrix = ConfusionMatrix(nc=6, conf=0.3, iou_thres=0.3)
     images = load_images_from_folder(val_images_path)
 
@@ -159,11 +159,3 @@ def main(config_path, model_config):
 
     save_results(coco_results, 'full_coco_results.json', 'coco_results.json')
     custom_evaluate(ground_truth_file, 'coco_results.json')
-
-if __name__ == "__main__":
-    config_path = '../data/client_test/data.yaml'
-    model_config = {
-        "source_weights_path": "../detectors/model_v2.engine",
-        "device": "cuda"
-    }
-    main(config_path, model_config)

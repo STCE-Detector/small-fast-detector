@@ -1,7 +1,7 @@
 {
   "name": null,
 
-  "device": "cpu",
+  "device": "cuda",
 
   "model_path": "./../detectors/cdv4_8sp2_150e_128b.pt",
   "nms_wrapper": false,
