@@ -1,8 +1,8 @@
 {
-  "name": "cdv3_8sp2_150e_128b",
+  "name": "cdv4_8sp2_150e_128b",
 
-  "source_weights_path": "./../detectors/cdv3_8sp2_150e_128b.pt",
-  "source_sequence_dir": "./TrackEval/data/gt/mot_challenge/MOTcustom",
+  "source_weights_path": "./../../detectors/cdv4_8sp2_150e_128b.pt",
+  "source_sequence_dir": "./TrackEval/data/gt/mot_challenge/MOTHupba-train",
 
   "device": "cpu",
 

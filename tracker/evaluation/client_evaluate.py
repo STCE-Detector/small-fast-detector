@@ -19,7 +19,7 @@ def load_dataframe(df_path, seq_name, frame_shape):
         print(f'No dataframe found for sequence {seq_name}, skipping')
         return None
     try:
-        df = pd.read_csv(df_path, header=None)
+        df = pd.read_csv(df_path, header=None, usecols=range(8))
         df.columns = column_names[:len(df.columns)]
     except pd.errors.EmptyDataError:
         df = pd.DataFrame(columns=column_names)

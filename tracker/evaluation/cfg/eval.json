@@ -1,8 +1,6 @@
 {
-  "name": "MOTHupba-train",
-
-  "data_dir": "./TrackEval/data/gt/mot_challenge/MOTcustom/",
-  "pred_dir": "./outputs/tracks/MOTcustom/BT_1stagebest_cdv3_8sp2_150e_128b/",
+  "data_dir": "./TrackEval/data/gt/mot_challenge/MOTHupba-train/",
+  "pred_dir": "./outputs/tracks/MOTHupba-train/BT_1stagebest_cdv4_8sp2_150e_128b/",
 
   "tracking": {
     "classes": [0],
