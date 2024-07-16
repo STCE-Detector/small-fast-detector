@@ -90,7 +90,7 @@ def initialize_model(model_config, labels):
     """Initialize the YOLO model."""
     device = torch.device(model_config['device'], 0)
     return Yolov8({
-        'source_weights_path': model_config['source_weights_path'],
+        'source_weights_path': model_config['model_path'],
         'device': device
     }, labels=labels)
 
@@ -136,19 +136,18 @@ def save_results(coco_results, full_output_file, annotations_output_file):
 
     print(f'Results saved to {full_output_file} and {annotations_output_file}')
 
-def wrapper_run(config_path):
+def wrapper_run(config):
     """Main function to generate predictions and save them in COCO format."""
-    config = load_yaml(config_path)
+    config_path = load_yaml(config["input_data_dir"])
 
-    dataset_path = config['path']
-    val_images_path = os.path.join(dataset_path, config['val'])
-    category_map = {int(k): v for k, v in config['names'].items()}
-
-    ground_truth_file = '../data/client_test/annotations/instances_val2017.json'
+    path = config["input_data_dir"]
+    val_images_path = f"{path[:path.rfind('/')]}/{config_path['val']}"
+    category_map = {int(k): v for k, v in config_path['names'].items()}
+    ground_truth_file = f"{path[:path.rfind('/')]}/{'annotations/instances_val2017.json'}"
     with open(ground_truth_file, 'r') as f:
         gt_detections = json.load(f)
 
-    yolov8 = initialize_model(config['model_path'], config['names'])
+    yolov8 = initialize_model(config, config_path['names'])
     confusion_matrix = ConfusionMatrix(nc=6, conf=0.3, iou_thres=0.3)
     images = load_images_from_folder(val_images_path)
 
