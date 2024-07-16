@@ -1,5 +1,7 @@
 import os
 import json
+import time
+
 import yaml
 import cv2
 import numpy as np
@@ -90,7 +92,7 @@ def initialize_model(model_config, labels):
     """Initialize the YOLO model."""
     device = torch.device(model_config['device'], 0)
     return Yolov8({
-        'source_weights_path': model_config['source_weights_path'],
+        'source_weights_path': model_config['model_path'],
         'device': device
     }, labels=labels)
 
@@ -136,34 +138,27 @@ def save_results(coco_results, full_output_file, annotations_output_file):
 
     print(f'Results saved to {full_output_file} and {annotations_output_file}')
 
-def main(config_path, model_config):
+def wrapper_run(config):
     """Main function to generate predictions and save them in COCO format."""
-    config = load_yaml(config_path)
-
-    dataset_path = config['path']
-    val_images_path = os.path.join(dataset_path, config['val'])
-    category_map = {int(k): v for k, v in config['names'].items()}
-
-    ground_truth_file = '../data/client_test/annotations/instances_val2017.json'
+    config_path = load_yaml(config["input_data_dir"])
+    name = time.strftime("%Y%m%d-%H%M%S") if config["name"] is None else config["name"]
+    output_dir = config['output_dir'] + "/" + name
+    os.makedirs(output_dir, exist_ok=True)
+    path = config["input_data_dir"]
+    val_images_path = f"{path[:path.rfind('/')]}/{config_path['val']}"
+    category_map = {int(k): v for k, v in config_path['names'].items()}
+    ground_truth_file = f"{path[:path.rfind('/')]}/{'annotations/instances_val2017.json'}"
     with open(ground_truth_file, 'r') as f:
         gt_detections = json.load(f)
 
-    yolov8 = initialize_model(model_config, config['names'])
+    yolov8 = initialize_model(config, config_path['names'])
     confusion_matrix = ConfusionMatrix(nc=6, conf=0.3, iou_thres=0.3)
     images = load_images_from_folder(val_images_path)
 
     coco_results = process_images(yolov8, images, category_map, gt_detections, confusion_matrix)
 
     for normalize in [False, 'gt', 'pred']:
-        confusion_matrix.plot(normalize=normalize, save_dir="./")
+        confusion_matrix.plot(normalize=normalize, save_dir=output_dir)
 
-    save_results(coco_results, 'full_coco_results.json', 'coco_results.json')
-    custom_evaluate(ground_truth_file, 'coco_results.json')
-
-if __name__ == "__main__":
-    config_path = '../data/client_test/data.yaml'
-    model_config = {
-        "source_weights_path": "../detectors/model_v2.engine",
-        "device": "cuda"
-    }
-    main(config_path, model_config)
+    save_results(coco_results, output_dir + '/full_coco_results.json', output_dir + '/coco_results.json')
+    custom_evaluate(ground_truth_file, output_dir + '/coco_results.json')
