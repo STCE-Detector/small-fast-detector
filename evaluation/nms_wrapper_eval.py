@@ -92,7 +92,7 @@ def initialize_model(model_config, labels):
     """Initialize the YOLO model."""
     device = torch.device(model_config['device'], 0)
     return Yolov8({
-        'source_weights_path': model_config['model_path'],
+        'model_path': model_config['model_path'],
         'device': device
     }, labels=labels)
 
