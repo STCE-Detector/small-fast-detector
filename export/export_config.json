@@ -6,7 +6,7 @@
   "opset": 13,
   "simplify": true,
 
-  "include_nms": true,
+  "include_nms": false,
   "output": "./../detectors/",
   "imgsz": 640,
   "batch": 1,

@@ -1,7 +1,7 @@
 import json
 import os
 
-from nms.export_nms import nms_export
+from nms.export_nms import torch2onnx_nms
 from ultralytics import YOLO
 import subprocess
 
@@ -11,10 +11,23 @@ with open("./export_config.json", "r") as f:
     config = json.load(f)
 print("Loaded config: ", config)
 
-# TODO: if comfig["include_nms"]:
-# EXPORT USING NMS MODIFICAITONS
+# Export model to onnx with NMS included as a node and then convert to TensorRT engine
 if config["include_nms"]:
-    nms_export(config)
+    # Export model to onnx with NMS included as a node
+    torch2onnx_nms(
+        weights=config["model_path"],
+        output=config["output"],
+        version="yolov8",
+        imgsz=config["imgsz"],
+        batch=config["batch"],
+        max_boxes=config["max_boxes"],
+        iou_thres=config["iou_thres"],
+        conf_thres=config["conf_thres"],
+        opset_version=config["opset"],
+        slim=config["simplify"],
+    )
+
+    # Convert onnx to TensorRT engine
     original_model_path = config["model_path"]
     base_path, filename = os.path.split(original_model_path)
     name, ext = os.path.splitext(filename)
@@ -23,9 +36,9 @@ if config["include_nms"]:
     command = f'''
         /usr/src/tensorrt/bin/trtexec --onnx="{onnx_path}" --saveEngine="{engine_path}" --fp16
         '''
-
     subprocess.run(command, shell=True, executable='/bin/bash')
 
+# Export model to onnx or engine directly using ultralytics
 else:
     print("🚀 Initializing model...")
     # Initialize and set up model
@@ -34,8 +47,8 @@ else:
     model.export(
         format=config["format"],
         imgsz=config["img_size"],
-        opset=config["opset_version"],
-        simplify=config["simplify_onnx"],
+        opset=config["opset"],
+        simplify=config["simplify"],
         dynamic=False,
         batch=1,
     )

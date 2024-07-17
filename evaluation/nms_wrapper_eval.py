@@ -45,6 +45,80 @@ def custom_evaluate(coco_gt_file, coco_dt_file):
     eval.accumulate()
     eval.summarize()
 
+    # Extract COCOEval results and save them
+    #TODO: use function and pass save_dir as argument
+    extract_cocoeval_metrics(eval, save_dir)
+
+    # Extract Confusion Matrix results and save them
+    stats = {}
+    # Precision
+    stats['metrics/AP(T)'] = eval.stats[1]
+    stats['metrics/AP(S)'] = eval.stats[2]
+    stats['metrics/AP(M)'] = eval.stats[3]
+    stats['metrics/AP(L)'] = eval.stats[4]
+    # Recall by IoU
+    stats['metrics/AR(50:95)'] = eval.stats[25]
+    stats['metrics/AR(75)'] = eval.stats[30]
+    stats['metrics/AR(50)'] = eval.stats[31]
+    # Recall by Area
+    stats['metrics/AR(T)'] = eval.stats[26]
+    stats['metrics/AR(S)'] = eval.stats[27]
+    stats['metrics/AR(M)'] = eval.stats[28]
+    stats['metrics/AR(L)'] = eval.stats[29]
+    # Save results to file
+    # TODO: save_dir is inferred from coco_dt_file path
+    results_file = save_dir / "evaluation_results.json"
+    with results_file.open("w") as file:
+        json.dump(stats, file)
+
+
+def extract_cocoeval_metrics(eval, save_dir):
+    """Extracts metrics from COCOeval object and saves them to a DataFrame."""
+
+    # Function to append metrics
+    def append_metrics(metrics, metric_type, iou, area, max_dets, value):
+        metrics.append({
+            'Metric Type': metric_type,
+            'IoU': iou,
+            'Area': area,
+            'Max Detections': max_dets,
+            'Value': value
+        })
+
+    # Initialize a list to store the metrics
+    metrics_ = []
+
+    # Extract metrics for bbox/segm evaluation
+    iou_types = ['0.50:0.95', '0.50', '0.75']
+    areas = eval.params.areaRngLbl
+    max_dets = eval.params.maxDets
+
+    # Extract AP metrics (indices 0-14: 3 IoUs * 5 areas)
+    for i, iou in enumerate(iou_types):
+        for j, area in enumerate(areas):
+            idx = i * len(areas) + j
+            append_metrics(metrics_, 'AP', iou, area, max_dets[-1], eval.stats[idx])
+
+    # Extract AR metrics (indices 15-17: 3 maxDets for 'all' area)
+    num_ap_metrics = len(iou_types) * len(areas)  # Total number of AP metrics
+
+    # Iterate over max_dets to append AR metrics
+    for i, md in enumerate(max_dets):
+        for j, area in enumerate(areas):
+            idx = num_ap_metrics + j + i * len(areas)  # Adjust index calculation for AR
+            append_metrics(metrics_, 'AR', '0.50:0.95', area, md, eval.stats[idx])
+
+    # Append AR metrics for 0.75 and 0.50 IoU
+    for i, iou in enumerate(['0.75', '0.50']):
+        append_metrics(metrics_, 'AR', iou, 'all', '300', eval.stats[idx + i + 1])
+
+    # Convert to DataFrame
+    df_metrics = pd.DataFrame(metrics_)
+
+    # Save to file
+    df_metrics.to_csv(save_dir / "cocoeval_results.csv", index=False)
+
+
 def load_yaml(file_path):
     """Load a YAML configuration file."""
     with open(file_path, 'r') as f:
@@ -138,7 +212,7 @@ def save_results(coco_results, full_output_file, annotations_output_file):
 
     print(f'Results saved to {full_output_file} and {annotations_output_file}')
 
-def wrapper_run(config):
+def yolo_wrapper_validation(config):
     """Main function to generate predictions and save them in COCO format."""
     config_path = load_yaml(config["input_data_dir"])
     name = time.strftime("%Y%m%d-%H%M%S") if config["name"] is None else config["name"]
@@ -155,10 +229,10 @@ def wrapper_run(config):
     confusion_matrix = ConfusionMatrix(nc=6, conf=0.3, iou_thres=0.3)
     images = load_images_from_folder(val_images_path)
 
-    coco_results = process_images(yolov8, images, category_map, gt_detections, confusion_matrix)
+    results = process_images(yolov8, images, category_map, gt_detections, confusion_matrix)
 
     for normalize in [False, 'gt', 'pred']:
         confusion_matrix.plot(normalize=normalize, save_dir=output_dir)
 
-    save_results(coco_results, output_dir + '/full_coco_results.json', output_dir + '/coco_results.json')
+    save_results(results, output_dir + '/full_coco_results.json', output_dir + '/coco_results.json')
     custom_evaluate(ground_truth_file, output_dir + '/coco_results.json')
