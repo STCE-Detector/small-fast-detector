@@ -35,6 +35,8 @@ if config["nms_wrapper"]:
     # Create output directory for annotated images, predicted labels and timing results
     output_dir = config['output_dir'] + "/" + time.strftime("%Y%m%d-%H%M%S")
     os.makedirs(output_dir, exist_ok=True)
+    output_labels = output_dir + "/labels/"
+    os.makedirs(output_labels)
 
     timing_results = []
     for img_path in tqdm(image_paths, desc="Processing images with Yolov8"):
@@ -45,9 +47,11 @@ if config["nms_wrapper"]:
             annotated_img = results[0].plot()  # Assuming `results` is a list of `Results` objects
             save_path = os.path.join(output_dir, os.path.basename(img_path))
             cv2.imwrite(save_path, annotated_img)
-
-            # TODO: Save predicted labels to a text file inside output_dir/labels/<image_name>.txt
-
+            label_path = os.path.join(output_labels, os.path.splitext(os.path.basename(img_path))[0] + '.txt')
+            with open(label_path, 'w') as f:
+                for result in results:
+                    for bbox in result.boxes:
+                        f.write(f"{bbox.class_id} {bbox.x_center} {bbox.y_center} {bbox.width} {bbox.height} {bbox.confidence}\n")
     # Save inference times to csv
     csv_output_path = os.path.join(output_dir, 'inference_time.csv')
     with open(csv_output_path, mode='w', newline='') as csv_file:
