@@ -24,7 +24,8 @@ def main(config):
 
     # Infer on each sequence
     for sequence_path in sequence_paths:
-        for img in tqdm(os.listdir((sequence_path + '/img1'))):
+        sequence_name = sequence_path.split('/')[-1]
+        for img in tqdm(os.listdir((sequence_path + '/img1')), desc=f"Processing {sequence_name}", unit=" frames",):
             if img.endswith(".jpg") or img.endswith(".png"):
 
                 # Infer on image
