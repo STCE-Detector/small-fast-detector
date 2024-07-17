@@ -1,8 +1,6 @@
 import json
 import matplotlib
 
-from evaluation.nms_wrapper_eval import wrapper_run
-
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
@@ -15,9 +13,12 @@ with open("./eval_config.json", "r") as f:
     config = json.load(f)
 print("Loaded config: ", config)
 
-
+# If nms_wrapper is True, run the nms_wrapper_eval.py script
 if config['nms_wrapper']:
-    wrapper_run(config)
+    from evaluation.nms_wrapper_eval import yolo_wrapper_validation
+    yolo_wrapper_validation(config)
+
+# If nms_wrapper is False, run the default YOLO model using ultralytics
 else:
     #  START OF EVALUATION
     print("🚀...WELCOME TO EVALUATION DETECTOR MODEL...")

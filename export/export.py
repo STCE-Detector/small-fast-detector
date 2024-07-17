@@ -1,7 +1,7 @@
 import json
 import os
 
-from nms.export_nms import nms_export
+from nms.export_nms import torch2onnx_nms
 from ultralytics import YOLO
 import subprocess
 
@@ -13,7 +13,21 @@ print("Loaded config: ", config)
 
 # Export model to onnx with NMS included as a node and then convert to TensorRT engine
 if config["include_nms"]:
-    nms_export(config)
+    # Export model to onnx with NMS included as a node
+    torch2onnx_nms(
+        weights=config["model_path"],
+        output=config["output"],
+        version="yolov8",
+        imgsz=config["imgsz"],
+        batch=config["batch"],
+        max_boxes=config["max_boxes"],
+        iou_thres=config["iou_thres"],
+        conf_thres=config["conf_thres"],
+        opset_version=config["opset"],
+        slim=config["simplify"],
+    )
+
+    # Convert onnx to TensorRT engine
     original_model_path = config["model_path"]
     base_path, filename = os.path.split(original_model_path)
     name, ext = os.path.splitext(filename)

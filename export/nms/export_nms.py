@@ -13,7 +13,7 @@ from ultralytics import YOLO
 from ultralytics.utils.checks import check_imgsz
 
 
-__all__ = ['torch_export', ]
+__all__ = ['torch2onnx_nms', ]
 
 # Filter warnings
 warnings.filterwarnings("ignore")
@@ -105,7 +105,7 @@ def update_model(
     return model
 
 
-def torch_export(
+def torch2onnx_nms(
     weights: str,
     output: str,
     version: str,
@@ -119,7 +119,7 @@ def torch_export(
     repo_dir: Optional[str] = None,
 ) -> None:
     """
-    Export YOLO model to ONNX format using Torch.
+    Export YOLO model to ONNX format using Torch and include NMS as a node.
 
     Args:
         weights (str): Path to YOLO weights for PyTorch.
@@ -198,20 +198,4 @@ def torch_export(
     onnx.checker.check_model(model_onnx)
 
     logger.success(f'Export complete, results saved to {output}, visualize at https://netron.app')
-
-
-
-def nms_export(config):
-    torch_export(
-        weights=config["model_path"],
-        output=config["output"],
-        version="yolov8",
-        imgsz=config["imgsz"],
-        batch=config["batch"],
-        max_boxes=config["max_boxes"],
-        iou_thres=config["iou_thres"],
-        conf_thres=config["conf_thres"],
-        opset_version=config["opset"],
-        slim=config["simplify"],
-    )
 
