@@ -11,8 +11,7 @@ with open("./export_config.json", "r") as f:
     config = json.load(f)
 print("Loaded config: ", config)
 
-# TODO: if comfig["include_nms"]:
-# EXPORT USING NMS MODIFICAITONS
+# Export model to onnx with NMS included as a node and then convert to TensorRT engine
 if config["include_nms"]:
     nms_export(config)
     original_model_path = config["model_path"]
@@ -23,9 +22,9 @@ if config["include_nms"]:
     command = f'''
         /usr/src/tensorrt/bin/trtexec --onnx="{onnx_path}" --saveEngine="{engine_path}" --fp16
         '''
-
     subprocess.run(command, shell=True, executable='/bin/bash')
 
+# Export model to onnx or engine directly using ultralytics
 else:
     print("🚀 Initializing model...")
     # Initialize and set up model
@@ -34,8 +33,8 @@ else:
     model.export(
         format=config["format"],
         imgsz=config["img_size"],
-        opset=config["opset_version"],
-        simplify=config["simplify_onnx"],
+        opset=config["opset"],
+        simplify=config["simplify"],
         dynamic=False,
         batch=1,
     )
