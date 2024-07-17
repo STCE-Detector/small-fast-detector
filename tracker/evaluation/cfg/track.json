@@ -1,5 +1,5 @@
 {
-  "name": "BT_1stagebest",
+  "name": "BEST",
 
   "tracker_name": "ByteTrack",
 
@@ -10,23 +10,23 @@
 
   "tracker_args": {
     "track_high_thresh": 0.1,
-    "track_low_thresh": 0.21,
-    "new_track_thresh": 0.38,
-    "first_match_thresh": 0.96,
-    "second_match_thresh": 0.8,
-    "new_match_thresh": 0.51,
-    "first_buffer": 0.01,
-    "second_buffer": 0.37,
-    "new_buffer": 0.0,
+    "track_low_thresh": 0.53,
+    "new_track_thresh": 0.56,
+    "first_match_thresh": 0.95,
+    "second_match_thresh": 0.73,
+    "new_match_thresh": 0.54,
+    "first_buffer": 0.04,
+    "second_buffer": 0.35,
+    "new_buffer": 0.29,
     "first_fuse": 1,
-    "second_fuse": 0,
+    "second_fuse": 1,
     "new_fuse": 1,
     "first_iou": 3,
-    "second_iou": 1,
-    "new_iou": 3,
-    "cw_thresh": 0.58,
+    "second_iou": 4,
+    "new_iou": 5,
+    "cw_thresh": 0.79,
     "nk_flag": 0,
-    "nk_alpha": 70,
+    "nk_alpha": 10,
     "track_buffer": 350,
 
     "proximity_thresh": 0.9,
