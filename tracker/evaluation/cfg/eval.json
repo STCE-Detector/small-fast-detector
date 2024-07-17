@@ -1,6 +1,6 @@
 {
-  "data_dir": "./TrackEval/data/gt/mot_challenge/MOTHupba-train/",
-  "pred_dir": "./outputs/tracks/MOTHupba-train/BEST_cdv4_8sp2_150e_128b/",
+  "data_dir": "./TrackEval/data/gt/mot_challenge/PTD/",
+  "pred_dir": "./outputs/tracks/PTD/BEST_cdv4_8sp2_150e_128b/",
 
   "tracking": {
     "classes": [0],
