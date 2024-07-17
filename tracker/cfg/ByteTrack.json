@@ -1,10 +1,10 @@
 {
-  "name": "qualitative",
+  "name": "ByteTrack",
 
   "tracker_name": "ByteTrack",
 
-  "source_weights_path": "./detectors/cdv3_8sp2_150e_128b.pt",
-  "source_stream_path": "./data/ar1.mp4",
+  "source_weights_path": "./../detectors/cdv4_8sp2_150e_128b.pt",
+  "source_stream_path": "./../data/tracking/1.mp4",
 
   "device": "mps",
   "fps_reduction": 20,
@@ -27,24 +27,23 @@
 
   "tracker_args": {
     "track_high_thresh": 0.1,
-    "track_low_thresh": 0.21,
-    "new_track_thresh": 0.38,
-    "first_match_thresh": 0.96,
-    "second_match_thresh": 0.8,
-    "new_match_thresh": 0.51,
-    "first_buffer": 0.01,
-    "second_buffer": 0.37,
-    "new_buffer": 0.0,
+    "track_low_thresh": 0.53,
+    "new_track_thresh": 0.56,
+    "first_match_thresh": 0.95,
+    "second_match_thresh": 0.73,
+    "new_match_thresh": 0.54,
+    "first_buffer": 0.04,
+    "second_buffer": 0.35,
+    "new_buffer": 0.29,
     "first_fuse": 1,
-    "second_fuse": 0,
+    "second_fuse": 1,
     "new_fuse": 1,
     "first_iou": 3,
-    "second_iou": 1,
-    "new_iou": 3,
-    "cw_thresh": 0.58,
+    "second_iou": 4,
+    "new_iou": 5,
+    "cw_thresh": 0.79,
     "nk_flag": 0,
-    "nk_alpha": 70,
-
+    "nk_alpha": 10,
     "track_buffer": 350,
 
     "proximity_thresh": 0.9,
@@ -63,11 +62,11 @@
     "speed_projection": [1.4368130286285825, 1.358710274910445],
 
     "gather": {
-      "enabled": false,
+      "enabled": true,
       "min_people": 3,
-      "distance_threshold": 1.0,
-      "area_threshold": 0.5,
-      "speed_threshold": 0.025
+      "distance_threshold": 0.9545844402819228,
+      "area_threshold": 0.9980844106242607,
+      "speed_threshold": 0.04122885187750009
     },
 
     "stand_still": {
@@ -76,15 +75,16 @@
     },
 
     "fast_approach": {
-      "enabled": false,
+      "enabled": true,
       "draw": true,
       "distance_threshold": 4,
-      "speed_threshold": 0.005
+      "speed_threshold": 0.0016268534165825477
     },
 
     "suddenly_run": {
-      "enabled": false,
-      "speed_threshold": 0.025
+      "enabled": true,
+      "last_n": 3,
+      "speed_threshold": 0.025304976367086236
     },
 
     "overstep_boundary": {
