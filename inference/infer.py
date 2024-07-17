@@ -50,15 +50,19 @@ if config["nms_wrapper"]:
             label_path = os.path.join(output_labels, os.path.splitext(os.path.basename(img_path))[0] + '.txt')
             with open(label_path, 'w') as f:
                 for result in results:
-                    for bbox in result.boxes:
-                        f.write(f"{bbox.class_id} {bbox.x_center} {bbox.y_center} {bbox.width} {bbox.height} {bbox.confidence}\n")
+                    for bbox in results[0].boxes:
+                        class_id = int(bbox.cls.item())
+                        x_center, y_center, width, height = bbox.xywh.flatten().tolist()
+                        confidence = bbox.conf.item()
+                        f.write(f"{class_id} {x_center} {y_center} {width} {height} {confidence}\n")
     # Save inference times to csv
     csv_output_path = os.path.join(output_dir, 'inference_time.csv')
     with open(csv_output_path, mode='w', newline='') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(["Image Path", "Pre-process (ms)", "Inference (ms)", "Post-process (ms)"])
         for img_path, timing in zip(image_paths, timing_results):
-            writer.writerow([img_path, *timing])
+            image_name = img_path.split('/')[-1].split('.')[0]
+            writer.writerow([image_name, *timing])
 else:
     # Load model
     model = YOLO(config['model_path'], task='detect')
