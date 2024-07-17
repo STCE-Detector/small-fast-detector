@@ -64,6 +64,31 @@ def linear_assignment(cost_matrix, thresh, use_lap=True):
     return matches, unmatched_a, unmatched_b
 
 
+def buffered_bboxes(tlbrs, b=0.0):
+    """
+    Create buffered bounding boxes.
+
+    Args:
+        tlbrs (np.ndarray): Bounding boxes in the format (top, left, bottom, right).
+        b (float, optional): Buffer for bounding boxes. Defaults to 0.
+
+    Returns:
+        tlbrs (np.ndarray): Buffered bounding boxes.
+    """
+    if b > 0 and len(tlbrs) > 0:
+        widths = tlbrs[:, 2] - tlbrs[:, 0]
+        heights = tlbrs[:, 3] - tlbrs[:, 1]
+        buffer_widths = widths * b
+        buffer_heights = heights * b
+        buffered_boxes = np.empty_like(tlbrs)
+        buffered_boxes[:, 0] = tlbrs[:, 0] - buffer_widths
+        buffered_boxes[:, 1] = tlbrs[:, 1] - buffer_heights
+        buffered_boxes[:, 2] = tlbrs[:, 2] + buffer_widths
+        buffered_boxes[:, 3] = tlbrs[:, 3] + buffer_heights
+        tlbrs = buffered_boxes
+    return tlbrs
+
+
 def iou_distance(atracks, btracks, b=0.0, type='iou'):
     """
     Compute cost based on Intersection over Union (IoU) between tracks or variations of IoU.
@@ -89,17 +114,8 @@ def iou_distance(atracks, btracks, b=0.0, type='iou'):
     atlbrs = np.ascontiguousarray(atlbrs, dtype=np.float32)
     btlbrs = np.ascontiguousarray(btlbrs, dtype=np.float32)
 
-    if b > 0 and len(btlbrs) > 0:
-        widths = btlbrs[:, 2] - btlbrs[:, 0]
-        heights = btlbrs[:, 3] - btlbrs[:, 1]
-        buffer_widths = widths * b
-        buffer_heights = heights * b
-        buffered_boxes = np.empty_like(btlbrs)
-        buffered_boxes[:, 0] = btlbrs[:, 0] - buffer_widths
-        buffered_boxes[:, 1] = btlbrs[:, 1] - buffer_heights
-        buffered_boxes[:, 2] = btlbrs[:, 2] + buffer_widths
-        buffered_boxes[:, 3] = btlbrs[:, 3] + buffer_heights
-        btlbrs = buffered_boxes
+    atlbrs = buffered_bboxes(atlbrs, b)
+    btlbrs = buffered_bboxes(btlbrs, b)
 
     ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float32)
     if len(atlbrs) and len(btlbrs):
