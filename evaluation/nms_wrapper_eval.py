@@ -1,15 +1,16 @@
-import os
 import json
+import os
 import time
+from pathlib import Path
 
-import yaml
 import cv2
 import numpy as np
 import pandas as pd
 import torch
-from tqdm import tqdm
-from pathlib import Path
+import yaml
 from pycocotools.coco import COCO
+from tqdm import tqdm
+
 from tracker.jetson.model.model import Yolov8
 from ultralytics.utils import ops
 from ultralytics.utils.cocoeval import COCOeval
@@ -18,16 +19,7 @@ from ultralytics.utils.metrics import ConfusionMatrix
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-def evaluate(coco_gt_file, coco_dt_file):
-    """Evaluate predictions using COCO metrics."""
-    coco_gt = COCO(coco_gt_file)
-    coco_dt = coco_gt.loadRes(coco_dt_file)
-    coco_eval = COCOeval(coco_gt, coco_dt, 'bbox')
-    coco_eval.evaluate()
-    coco_eval.accumulate()
-    coco_eval.summarize()
-
-def custom_evaluate(coco_gt_file, coco_dt_file):
+def custom_evaluate(coco_gt_file, coco_dt_file, save_dir):
     """Custom evaluation with different area ranges."""
     anno = COCO(coco_gt_file)
     pred = anno.loadRes(coco_dt_file)
@@ -46,7 +38,6 @@ def custom_evaluate(coco_gt_file, coco_dt_file):
     eval.summarize()
 
     # Extract COCOEval results and save them
-    #TODO: use function and pass save_dir as argument
     extract_cocoeval_metrics(eval, save_dir)
 
     # Extract Confusion Matrix results and save them
@@ -66,15 +57,13 @@ def custom_evaluate(coco_gt_file, coco_dt_file):
     stats['metrics/AR(M)'] = eval.stats[28]
     stats['metrics/AR(L)'] = eval.stats[29]
     # Save results to file
-    # TODO: save_dir is inferred from coco_dt_file path
-    results_file = save_dir / "evaluation_results.json"
+    results_file = Path(save_dir) / "evaluation_results.json"
     with results_file.open("w") as file:
         json.dump(stats, file)
 
 
 def extract_cocoeval_metrics(eval, save_dir):
     """Extracts metrics from COCOeval object and saves them to a DataFrame."""
-
     # Function to append metrics
     def append_metrics(metrics, metric_type, iou, area, max_dets, value):
         metrics.append({
@@ -116,13 +105,14 @@ def extract_cocoeval_metrics(eval, save_dir):
     df_metrics = pd.DataFrame(metrics_)
 
     # Save to file
-    df_metrics.to_csv(save_dir / "cocoeval_results.csv", index=False)
+    df_metrics.to_csv(save_dir + "/cocoeval_results.csv", index=False)
 
 
 def load_yaml(file_path):
     """Load a YAML configuration file."""
     with open(file_path, 'r') as f:
         return yaml.safe_load(f)
+
 
 def load_images_from_folder(folder):
     """Load all images from a specified folder."""
@@ -134,6 +124,7 @@ def load_images_from_folder(folder):
             if img is not None:
                 images.append((img_path, img))
     return images
+
 
 def pred_to_json(results, filename, class_map):
     """Serialize YOLO predictions to COCO json format."""
@@ -170,6 +161,7 @@ def initialize_model(model_config, labels):
         'device': device
     }, labels=labels)
 
+
 def process_images(yolov8, images, category_map, gt_detections, confusion_matrix):
     """Process images and generate predictions."""
     df_detections_gt = pd.DataFrame(gt_detections['annotations'])
@@ -202,15 +194,12 @@ def process_images(yolov8, images, category_map, gt_detections, confusion_matrix
 
     return coco_results
 
-def save_results(coco_results, full_output_file, annotations_output_file):
-    """Save results to JSON files."""
-    with open(full_output_file, 'w') as f:
-        json.dump(coco_results, f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
 
+def save_results(coco_results, annotations_output_file):
+    """Save results to JSON files."""
     with open(annotations_output_file, 'w') as f:
         json.dump(coco_results['annotations'], f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
-
-    print(f'Results saved to {full_output_file} and {annotations_output_file}')
+    print(f'Results saved to {annotations_output_file}')
 
 def yolo_wrapper_validation(config):
     """Main function to generate predictions and save them in COCO format."""
@@ -234,5 +223,5 @@ def yolo_wrapper_validation(config):
     for normalize in [False, 'gt', 'pred']:
         confusion_matrix.plot(normalize=normalize, save_dir=output_dir)
 
-    save_results(results, output_dir + '/full_coco_results.json', output_dir + '/coco_results.json')
-    custom_evaluate(ground_truth_file, output_dir + '/coco_results.json')
+    save_results(results, output_dir + '/predictions.json')
+    custom_evaluate(ground_truth_file, output_dir + '/predictions.json', output_dir)
