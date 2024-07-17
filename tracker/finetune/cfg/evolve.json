@@ -3,8 +3,8 @@
 
   "tracker_name": "ByteTrack",
 
-  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/MOTHupba-train",
-  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTHupba-train",
+  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/CTD",
+  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/CTD",
 
   "device": "cpu",
 
