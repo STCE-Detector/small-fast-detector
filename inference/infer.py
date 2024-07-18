@@ -1,7 +1,6 @@
 import json
 import time
 
-from inference.nms_wrapper_infer import nms_wrapper_infer
 from inference_utils import inference_time_csv_writer
 from ultralytics import YOLO
 
@@ -12,6 +11,7 @@ with open("./inference_config.json", "r") as f:
 print("Loaded config: ", config)
 
 if config["nms_wrapper"]:
+    from inference.nms_wrapper_infer import nms_wrapper_infer
     nms_wrapper_infer(config)
 else:
     # Load model
