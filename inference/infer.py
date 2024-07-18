@@ -10,7 +10,6 @@ with open("./inference_config.json", "r") as f:
     config = json.load(f)
 print("Loaded config: ", config)
 
-
 if config["nms_wrapper"]:
     nms_wrapper_infer(config)
 else:
