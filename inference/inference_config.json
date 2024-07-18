@@ -1,10 +1,10 @@
 {
   "name": null,
 
-  "device": "cpu",
+  "device": "cuda",
 
-  "model_path": "./../detectors/cdv4_8sp2_150e_128b.onnx",
-  "nms_wrapper": false,
+  "model_path": "./../detectors/cdv4_8sp2_150e_128b_nms.engine",
+  "nms_wrapper": true,
   "img_size": 640,
   "iou": 0.7,
   "conf": 0.25,

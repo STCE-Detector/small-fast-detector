@@ -1,8 +1,9 @@
 import json
 import time
+
+from inference.nms_wrapper_infer import nms_wrapper_infer
 from inference_utils import inference_time_csv_writer
 from ultralytics import YOLO
-from .nms_wrapper_infer import nms_wrapper_infer
 
 
 # Load config.json
