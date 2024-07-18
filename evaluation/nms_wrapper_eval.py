@@ -20,7 +20,13 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def custom_evaluate(coco_gt_file, coco_dt_file, save_dir):
-    """Custom evaluation with different area ranges."""
+    """Evaluate COCO results and save them to a file.
+
+    Args:
+        coco_gt_file (_type_): gt file
+        coco_dt_file (_type_): predictions file
+        save_dir (_type_): save directory
+    """
     anno = COCO(coco_gt_file)
     pred = anno.loadRes(coco_dt_file)
     eval = COCOeval(anno, pred, 'bbox')
@@ -63,7 +69,13 @@ def custom_evaluate(coco_gt_file, coco_dt_file, save_dir):
 
 
 def extract_cocoeval_metrics(eval, save_dir):
-    """Extracts metrics from COCOeval object and saves them to a DataFrame."""
+    """Extracts metrics from COCOeval object and saves them to a DataFrame.
+
+    Args:
+        eval (_type_): COCOeval object
+        save_dir (_type_): save directory
+    """
+
     # Function to append metrics
     def append_metrics(metrics, metric_type, iou, area, max_dets, value):
         metrics.append({
@@ -109,13 +121,26 @@ def extract_cocoeval_metrics(eval, save_dir):
 
 
 def load_yaml(file_path):
-    """Load a YAML configuration file."""
+    """Load a YAML configuration file.
+
+    Args:
+        file_path (_type_): Path to the YAML file
+
+    Returns:
+        _type_: The loaded YAML configuration
+    """
     with open(file_path, 'r') as f:
         return yaml.safe_load(f)
 
 
 def load_images_from_folder(folder):
-    """Load all images from a specified folder."""
+    """Load all images from a specified folder.
+    Args:
+        folder (_type_): Root folder containing images
+
+    Returns:
+        _type_: List of tuples containing image paths and images
+    """
     images = []
     for filename in os.listdir(folder):
         img_path = os.path.join(folder, filename)
@@ -127,7 +152,16 @@ def load_images_from_folder(folder):
 
 
 def pred_to_json(results, filename, class_map):
-    """Serialize YOLO predictions to COCO json format."""
+    """Serialize YOLO predictions to COCO json format.
+
+    Args:
+        results (_type_): dictionary containing the results
+        filename (_type_): filename of the image
+        class_map (_type_): dictionary mapping class IDs to class names
+
+    Returns:
+        _type_: _description_
+    """
     jdict = []
     stem = Path(filename).stem
     image_id = int(stem) if stem.isnumeric() else stem
@@ -154,7 +188,15 @@ def pred_to_json(results, filename, class_map):
     return jdict
 
 def initialize_model(model_config, labels):
-    """Initialize the YOLO model."""
+    """Initialize the YOLO model.
+
+    Args:
+        model_config (_type_): configuration dictionary for the model
+        labels (_type_): dictionary mapping class IDs to class names
+
+    Returns:
+        _type_: YOLO model
+    """
     device = torch.device(model_config['device'], 0)
     return Yolov8({
         'model_path': model_config['model_path'],
@@ -163,7 +205,18 @@ def initialize_model(model_config, labels):
 
 
 def process_images(yolov8, images, category_map, gt_detections, confusion_matrix):
-    """Process images and generate predictions."""
+    """Process images and generate predictions.
+
+    Args:
+        yolov8 (_type_): YOLO model
+        images (_type_): list of tuples containing image paths and images
+        category_map (_type_): dictionary mapping class IDs to class names
+        gt_detections (_type_): ground truth detections
+        confusion_matrix (_type_): confusion matrix object
+
+    Returns:
+        _type_: COCO results
+    """
     df_detections_gt = pd.DataFrame(gt_detections['annotations'])
     coco_results = {
         'annotations': [],
@@ -196,13 +249,22 @@ def process_images(yolov8, images, category_map, gt_detections, confusion_matrix
 
 
 def save_results(coco_results, annotations_output_file):
-    """Save results to JSON files."""
+    """Save results to JSON files.
+
+    Args:
+        coco_results (_type_): COCO results
+        annotations_output_file (_type_): output file
+    """
     with open(annotations_output_file, 'w') as f:
         json.dump(coco_results['annotations'], f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
     print(f'Results saved to {annotations_output_file}')
 
 def yolo_wrapper_validation(config):
-    """Main function to generate predictions and save them in COCO format."""
+    """Main function to generate predictions and save them in COCO format.
+
+    Args:
+        config (_type_): configuration dictionary
+    """
     config_path = load_yaml(config["input_data_dir"])
     name = time.strftime("%Y%m%d-%H%M%S") if config["name"] is None else config["name"]
     output_dir = config['output_dir'] + "/" + name
