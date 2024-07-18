@@ -6,6 +6,11 @@ import os
 import csv
 
 def nms_wrapper_infer(config):
+    """Inference pipeline for Yolov8 model with NMS included as a node
+
+    Args:
+        config (_type_): Configuration dictionary
+    """
     from tracker.jetson.model.model import Yolov8
 
     # Read all image paths
