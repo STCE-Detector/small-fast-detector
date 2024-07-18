@@ -23,14 +23,10 @@ def custom_evaluate(coco_gt_file, coco_dt_file, save_dir):
     """Evaluate COCO results and save them to a file.
 
     Args:
-        coco_gt_file (_type_): gt file
-        coco_dt_file (_type_): predictions file
-        save_dir (_type_): save directory
+        coco_gt_file (json): gt file
+        coco_dt_file (json): predictions file
+        save_dir (str): save directory
     """
-    anno = COCO(coco_gt_file)
-    pred = anno.loadRes(coco_dt_file)
-    eval = COCOeval(anno, pred, 'bbox')
-
     eval.params.areaRng = [[0 ** 2, 1e5 ** 2],
                            [0 ** 2, 16 ** 2],
                            [16 ** 2, 32 ** 2],
@@ -72,8 +68,8 @@ def extract_cocoeval_metrics(eval, save_dir):
     """Extracts metrics from COCOeval object and saves them to a DataFrame.
 
     Args:
-        eval (_type_): COCOeval object
-        save_dir (_type_): save directory
+        eval (object): COCOeval object
+        save_dir (str): save directory
     """
 
     # Function to append metrics
@@ -124,7 +120,7 @@ def load_yaml(file_path):
     """Load a YAML configuration file.
 
     Args:
-        file_path (_type_): Path to the YAML file
+        file_path (str): Path to the YAML file
 
     Returns:
         _type_: The loaded YAML configuration
@@ -136,7 +132,7 @@ def load_yaml(file_path):
 def load_images_from_folder(folder):
     """Load all images from a specified folder.
     Args:
-        folder (_type_): Root folder containing images
+        folder (str): Root folder containing images
 
     Returns:
         _type_: List of tuples containing image paths and images
@@ -155,9 +151,9 @@ def pred_to_json(results, filename, class_map):
     """Serialize YOLO predictions to COCO json format.
 
     Args:
-        results (_type_): dictionary containing the results
-        filename (_type_): filename of the image
-        class_map (_type_): dictionary mapping class IDs to class names
+        results (dict): dictionary containing the results
+        filename (str): filename of the image
+        class_map (dict): dictionary mapping class IDs to class names
 
     Returns:
         _type_: _description_
@@ -191,8 +187,8 @@ def initialize_model(model_config, labels):
     """Initialize the YOLO model.
 
     Args:
-        model_config (_type_): configuration dictionary for the model
-        labels (_type_): dictionary mapping class IDs to class names
+        model_config (json): configuration dictionary for the model
+        labels (dict): dictionary mapping class IDs to class names
 
     Returns:
         _type_: YOLO model
@@ -208,11 +204,11 @@ def process_images(yolov8, images, category_map, gt_detections, confusion_matrix
     """Process images and generate predictions.
 
     Args:
-        yolov8 (_type_): YOLO model
-        images (_type_): list of tuples containing image paths and images
-        category_map (_type_): dictionary mapping class IDs to class names
-        gt_detections (_type_): ground truth detections
-        confusion_matrix (_type_): confusion matrix object
+        yolov8 (object): YOLO model
+        images (tuple): list of tuples containing image paths and images
+        category_map (dict): dictionary mapping class IDs to class names
+        gt_detections (json): ground truth detections
+        confusion_matrix (object): confusion matrix object
 
     Returns:
         _type_: COCO results
@@ -252,8 +248,8 @@ def save_results(coco_results, annotations_output_file):
     """Save results to JSON files.
 
     Args:
-        coco_results (_type_): COCO results
-        annotations_output_file (_type_): output file
+        coco_results (json): COCO results
+        annotations_output_file (str): output file
     """
     with open(annotations_output_file, 'w') as f:
         json.dump(coco_results['annotations'], f, indent=4, default=lambda o: float(o) if isinstance(o, np.floating) else o)
@@ -263,7 +259,7 @@ def yolo_wrapper_validation(config):
     """Main function to generate predictions and save them in COCO format.
 
     Args:
-        config (_type_): configuration dictionary
+        config (json): configuration dictionary
     """
     config_path = load_yaml(config["input_data_dir"])
     name = time.strftime("%Y%m%d-%H%M%S") if config["name"] is None else config["name"]
