@@ -27,6 +27,10 @@ def custom_evaluate(coco_gt_file, coco_dt_file, save_dir):
         coco_dt_file (json): predictions file
         save_dir (str): save directory
     """
+    anno = COCO(coco_gt_file)
+    pred = anno.loadRes(coco_dt_file)
+    eval = COCOeval(anno, pred, 'bbox')
+
     eval.params.areaRng = [[0 ** 2, 1e5 ** 2],
                            [0 ** 2, 16 ** 2],
                            [16 ** 2, 32 ** 2],
@@ -62,7 +66,6 @@ def custom_evaluate(coco_gt_file, coco_dt_file, save_dir):
     results_file = Path(save_dir) / "evaluation_results.json"
     with results_file.open("w") as file:
         json.dump(stats, file)
-
 
 def extract_cocoeval_metrics(eval, save_dir):
     """Extracts metrics from COCOeval object and saves them to a DataFrame.
@@ -123,7 +126,7 @@ def load_yaml(file_path):
         file_path (str): Path to the YAML file
 
     Returns:
-        _type_: The loaded YAML configuration
+        (object): The loaded YAML configuration
     """
     with open(file_path, 'r') as f:
         return yaml.safe_load(f)
@@ -135,7 +138,7 @@ def load_images_from_folder(folder):
         folder (str): Root folder containing images
 
     Returns:
-        _type_: List of tuples containing image paths and images
+        (list): List of tuples containing image paths and images
     """
     images = []
     for filename in os.listdir(folder):
@@ -156,7 +159,7 @@ def pred_to_json(results, filename, class_map):
         class_map (dict): dictionary mapping class IDs to class names
 
     Returns:
-        _type_: _description_
+        (json): json predictions format
     """
     jdict = []
     stem = Path(filename).stem
@@ -191,7 +194,7 @@ def initialize_model(model_config, labels):
         labels (dict): dictionary mapping class IDs to class names
 
     Returns:
-        _type_: YOLO model
+        (object): YOLO model
     """
     device = torch.device(model_config['device'], 0)
     return Yolov8({
@@ -211,7 +214,7 @@ def process_images(yolov8, images, category_map, gt_detections, confusion_matrix
         confusion_matrix (object): confusion matrix object
 
     Returns:
-        _type_: COCO results
+        (object): COCO results
     """
     df_detections_gt = pd.DataFrame(gt_detections['annotations'])
     coco_results = {
