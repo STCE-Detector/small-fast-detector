@@ -4,7 +4,7 @@
   "format": "onnx",
   "img_size": 640,
   "opset": 13,
-  "simplify": true,
+  "simplify": false,
 
   "include_nms": false,
   "output": "./../detectors/",

@@ -2,8 +2,8 @@ from typing import Tuple
 
 import torch
 from torch import Tensor, Value, nn
+
 from ultralytics.nn.modules import Detect
-from ultralytics.utils.checks import check_version
 from ultralytics.utils.tal import make_anchors
 
 __all__ = ["UltralyticsDetect"]
@@ -14,17 +14,17 @@ class Efficient_TRT_NMS(torch.autograd.Function):
 
     @staticmethod
     def forward(
-        ctx,
-        boxes,
-        scores,
-        iou_threshold: float = 0.7,
-        score_threshold: float = 0.1,
-        max_output_boxes: float = 300,
-        box_coding: int = 1,
-        background_class: int = -1,
-        score_activation: int = 0,
-        plugin_version: str = '1',
-        class_agnostic: int = 0,
+            ctx,
+            boxes,
+            scores,
+            iou_threshold: float = 0.7,
+            score_threshold: float = 0.1,
+            max_output_boxes: float = 300,
+            box_coding: int = 1,
+            background_class: int = -1,
+            score_activation: int = 0,
+            plugin_version: str = '1',
+            class_agnostic: int = 0,
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         batch_size, num_boxes, num_classes = scores.shape
         num_detections = torch.randint(0, max_output_boxes, (batch_size, 1), dtype=torch.int32)
@@ -36,17 +36,17 @@ class Efficient_TRT_NMS(torch.autograd.Function):
 
     @staticmethod
     def symbolic(
-        g,
-        boxes,
-        scores,
-        iou_threshold: float = 0.7,
-        score_threshold: float = 0.1,
-        max_output_boxes: float = 300,
-        box_coding: int = 1,
-        background_class: int = -1,
-        score_activation: int = 0,
-        plugin_version: str = '1',
-        class_agnostic: int= 0,
+            g,
+            boxes,
+            scores,
+            iou_threshold: float = 0.7,
+            score_threshold: float = 0.1,
+            max_output_boxes: float = 300,
+            box_coding: int = 1,
+            background_class: int = -1,
+            score_activation: int = 0,
+            plugin_version: str = '1',
+            class_agnostic: int = 0,
     ) -> Tuple[Value, Value, Value, Value]:
         return g.op(
             'TRT::EfficientNMS_TRT',
@@ -63,29 +63,30 @@ class Efficient_TRT_NMS(torch.autograd.Function):
             plugin_version_s=plugin_version,
         )
 
+
 class TRT_YOLO_NMS(torch.autograd.Function):
     '''TensorRT NMS operation'''
+
     @staticmethod
     def forward(
-        ctx,
-        boxes,
-        scores,
-        background_class=-1,
-        box_coding=1,
-        iou_threshold=0.45,
-        max_output_boxes=100,
-        plugin_version="1",
-        score_activation=0,
-        score_threshold=0.25,
-        class_agnostic=0,
+            ctx,
+            boxes,
+            scores,
+            background_class=-1,
+            box_coding=1,
+            iou_threshold=0.45,
+            max_output_boxes=100,
+            plugin_version="1",
+            score_activation=0,
+            score_threshold=0.25,
+            class_agnostic=0,
     ):
-
         batch_size, num_boxes, num_classes = scores.shape
         num_det = torch.randint(0, max_output_boxes, (batch_size, 1), dtype=torch.int32)
         det_boxes = torch.randn(batch_size, max_output_boxes, 4)
         det_scores = torch.randn(batch_size, max_output_boxes)
         det_classes = torch.randint(0, num_classes, (batch_size, max_output_boxes), dtype=torch.int32)
-        det_indices = torch.randint(0,num_boxes,(batch_size, max_output_boxes), dtype=torch.int32)
+        det_indices = torch.randint(0, num_boxes, (batch_size, max_output_boxes), dtype=torch.int32)
         return num_det, det_boxes, det_scores, det_classes, det_indices
 
     @staticmethod
@@ -178,6 +179,8 @@ class End2End_TRT(nn.Module):
         x = self.model(x)
         x = self.end2end(x)
         return x
+
+
 """
 ===============================================================================
             Ultralytics Detect head for detection models
