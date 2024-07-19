@@ -365,13 +365,22 @@ class ByteTrack:
 
         # Action Recognition
         # TODO: solve when config is ConfigParser
-        if "action_recognition" in config:
-            self.speed_buffer_len = config["action_recognition"]["speed_buffer_len"]
-            self.frame_stride = config["action_recognition"]["frame_stride"]
+        if hasattr(config, "keys"):
+            if "action_recognition" in config:
+                self.speed_buffer_len = config["action_recognition"]["speed_buffer_len"]
+                self.frame_stride = config["action_recognition"]["frame_stride"]
+            else:
+                # TODO: use best known values
+                self.speed_buffer_len = 5
+                self.frame_stride = 30
         else:
-            # TODO: use best known values
-            self.speed_buffer_len = 5
-            self.frame_stride = 30
+            if "action_recognition" in config.config:
+                self.speed_buffer_len = config["action_recognition"]["speed_buffer_len"]
+                self.frame_stride = config["action_recognition"]["frame_stride"]
+            else:
+                # TODO: use best known values
+                self.speed_buffer_len = 5
+                self.frame_stride = 30
 
     def update(self, results, img=None):
         """Updates object tracker with new detections and returns tracked object bounding boxes."""
