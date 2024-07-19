@@ -78,16 +78,6 @@ class STrack(BaseTrack):
         self.speed_buffer_len = speed_buffer_len
         self.frame_stride = frame_stride
 
-        # Action recognition: EMA speed
-        """
-        self.prev_state = None
-        self.EMA_alpha = 0.3
-        self.EMA_speed = None
-        self.prev_EMA_speed = None
-        self.EMA_accel = None
-        self.prev_EMA_accel = None
-        """
-
         # Action recognition: init flags
         self.SS = False
         self.SR = False
