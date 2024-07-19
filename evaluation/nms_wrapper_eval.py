@@ -27,6 +27,10 @@ def custom_evaluate(coco_gt_file, coco_dt_file, save_dir):
         coco_dt_file (json): predictions file
         save_dir (str): save directory
     """
+    anno = COCO(coco_gt_file)
+    pred = anno.loadRes(coco_dt_file)
+    eval = COCOeval(anno, pred, 'bbox')
+
     eval.params.areaRng = [[0 ** 2, 1e5 ** 2],
                            [0 ** 2, 16 ** 2],
                            [16 ** 2, 32 ** 2],
@@ -62,7 +66,6 @@ def custom_evaluate(coco_gt_file, coco_dt_file, save_dir):
     results_file = Path(save_dir) / "evaluation_results.json"
     with results_file.open("w") as file:
         json.dump(stats, file)
-
 
 def extract_cocoeval_metrics(eval, save_dir):
     """Extracts metrics from COCOeval object and saves them to a DataFrame.
