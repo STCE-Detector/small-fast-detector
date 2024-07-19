@@ -50,7 +50,7 @@ class STrack(BaseTrack):
 
     shared_kalman = KalmanFilterXYAH()
 
-    def __init__(self, tlwh, score, cls, feat=None, feat_history=50, speed_buffer_len=5, frame_stride=30):
+    def __init__(self, tlwh, score, cls, feat=None, feat_history=50, speed_projection=None):
         """Initialize new STrack instance."""
         self._tlwh = np.asarray(self.tlbr_to_tlwh(tlwh[:-1]), dtype=np.float32)
         self.kalman_filter = None
@@ -73,12 +73,10 @@ class STrack(BaseTrack):
             self.update_features(feat)
         self.alpha = 0.9
 
-        # Action recognition: widow of previous states
-        self.prev_states = []
-        self.speed_buffer_len = speed_buffer_len
-        self.frame_stride = frame_stride
-
-        # Action recognition: init flags
+        # Action Recognition initialization
+        self.speed_projection = speed_projection
+        self.norm_speed = deque([], maxlen=150)
+        self.prev_state = None
         self.SS = False
         self.SR = False
         self.FA = False
@@ -171,6 +169,8 @@ class STrack(BaseTrack):
             self.is_activated = True
         self.frame_id = frame_id
         self.start_frame = frame_id
+        # Action Recognition
+        self.prev_state = self.mean
 
     def re_activate(self, new_track, frame_id, new_id=False):
         """Reactivates a previously lost track with a new detection."""
@@ -186,6 +186,8 @@ class STrack(BaseTrack):
         self.score = new_track.score
         self.cls = new_track.cls
         self.idx = new_track.idx
+        # Action Recognition
+        self.prev_state = self.mean
 
     def update(self, new_track, frame_id):
         """
@@ -208,10 +210,18 @@ class STrack(BaseTrack):
         self.cls = new_track.cls
         self.idx = new_track.idx
 
-        if len(self.prev_states) < self.speed_buffer_len or self.frame_id % self.frame_stride == 0:
-            self.prev_states.append(self.mean)
-        if len(self.prev_states) > self.speed_buffer_len:
-            self.prev_states.pop(0)
+        # Action Recognition
+        if self.prev_state is not None:
+            # Compute speed
+            speed = np.linalg.norm((self.mean[:2] - self.prev_state[:2])*self.speed_projection)
+            # Normalize speed by current area
+            speed /= np.sqrt(new_track.tlwh[2] * new_track.tlwh[3])
+            # Append speed to buffer
+            self.norm_speed.append(speed)
+        else:
+            self.norm_speed.append(0)
+
+        self.prev_state = self.mean
 
     def convert_coords(self, tlwh):
         """Convert a bounding box's top-left-width-height format to its x-y-angle-height equivalent."""
@@ -369,18 +379,22 @@ class ByteTrack:
             if "action_recognition" in config:
                 self.speed_buffer_len = config["action_recognition"]["speed_buffer_len"]
                 self.frame_stride = config["action_recognition"]["frame_stride"]
+                self.speed_projection = np.array(config["action_recognition"]["speed_projection"])
             else:
                 # TODO: use best known values
                 self.speed_buffer_len = 5
                 self.frame_stride = 30
+                self.speed_projection = np.array([1, 1])
         else:
             if "action_recognition" in config.config:
                 self.speed_buffer_len = config["action_recognition"]["speed_buffer_len"]
                 self.frame_stride = config["action_recognition"]["frame_stride"]
+                self.speed_projection = np.array(config["action_recognition"]["speed_projection"])
             else:
                 # TODO: use best known values
                 self.speed_buffer_len = 5
                 self.frame_stride = 30
+                self.speed_projection = np.array([1, 1])
 
     def update(self, results, img=None):
         """Updates object tracker with new detections and returns tracked object bounding boxes."""
@@ -588,14 +602,12 @@ class ByteTrack:
             if self.with_reid and features is not None:
                 detections = [STrack(xyxy,
                                      s, c, f,
-                                     speed_buffer_len=self.speed_buffer_len,
-                                     frame_stride=self.frame_stride)
+                                     speed_projection=self.speed_projection)
                               for (xyxy, s, c, f) in zip(dets, scores, cls, features)]
             else:
                 detections = [STrack(xyxy,
                                      s, c,
-                                     speed_buffer_len=self.speed_buffer_len,
-                                     frame_stride=self.frame_stride)
+                                     speed_projection=self.speed_projection)
                               for (xyxy, s, c) in zip(dets, scores, cls)]
         else:
             detections = []

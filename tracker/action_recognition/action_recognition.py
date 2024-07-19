@@ -27,10 +27,12 @@ class ActionRecognizer:
         self.g_area_threshold = config["gather"]["area_threshold"]
         self.g_speed_threshold = config["gather"]["speed_threshold"]
         self.g_last_n = config["gather"]["last_n"]
+        self.g_alpha = config["gather"]["alpha"]
         # Standing still parameters
         self.ss_enabled = config["stand_still"]["enabled"]
         self.ss_speed_threshold = config["stand_still"]["speed_threshold"]
         self.ss_last_n = config["stand_still"]["last_n"]
+        self.ss_alpha = config["stand_still"]["alpha"]
         # Fast approach parameters
         self.fa_enabled = config["fast_approach"]["enabled"]
         self.fa_draw = config["fast_approach"]["draw"]
@@ -42,6 +44,7 @@ class ActionRecognizer:
         self.sr_enabled = config["suddenly_run"]["enabled"]
         self.sr_speed_threshold = config["suddenly_run"]["speed_threshold"]
         self.sr_last_n = config["suddenly_run"]["last_n"]
+        self.sr_alpha = config["suddenly_run"]["alpha"]
         # Overstep boundary parameters
         self.osb_enabled = config["overstep_boundary"]["enabled"]
         self.osb_draw = config["overstep_boundary"]["draw"]
@@ -184,11 +187,9 @@ class ActionRecognizer:
                 distance, a1, a2 = self.compute_ned(det1, det2)
                 # If the distance between the detections is less than the threshold and the areas are similar
                 if distance <= self.g_distance_threshold and min(a1, a2) / (max(a1, a2) + 1e-9) <= self.g_area_threshold:
-                    pixel_s1, _ = self.get_motion_descriptors(det1, last_n=self.g_last_n)
-                    pixel_s2, _ = self.get_motion_descriptors(det2, last_n=self.g_last_n)
-                    # Enforce that both detections have similar speeds
-                    # if min(pixel_s1, pixel_s2) / (max(pixel_s1, pixel_s2) + 1e-9) <= self.g_speed_threshold:
-                    # If both detections have low speed
+                    pixel_s1, _ = self.get_motion_descriptors(det1, last_n=self.g_last_n, alpha=self.g_alpha)
+                    pixel_s2, _ = self.get_motion_descriptors(det2, last_n=self.g_last_n, alpha=self.g_alpha)
+                    # If the average speed of both detections is less than the threshold
                     if pixel_s1 < self.g_speed_threshold and pixel_s2 < self.g_speed_threshold:
                         pairs.append([i, j])
 
@@ -277,42 +278,44 @@ class ActionRecognizer:
         """
         if not tracks:
             return None
-        frame_stride = tracks[0].frame_stride
         ss_results = {}
         for track in tracks:
-            if track.tracklet_len > frame_stride and track.class_ids == 0:
-                pixel_s, _ = self.get_motion_descriptors(track, last_n=self.ss_last_n)
+            if track.class_ids == 0:
+                pixel_s, _ = self.get_motion_descriptors(track, last_n=self.ss_last_n, alpha=self.ss_alpha)
                 if pixel_s < self.ss_speed_threshold:
                     ss_results[track.track_id] = track.tlbr
                     track.SS = True
         return ss_results if len(ss_results.keys()) > 0 else None
 
-    def get_motion_descriptors(self, track, last_n=None):
+    def get_motion_descriptors(self, track, alpha=0, last_n=150):
         """
         Computes the average speed and direction of a detection.
         Args:
             track (sv.STrack): detection to compute the motion descriptors.
+            alpha (float): smoothing factor for the exponential moving average, a value close to 1 gives more weight to
+                the most recent state, a value close to 0 provides a smoother result. If None, no smoothing is applied.
         Returns:
             avg_speed (float): average speed of the detection.
             direction (float): direction of the detection.
         """
-        # track.prev_states[-1] is most recent state
-        if last_n is None:
-            states = np.array(track.prev_states + [track.mean])
+        # track.states[-1] is most recent state, track.states[0] is oldest state
+        states = np.array(track.norm_speed)
+
+        # Get last_n states
+        if last_n is not None:
+            states = states[-last_n:]
+
+        if alpha is not None:
+            # Initialize EMA with the first state
+            smoothed_speed = states[0]
+
+            # Compute EMA
+            for speed in states[1:]:
+                smoothed_speed = alpha * speed + (1 - alpha) * smoothed_speed
         else:
-            states = np.array(track.prev_states[-self.sr_last_n:] + [track.mean])
-        # Compute differences between states for x and y coordinates and multiply by speed projection weights
-        increments = np.diff(states[:, :2], axis=0) * self.speed_projection
-        # Area normalizer
-        a = np.sqrt(track.tlwh[2] * track.tlwh[3])
-        # Average speed
-        if len(increments) == 0:
-            return 0, 0
-        else:
-            avg_speed = np.mean(np.sqrt(np.sum(increments ** 2, axis=1))) / (track.frame_stride * a)
-            # Sign of the increments in Y axis
-            direction = np.mean(np.sign(increments[:, 1]))
-            return avg_speed, direction
+            smoothed_speed = np.mean(states)
+
+        return smoothed_speed, 0
 
     def recognize_fast_approach(self, tracks):
         valid_classes = [0,1,2]  # TODO: should also include car and truck, different thresholds? v*X
@@ -346,7 +349,7 @@ class ActionRecognizer:
             if track.class_ids == 0 and track.frame_id > 1:
                 # TODO: instead of kalman use motion descriptors but only for the last 2 data points, trying to solve overlapping bboxes issue
                 # weighted_instant_speed = np.sqrt(np.sum((track.mean[4:6] * self.speed_projection) ** 2)) / np.sqrt(track.tlwh[2] * track.tlwh[3])
-                weighted_mean_speed, _ = self.get_motion_descriptors(track, last_n=self.sr_last_n)
+                weighted_mean_speed, _ = self.get_motion_descriptors(track, last_n=self.sr_last_n, alpha=self.sr_alpha)
                 if weighted_mean_speed > self.sr_speed_threshold:
                     sr_results[track.track_id] = track.tlbr
                     track.SR = True

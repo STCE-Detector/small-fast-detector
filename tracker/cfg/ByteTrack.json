@@ -12,7 +12,7 @@
   "save_dir": "./outputs/",
   "save_results": false,
   "save_video": false,
-  "display": true,
+  "display": false,
   "sync_fps": false,
   "stabilize": false,
   "logging": false,
@@ -64,6 +64,7 @@
     "gather": {
       "enabled": true,
       "min_people": 3,
+      "last_n": 3,
       "distance_threshold": 0.9545844402819228,
       "area_threshold": 0.9980844106242607,
       "speed_threshold": 0.04122885187750009
@@ -71,6 +72,7 @@
 
     "stand_still": {
       "enabled": true,
+      "last_n": 3,
       "speed_threshold": 0.004367490463323766
     },
 

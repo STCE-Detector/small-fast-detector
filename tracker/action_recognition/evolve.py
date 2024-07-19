@@ -27,32 +27,33 @@ def ar_optuna_fitness_fn(trial, config, param_names):
         ar_config["speed_projection"][0] = trial.suggest_float("speed_projection_x", 0.5, 2.0, step=0.01)
         ar_config["speed_projection"][1] = trial.suggest_float("speed_projection_y", 0.5, 2.0, step=0.01)
 
-    if config["evolve"]["buffer"]:
-        ar_config["speed_buffer_len"] = trial.suggest_int("speed_buffer_len", 1, 15)
-        ar_config["frame_stride"] = trial.suggest_int("frame_stride", 1, 60)
-
     if objective == "Macro" or objective == "Micro":
         ar_config["gather"]["distance_threshold"] = trial.suggest_float("g_distance_threshold", 0.5, 1.5, step=0.01)
         ar_config["gather"]["area_threshold"] = trial.suggest_float("g_area_threshold", 0.5, 1.0)
         ar_config["gather"]["speed_threshold"] = trial.suggest_float("g_speed_threshold", 0.0001, 0.1, step=0.0001)
-        ar_config["gather"]["last_n"] = trial.suggest_int("g_last_n", 1, int(ar_config["speed_buffer_len"]))
+        ar_config["gather"]["last_n"] = trial.suggest_int("g_last_n", 1, 150)
+        ar_config["gather"]["alpha"] = trial.suggest_float("g_alpha", 0.0, 1.0, step=0.01)
         ar_config["stand_still"]["speed_threshold"] = trial.suggest_float("ss_speed_threshold", 0.0001, 0.1, step=0.0001)
-        ar_config["stand_still"]["last_n"] = trial.suggest_int("ss_last_n", 1, int(ar_config["speed_buffer_len"]))
+        ar_config["stand_still"]["last_n"] = trial.suggest_int("ss_last_n", 1, 150)
+        ar_config["stand_still"]["alpha"] = trial.suggest_float("ss_alpha", 0.0, 1.0, step=0.01)
         ar_config["suddenly_run"]["speed_threshold"] = trial.suggest_float("sr_speed_threshold", 0.0001, 0.1, step=0.0001)
         ar_config["suddenly_run"]["last_n"] = trial.suggest_int("sr_last_n", 1, int(ar_config["speed_buffer_len"]))
+
 
     elif objective == "G":
         ar_config["gather"]["distance_threshold"] = trial.suggest_float("g_distance_threshold", 0.5, 1.5, step=0.01)
         ar_config["gather"]["area_threshold"] = trial.suggest_float("g_area_threshold", 0.5, 1.0)
         ar_config["gather"]["speed_threshold"] = trial.suggest_float("g_speed_threshold", 0.0001, 0.1, step=0.0001)
-        ar_config["gather"]["last_n"] = trial.suggest_int("ss_last_n", 1, int(ar_config["speed_buffer_len"]))
+        ar_config["gather"]["last_n"] = trial.suggest_int("g_last_n", 1, 150)
+        ar_config["gather"]["alpha"] = trial.suggest_float("g_alpha", 0.0, 1.0, step=0.01)
         # Disable the other behaviors
         ar_config["stand_still"]["enabled"] = False
         ar_config["suddenly_run"]["enabled"] = False
 
     elif objective == "SS":
         ar_config["stand_still"]["speed_threshold"] = trial.suggest_float("ss_speed_threshold", 0.0001, 0.1, step=0.0001)
-        ar_config["stand_still"]["last_n"] = trial.suggest_int("ss_last_n", 1, int(ar_config["speed_buffer_len"]))
+        ar_config["stand_still"]["last_n"] = trial.suggest_int("ss_last_n", 1, 150)
+        ar_config["stand_still"]["alpha"] = trial.suggest_float("ss_alpha", 0.0, 1.0, step=0.01)
         # Disable the other behaviors
         ar_config["gather"]["enabled"] = False
         ar_config["suddenly_run"]["enabled"] = False
@@ -142,24 +143,30 @@ if __name__ == "__main__":
     if objective in ["SS", "Macro", "Micro"]:
         params_to_optimize.append("ss_speed_threshold")
         params_to_optimize.append("ss_last_n")
+        params_to_optimize.append("ss_alpha")
         initial_params["ss_speed_threshold"] = config["action_recognition"]["stand_still"]["speed_threshold"]
         initial_params["ss_last_n"] = config["action_recognition"]["stand_still"]["last_n"]
+        initial_params["ss_alpha"] = config["action_recognition"]["stand_still"]["alpha"]
 
     if objective in ["SR", "Macro", "Micro"]:
         params_to_optimize.append("sr_speed_threshold")
         params_to_optimize.append("sr_last_n")
+        params_to_optimize.append("sr_alpha")
         initial_params["sr_speed_threshold"] = config["action_recognition"]["suddenly_run"]["speed_threshold"]
         initial_params["sr_last_n"] = config["action_recognition"]["suddenly_run"]["last_n"]
+        initial_params["sr_alpha"] = config["action_recognition"]["suddenly_run"]["alpha"]
 
     if objective in ["G", "Macro", "Micro"]:
         params_to_optimize.append("g_distance_threshold")
         params_to_optimize.append("g_area_threshold")
         params_to_optimize.append("g_speed_threshold")
         params_to_optimize.append("g_last_n")
+        params_to_optimize.append("g_alpha")
         initial_params["g_distance_threshold"] = config["action_recognition"]["gather"]["distance_threshold"]
         initial_params["g_area_threshold"] = config["action_recognition"]["gather"]["area_threshold"]
         initial_params["g_speed_threshold"] = config["action_recognition"]["gather"]["speed_threshold"]
         initial_params["g_last_n"] = config["action_recognition"]["gather"]["last_n"]
+        initial_params["g_alpha"] = config["action_recognition"]["gather"]["alpha"]
 
     if config["evolve"]["projection"]:
         params_to_optimize = ["speed_projection_x", "speed_projection_y"] + params_to_optimize
@@ -171,11 +178,6 @@ if __name__ == "__main__":
         initial_params["initial_pad"] = 0
         initial_params["final_pad"] = 0
         initial_params["smoothing_window"] = 0
-
-    if config["evolve"]["buffer"]:
-        params_to_optimize += ["speed_buffer_len", "frame_stride"]
-        initial_params["speed_buffer_len"] = config["action_recognition"]["speed_buffer_len"]
-        initial_params["frame_stride"] = config["action_recognition"]["frame_stride"]
 
     study.enqueue_trial(initial_params)
 
