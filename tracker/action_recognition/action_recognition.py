@@ -300,7 +300,7 @@ class ActionRecognizer:
         if last_n is None:
             states = np.array(track.prev_states + [track.mean])
         else:
-            states = np.array(track.prev_states[-self.sr_last_n:] + [track.mean])
+            states = np.array(track.prev_states[-last_n:] + [track.mean])
         # Compute differences between states for x and y coordinates and multiply by speed projection weights
         increments = np.diff(states[:, :2], axis=0) * self.speed_projection
         # Area normalizer
