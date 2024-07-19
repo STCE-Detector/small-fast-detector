@@ -7,7 +7,7 @@ import configparser
 import warnings
 
 import tracker.trackers as trackers
-from tracker.action_recognition import ActionRecognizer
+from tracker.action_recognition.action_recognition import ActionRecognizer
 
 
 class SequenceProcessor:

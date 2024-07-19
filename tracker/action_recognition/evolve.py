@@ -5,8 +5,8 @@ import optuna
 import joblib
 import json
 
-from tracker.ar_tools.evaluate import AREvaluator
-from tracker.ar_tools.generate_behaviors import generate_behaviors
+from tracker.action_recognition.evaluate import AREvaluator
+from tracker.action_recognition.generate_behaviors import generate_behaviors
 from tracker.finetune.evolve import generate_unique_tag
 
 

@@ -100,7 +100,7 @@ def add_actions(sequence_path):
 
 if __name__ == "__main__":
 
-    dataset_root = './../evaluation/TrackEval/data/gt/mot_challenge/MOTcustom'
+    dataset_root = './../evaluation/TrackEval/data/gt/mot_challenge/PTD'
 
     # Get all sequences
     sequences = [sequence for sequence in os.listdir(dataset_root) if os.path.isdir(os.path.join(dataset_root, sequence))]

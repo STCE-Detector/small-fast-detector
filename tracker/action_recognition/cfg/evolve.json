@@ -1,41 +1,40 @@
 {
-  "name": "GS-ByteTrack",
+  "name": "Macro-F05-1000iters",
 
   "tracker_name": "ByteTrack",
 
-  "source_detections_dir": "./../evaluation/outputs/detections/cdv3_8sp2_150e_128b/MOTcustom",
-  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MOTcustom",
+  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/PTD",
+  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/PTD",
 
   "device": "cpu",
 
   "evolve": {
-    "n_trials": 100,
-    "objective": "FA",
-    "projection": false,
+    "n_trials": 1000,
+    "objective": "Macro",
+    "projection": true,
     "post_process": false,
-    "buffer": false
+    "buffer": true
   },
 
   "tracker_args": {
     "track_high_thresh": 0.1,
-    "track_low_thresh": 0.21,
-    "new_track_thresh": 0.38,
-    "first_match_thresh": 0.96,
-    "second_match_thresh": 0.8,
-    "new_match_thresh": 0.51,
-    "first_buffer": 0.01,
-    "second_buffer": 0.37,
-    "new_buffer": 0.0,
+    "track_low_thresh": 0.53,
+    "new_track_thresh": 0.56,
+    "first_match_thresh": 0.95,
+    "second_match_thresh": 0.73,
+    "new_match_thresh": 0.54,
+    "first_buffer": 0.04,
+    "second_buffer": 0.35,
+    "new_buffer": 0.29,
     "first_fuse": 1,
-    "second_fuse": 0,
+    "second_fuse": 1,
     "new_fuse": 1,
     "first_iou": 3,
-    "second_iou": 1,
-    "new_iou": 3,
-    "cw_thresh": 0.58,
+    "second_iou": 4,
+    "new_iou": 5,
+    "cw_thresh": 0.79,
     "nk_flag": 0,
-    "nk_alpha": 70,
-
+    "nk_alpha": 10,
     "track_buffer": 350,
 
     "proximity_thresh": 0.9,
@@ -56,26 +55,29 @@
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "distance_threshold": 1.0,
-      "area_threshold": 0.5,
-      "speed_threshold": 0.001
+      "last_n": 3,
+      "distance_threshold": 0.9545844402819228,
+      "area_threshold": 0.9980844106242607,
+      "speed_threshold": 0.04122885187750009
     },
 
     "stand_still": {
       "enabled": true,
+      "last_n": 3,
       "speed_threshold": 0.004367490463323766
     },
 
     "fast_approach": {
-      "enabled": true,
+      "enabled": false,
       "draw": false,
       "distance_threshold": 4,
-      "speed_threshold": 0.005
+      "speed_threshold": 0.00162685341658254773
     },
 
     "suddenly_run": {
       "enabled": true,
-      "speed_threshold": 0.025
+      "last_n": 3,
+      "speed_threshold": 0.025304976367086236
     },
 
     "overstep_boundary": {

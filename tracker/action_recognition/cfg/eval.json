@@ -1,0 +1,21 @@
+{
+  "name": "150-30-0",
+
+  "data_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/PTD/",
+  "pred_dir": "./outputs/tracks/PTD/BT_1stagebest-AR_100hupba_cdv3_8sp2_150e_128b/",
+
+  "action_recognition": {
+    "active_behaviors": ["G"],
+    "discriminate_groups": false,
+
+    "confidence_threshold": 0.3,
+    "iou_threshold": 0.3,
+
+    "smoothing_window": 0,
+    "initial_pad": 0,
+    "final_pad": 0,
+
+    "save_results": true,
+    "print_results": true
+  }
+}

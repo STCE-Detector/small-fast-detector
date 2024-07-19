@@ -22,7 +22,7 @@ import numpy as np
 import supervision as sv
 from tqdm import tqdm
 
-from tracker.action_recognition import ActionRecognizer
+from tracker.action_recognition.action_recognition import ActionRecognizer
 from tracker.gui.GUI import VideoDisplay
 from tracker.gui.frameCapture import FrameCapture
 from tracker.gui.frameProcessing import VideoWriter
