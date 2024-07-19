@@ -1,5 +1,5 @@
 {
-  "name": "Macro-F05-1000iters",
+  "name": "Macro-P-100iters",
 
   "tracker_name": "ByteTrack",
 
@@ -9,8 +9,8 @@
   "device": "cpu",
 
   "evolve": {
-    "n_trials": 1000,
-    "objective": "Macro",
+    "n_trials": 100,
+    "objective": ["Macro", "Precision"],
     "projection": true,
     "post_process": false,
     "buffer": true

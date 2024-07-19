@@ -26,9 +26,11 @@ class ActionRecognizer:
         self.g_distance_threshold = config["gather"]["distance_threshold"]
         self.g_area_threshold = config["gather"]["area_threshold"]
         self.g_speed_threshold = config["gather"]["speed_threshold"]
+        self.g_last_n = config["gather"]["last_n"]
         # Standing still parameters
         self.ss_enabled = config["stand_still"]["enabled"]
         self.ss_speed_threshold = config["stand_still"]["speed_threshold"]
+        self.ss_last_n = config["stand_still"]["last_n"]
         # Fast approach parameters
         self.fa_enabled = config["fast_approach"]["enabled"]
         self.fa_draw = config["fast_approach"]["draw"]
@@ -39,6 +41,7 @@ class ActionRecognizer:
         # Suddenly running parameters
         self.sr_enabled = config["suddenly_run"]["enabled"]
         self.sr_speed_threshold = config["suddenly_run"]["speed_threshold"]
+        self.sr_last_n = config["suddenly_run"]["last_n"]
         # Overstep boundary parameters
         self.osb_enabled = config["overstep_boundary"]["enabled"]
         self.osb_draw = config["overstep_boundary"]["draw"]
@@ -181,8 +184,8 @@ class ActionRecognizer:
                 distance, a1, a2 = self.compute_ned(det1, det2)
                 # If the distance between the detections is less than the threshold and the areas are similar
                 if distance <= self.g_distance_threshold and min(a1, a2) / (max(a1, a2) + 1e-9) <= self.g_area_threshold:
-                    pixel_s1, _ = self.get_motion_descriptors(det1)
-                    pixel_s2, _ = self.get_motion_descriptors(det2)
+                    pixel_s1, _ = self.get_motion_descriptors(det1, last_n=self.g_last_n)
+                    pixel_s2, _ = self.get_motion_descriptors(det2, last_n=self.g_last_n)
                     # Enforce that both detections have similar speeds
                     # if min(pixel_s1, pixel_s2) / (max(pixel_s1, pixel_s2) + 1e-9) <= self.g_speed_threshold:
                     # If both detections have low speed
@@ -278,13 +281,13 @@ class ActionRecognizer:
         ss_results = {}
         for track in tracks:
             if track.tracklet_len > frame_stride and track.class_ids == 0:
-                pixel_s, _ = self.get_motion_descriptors(track)
+                pixel_s, _ = self.get_motion_descriptors(track, last_n=self.ss_last_n)
                 if pixel_s < self.ss_speed_threshold:
                     ss_results[track.track_id] = track.tlbr
                     track.SS = True
         return ss_results if len(ss_results.keys()) > 0 else None
 
-    def get_motion_descriptors(self, track):
+    def get_motion_descriptors(self, track, last_n=None):
         """
         Computes the average speed and direction of a detection.
         Args:
@@ -294,7 +297,10 @@ class ActionRecognizer:
             direction (float): direction of the detection.
         """
         # track.prev_states[-1] is most recent state
-        states = np.array(track.prev_states + [track.mean])
+        if last_n is None:
+            states = np.array(track.prev_states + [track.mean])
+        else:
+            states = np.array(track.prev_states[-self.sr_last_n:] + [track.mean])
         # Compute differences between states for x and y coordinates and multiply by speed projection weights
         increments = np.diff(states[:, :2], axis=0) * self.speed_projection
         # Area normalizer
@@ -315,7 +321,7 @@ class ActionRecognizer:
             if track.class_ids in valid_classes and track.frame_id > 1:
                 # TODO: what if first region and then speed?
                 pixel_s, direction = self.get_motion_descriptors(track)
-                if pixel_s > self.fa_speed_threshold and direction > 0:
+                if pixel_s > self.fa_speed_threshold and direction >= 0:
                     # TODO: if not circular region, then check if any point of bbox is inside polygon
                     # Distance between point of interest and bbox
                     dx = max(abs(track.mean[0] - self.interest_point[0]) - track.mean[2] / 2, 0)
@@ -339,9 +345,9 @@ class ActionRecognizer:
         for track in tracks:
             if track.class_ids == 0 and track.frame_id > 1:
                 # TODO: instead of kalman use motion descriptors but only for the last 2 data points, trying to solve overlapping bboxes issue
-                weighted_instant_speed = np.sqrt(np.sum((track.mean[4:6] * self.speed_projection) ** 2))
-                a = np.sqrt(track.tlwh[2] * track.tlwh[3])
-                if weighted_instant_speed/a > self.sr_speed_threshold:
+                # weighted_instant_speed = np.sqrt(np.sum((track.mean[4:6] * self.speed_projection) ** 2)) / np.sqrt(track.tlwh[2] * track.tlwh[3])
+                weighted_mean_speed, _ = self.get_motion_descriptors(track, last_n=self.sr_last_n)
+                if weighted_mean_speed > self.sr_speed_threshold:
                     sr_results[track.track_id] = track.tlbr
                     track.SR = True
         return sr_results if len(sr_results.keys()) > 0 else None
