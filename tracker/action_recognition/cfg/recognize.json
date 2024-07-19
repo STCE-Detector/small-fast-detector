@@ -40,35 +40,36 @@
 
   "action_recognition": {
     "enabled": true,
-    "speed_buffer_len": 5,
-    "frame_stride": 30,
-    "speed_projection": [1.265835029527192, 0.7043399836796834],
+    "speed_buffer_len": 3,
+    "frame_stride": 20,
+    "speed_projection": [1.4368130286285825, 1.358710274910445],
 
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "distance_threshold": 1,
-      "area_threshold": 0.5,
-      "speed_threshold": 0.009928427718117755,
-      "discriminate_groups": true
+      "last_n": 3,
+      "distance_threshold": 0.9545844402819228,
+      "area_threshold": 0.9980844106242607,
+      "speed_threshold": 0.04122885187750009
     },
 
     "stand_still": {
-      "enabled": false,
-      "speed_threshold": 0.0032508614213948937
+      "enabled": true,
+      "last_n": 3,
+      "speed_threshold": 0.004367490463323766
     },
 
     "fast_approach": {
       "enabled": false,
       "draw": false,
       "distance_threshold": 4,
-      "speed_threshold": 0.09662411646149428
+      "speed_threshold": 0.00162685341658254773
     },
 
     "suddenly_run": {
-      "enabled": false,
-      "last_n": 3,
-      "speed_threshold": 0.025304976367086236
+      "enabled": true,
+      "last_n": 2,
+      "speed_threshold": 0.0444
     },
 
     "overstep_boundary": {

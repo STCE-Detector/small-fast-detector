@@ -83,8 +83,8 @@
 
     "suddenly_run": {
       "enabled": true,
-      "last_n": 3,
-      "speed_threshold": 0.025304976367086236
+      "last_n": 2,
+      "speed_threshold": 0.0444
     },
 
     "overstep_boundary": {
