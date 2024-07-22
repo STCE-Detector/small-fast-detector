@@ -129,7 +129,7 @@ class AREvaluator:
                 group[col] = group[col].ffill(limit=smoothing_window, limit_area='inside')
 
             # Initial padding
-            if col == 'SS' and initial_pad > 0:
+            if col in ['SS', 'G'] and initial_pad > 0:
                 group[col] = group[col].bfill(limit=initial_pad)
 
             # Final padding

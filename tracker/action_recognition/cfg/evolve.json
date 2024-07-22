@@ -1,5 +1,5 @@
 {
-  "name": "Macro-P-100iters",
+  "name": "G-F05-100",
 
   "tracker_name": "ByteTrack",
 
@@ -10,9 +10,9 @@
 
   "evolve": {
     "n_trials": 100,
-    "objective": ["Macro", "Precision"],
-    "projection": true,
-    "post_process": false,
+    "objective": ["G", "F"],
+    "projection": false,
+    "post_process": false
   },
 
   "tracker_args": {
@@ -47,25 +47,23 @@
 
   "action_recognition": {
     "enabled": true,
-    "speed_buffer_len": 3,
-    "frame_stride": 20,
-    "speed_projection": [1.4368130286285825, 1.358710274910445],
+    "speed_projection": [1.5951954047750416, 0.8508040956724452],
 
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "last_n": 3,
-      "alpha": 0.1,
-      "distance_threshold": 0.9545844402819228,
-      "area_threshold": 0.9980844106242607,
-      "speed_threshold": 0.04122885187750009
+      "last_n": 74,
+      "alpha": 0.34229572884549236,
+      "distance_threshold": 1.0582730990361537,
+      "area_threshold": 0.9999657751222182,
+      "speed_threshold": 0.046663654115520994
     },
 
     "stand_still": {
       "enabled": true,
-      "last_n": 3,
-      "alpha": 0.1,
-      "speed_threshold": 0.004367490463323766
+      "last_n": 67,
+      "alpha": 0.07545132570026207,
+      "speed_threshold": 0.011314463977322895
     },
 
     "fast_approach": {
@@ -77,9 +75,9 @@
 
     "suddenly_run": {
       "enabled": true,
-      "last_n": 3,
-      "alpha": 0.1,
-      "speed_threshold": 0.025304976367086236
+      "last_n": 72,
+      "alpha": 0.07870212553948636,
+      "speed_threshold": 0.059307918400147513
     },
 
     "overstep_boundary": {

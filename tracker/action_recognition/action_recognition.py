@@ -19,7 +19,6 @@ class ActionRecognizer:
     def __init__(self, config, video_info):
         self.ar_enabled = config["enabled"]
         self.video_info = video_info
-        self.speed_projection = np.array(config["speed_projection"])
         # Gathering parameters
         self.g_enabled = config["gather"]["enabled"]
         self.g_min_people = config["gather"]["min_people"]
@@ -37,7 +36,6 @@ class ActionRecognizer:
         self.fa_enabled = config["fast_approach"]["enabled"]
         self.fa_draw = config["fast_approach"]["draw"]
         self.fa_distance_threshold = config["fast_approach"]["distance_threshold"]
-        self.fa_speed_threshold = config["fast_approach"]["speed_threshold"]
         self.interest_point = np.array([self.video_info.resolution_wh[0]//2, self.video_info.resolution_wh[1]]) # bottom center of the frame
         self.trigger_radius = self.interest_point[1]/self.fa_distance_threshold
         # Suddenly running parameters
@@ -89,7 +87,8 @@ class ActionRecognizer:
 
         return ar_results
 
-    def merge_individual_actions(self, individual_results):
+    @staticmethod
+    def merge_individual_actions(individual_results):
         merged_results = {}
         for action, results in individual_results.items():
             if results is not None:
@@ -122,7 +121,8 @@ class ActionRecognizer:
             frame = self.annotate_individual_actions(frame, ar_results["individual"])
         return frame
 
-    def annotate_individual_actions(self, frame, results):
+    @staticmethod
+    def annotate_individual_actions(frame, results):
         for track_id, data in results.items():
             x1, y1, x2, y2 = data['bbox'].astype(int)
 
@@ -187,8 +187,8 @@ class ActionRecognizer:
                 distance, a1, a2 = self.compute_ned(det1, det2)
                 # If the distance between the detections is less than the threshold and the areas are similar
                 if distance <= self.g_distance_threshold and min(a1, a2) / (max(a1, a2) + 1e-9) <= self.g_area_threshold:
-                    pixel_s1, _ = self.get_motion_descriptors(det1, last_n=self.g_last_n, alpha=self.g_alpha)
-                    pixel_s2, _ = self.get_motion_descriptors(det2, last_n=self.g_last_n, alpha=self.g_alpha)
+                    pixel_s1 = self.get_motion_descriptors(det1, last_n=self.g_last_n, alpha=self.g_alpha)
+                    pixel_s2 = self.get_motion_descriptors(det2, last_n=self.g_last_n, alpha=self.g_alpha)
                     # If the average speed of both detections is less than the threshold
                     if pixel_s1 < self.g_speed_threshold and pixel_s2 < self.g_speed_threshold:
                         pairs.append([i, j])
@@ -236,6 +236,7 @@ class ActionRecognizer:
         linked by the distance threshold.
         Args:
             pairs (list): list of pairs of detections.
+            min_people (int): minimum number of people to consider a chain.
         Returns:
             valid_chains (list): list of lists of detections, where each list is an independent chain.
         """
@@ -281,58 +282,49 @@ class ActionRecognizer:
         ss_results = {}
         for track in tracks:
             if track.class_ids == 0:
-                pixel_s, _ = self.get_motion_descriptors(track, last_n=self.ss_last_n, alpha=self.ss_alpha)
+                pixel_s = self.get_motion_descriptors(track, last_n=self.ss_last_n, alpha=self.ss_alpha)
                 if pixel_s < self.ss_speed_threshold:
                     ss_results[track.track_id] = track.tlbr
                     track.SS = True
         return ss_results if len(ss_results.keys()) > 0 else None
 
-    def get_motion_descriptors(self, track, alpha=0, last_n=150):
+    @staticmethod
+    def get_motion_descriptors(track, alpha=0, last_n=150):
         """
         Computes the average speed and direction of a detection.
         Args:
             track (sv.STrack): detection to compute the motion descriptors.
             alpha (float): smoothing factor for the exponential moving average, a value close to 1 gives more weight to
                 the most recent state, a value close to 0 provides a smoother result. If None, no smoothing is applied.
+            last_n (int): number of states to consider for the computation.
         Returns:
             avg_speed (float): average speed of the detection.
-            direction (float): direction of the detection.
         """
-        # track.states[-1] is most recent state, track.states[0] is oldest state
+        # track.states[-1] is most recent state, track.states[0] is the oldest state
         states = np.array(track.norm_speed)
+        if len(states) == 0:
+            return 0
 
         # Get last_n states
-        if last_n is not None:
-            states = states[-last_n:]
-
-        if alpha is not None:
-            # Initialize EMA with the first state
-            smoothed_speed = states[0]
-
-            # Compute EMA
-            for speed in states[1:]:
-                smoothed_speed = alpha * speed + (1 - alpha) * smoothed_speed
-        else:
-            smoothed_speed = np.mean(states)
-
-        return smoothed_speed, 0
+        states = states[-last_n:]
+        # Initialize EMA with the first state
+        smoothed_speed = states[0]
+        # Compute EMA
+        for speed in states[1:]:
+            smoothed_speed = alpha * speed + (1 - alpha) * smoothed_speed
+        return smoothed_speed
 
     def recognize_fast_approach(self, tracks):
-        valid_classes = [0,1,2]  # TODO: should also include car and truck, different thresholds? v*X
+        valid_classes = [0, 1, 2]   # Person, Car, Truck
         fa_results = {}
         for track in tracks:
             if track.class_ids in valid_classes and track.frame_id > 1:
-                # TODO: what if first region and then speed?
-                pixel_s, direction = self.get_motion_descriptors(track)
-                if pixel_s > self.fa_speed_threshold and direction >= 0:
-                    # TODO: if not circular region, then check if any point of bbox is inside polygon
-                    # Distance between point of interest and bbox
-                    dx = max(abs(track.mean[0] - self.interest_point[0]) - track.mean[2] / 2, 0)
-                    dy = max(abs(track.mean[1] - self.interest_point[1]) - track.mean[3] / 2, 0)
-                    distace_to_interest_point = np.sqrt(dx ** 2 + dy ** 2)
-                    if distace_to_interest_point < self.trigger_radius:
-                        fa_results[track.track_id] = track.tlbr
-                        track.FA = True
+                # Check if any point of the bounding box is inside the trigger radius
+                dx = max(abs(track.mean[0] - self.interest_point[0]) - track.mean[2] / 2, 0)
+                dy = max(abs(track.mean[1] - self.interest_point[1]) - track.mean[3] / 2, 0)
+                if np.sqrt(dx ** 2 + dy ** 2) <= self.trigger_radius:
+                    fa_results[track.track_id] = track.tlbr
+                    track.FA = True
         return fa_results if len(fa_results.keys()) > 0 else None
 
     def recognize_suddenly_run(self, tracks):
@@ -347,10 +339,8 @@ class ActionRecognizer:
         sr_results = {}
         for track in tracks:
             if track.class_ids == 0 and track.frame_id > 1:
-                # TODO: instead of kalman use motion descriptors but only for the last 2 data points, trying to solve overlapping bboxes issue
-                # weighted_instant_speed = np.sqrt(np.sum((track.mean[4:6] * self.speed_projection) ** 2)) / np.sqrt(track.tlwh[2] * track.tlwh[3])
-                weighted_mean_speed, _ = self.get_motion_descriptors(track, last_n=self.sr_last_n, alpha=self.sr_alpha)
-                if weighted_mean_speed > self.sr_speed_threshold:
+                pixel_s = self.get_motion_descriptors(track, last_n=self.sr_last_n, alpha=self.sr_alpha)
+                if pixel_s > self.sr_speed_threshold:
                     sr_results[track.track_id] = track.tlbr
                     track.SR = True
         return sr_results if len(sr_results.keys()) > 0 else None
