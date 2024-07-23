@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 
 def update_sequential_df(sequential_df, intervals_df):
-    behavior_columns = ['SS', 'SR', 'FA', 'G']
+    behavior_columns = ['SS', 'SR', 'FA', 'G', 'OB']
 
     # Avoid modifying the original dataframes
     expanded_intervals_df = intervals_df.copy()
@@ -75,7 +75,11 @@ def update_sequential_df(sequential_df, intervals_df):
 
 def add_actions(sequence_path):
     gt_columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis']
-    gt_df = pd.read_csv(os.path.join(sequence_path, 'gt', 'gt.txt'), names=gt_columns, usecols=[i for i in range(len(gt_columns))])
+    gt_df = pd.read_csv(os.path.join(sequence_path, 'gt', 'gt.txt'))
+    num_columns = gt_df.shape[1]
+    gt_df.columns = gt_columns[:num_columns]
+    if gt_df.shape[1] == 8:
+        gt_df['z/vis'] = 0
 
     # Check if the actions file exists
     actions_path = os.path.join(sequence_path, 'gt', 'actions.csv')
@@ -83,7 +87,7 @@ def add_actions(sequence_path):
         print(f'\nActions file not found for {sequence_path}')
         return
 
-    intervals_columns = ['id', 'start_frame', 'end_frame', 'SS', 'SR', 'FA', 'G']
+    intervals_columns = ['id', 'start_frame', 'end_frame', 'SS', 'SR', 'FA', 'G', 'OB']
     intervals_df = pd.read_csv(actions_path, names=intervals_columns, usecols=[i for i in range(len(intervals_columns))], header=0)
     intervals_df = intervals_df.astype(int)
     # Correct visualization tool's 0-based indexing
@@ -100,14 +104,14 @@ def add_actions(sequence_path):
 
 if __name__ == "__main__":
 
-    dataset_root = './../evaluation/TrackEval/data/gt/mot_challenge/PTD'
+    dataset_root = './../evaluation/TrackEval/data/gt/mot_challenge/CARD'
 
     # Get all sequences
     sequences = [sequence for sequence in os.listdir(dataset_root) if os.path.isdir(os.path.join(dataset_root, sequence))]
-    sequences = ['11']
+    sequences = ['fa_1']
 
     # Iterate over all sequences
-    for sequence in tqdm(sequences, desc='Evaluating sequences', unit=' sequences'):
+    for sequence in tqdm(sequences, desc='Converting sequences', unit=' sequences'):
         sequence_path = os.path.join(dataset_root, sequence)
         add_actions(sequence_path)
 

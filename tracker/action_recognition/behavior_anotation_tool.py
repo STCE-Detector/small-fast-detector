@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, QPushBu
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
 
+
 class VideoAnnotationTool(QWidget):
     def __init__(self):
         super().__init__()
@@ -21,23 +22,6 @@ class VideoAnnotationTool(QWidget):
         # Paths
         self.img_seq_path = ""
         self.gt_file_path = ""
-
-        # Action mapping
-        self.action_mapping = {
-            "1": "SS",  # Standing still
-            "2": "G",   # Gathering
-            "3": "SR",  # Suddenly running
-            "4": "FA"   # Fast approaching
-        }
-
-        # Action colors
-        self.action_colors = {
-            "SS": (0, 255, 0),  # Green
-            "G": (255, 255, 0),  # Cyan
-            "SR": (255, 0, 0),  # Red
-            "FA": (0, 0, 255),  # Blue
-            "Unknown": (255, 255, 255)  # White
-        }
 
         # Image and GT loading
         self.image_files = []
@@ -124,7 +108,15 @@ class VideoAnnotationTool(QWidget):
 
         # Fast approaching zone
         self.draw_half_circle = True  # Control if draw or not the zone
-        self.half_circle_radius = None
+
+        # Boundary line
+        self.boundaries = {
+            'ob_1': [802, 676, 822, 658, "right"],
+            'ob_2': [831, 550, 857, 552, "left"],
+            'ob_3': [927, 636, 1169, 638, "bottom"],
+            'ob_4': [748, 549, 780, 555, "left"],
+            'ob_5': [1169, 637, 1169, 0, "right"],
+        }
 
         # Tables for displaying file paths and annotations
         self.table_widget = QTableWidget()
@@ -135,8 +127,8 @@ class VideoAnnotationTool(QWidget):
 
         self.annotations_table = QTableWidget()
         self.annotations_table.setRowCount(0)
-        self.annotations_table.setColumnCount(7)  # ID, Start Frame, End Frame, SS, SR, FA, G
-        self.annotations_table.setHorizontalHeaderLabels(['ID', 'Start Frame', 'End Frame', 'SS', 'SR', 'FA', 'G'])
+        self.annotations_table.setColumnCount(8)  # ID, Start Frame, End Frame, SS, SR, FA, G, OB
+        self.annotations_table.setHorizontalHeaderLabels(['ID', 'Start Frame', 'End Frame', 'SS', 'SR', 'FA', 'G', 'OB'])
         self.annotations_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         # New table for tracker IDs
@@ -238,15 +230,14 @@ class VideoAnnotationTool(QWidget):
         df = pd.read_csv(gt_file_path, header=None)
         has_actions = False
         num_cols = df.shape[1]
+        col_names = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis', 'SS', 'SR', 'FA', 'G', 'OB']
+        df.columns = col_names[:num_cols]
+
         if num_cols > 11:
             has_actions = True
-            df = df.drop(columns=[9]) if num_cols > 13 else df  # Correct Hieve 10th column
-            df.columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis', 'SS', 'SR', 'FA', 'G']
         else:
             # Select only the first 9 columns
             df = df.iloc[:, :9] if num_cols > 9 else df     # Correct Hieve 10th column
-            col_names = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis']
-            df.columns = col_names[:num_cols]
 
         # Clean up the dataframe if coming from MOT
         # TODO: maybe do not consider last two classes (distractor:8 and reflection:12)
@@ -256,7 +247,7 @@ class VideoAnnotationTool(QWidget):
 
         # Convert to dictionary
         if has_actions:
-            gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id', 'SS', 'SR', 'FA', 'G']].values.tolist()).to_dict()
+            gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id', 'SS', 'SR', 'FA', 'G', 'OB']].values.tolist()).to_dict()
         else:
             gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id']].values.tolist()).to_dict()
 
@@ -321,15 +312,23 @@ class VideoAnnotationTool(QWidget):
             if self.draw_half_circle:
                 cv2.circle(image, tuple(self.interest_point), int(self.trigger_radius), (0, 255, 0), thickness=2)
 
+            # Draw boundaries if needed
+            seq_name = self.img_seq_path.split('/')[-2]
+            if seq_name in self.boundaries.keys():
+                xl, yl, xr, yr, side = self.boundaries[seq_name]
+                # Translate coordinates to the resized image
+                xl, yl, xr, yr = int(xl*r), int(yl*r), int(xr*r), int(yr*r)
+                cv2.line(image, (xl, yl), (xr, yr), (0, 0, 255), thickness=2)
+
             # Processing detections and drawing rectangles
             detections = self.gt_coordinates_dict.get(self.current_frame, [])
             tracker_ids = []  # Collect tracker IDs for this frame
             for gt_data in detections:
                 if len(gt_data) > 6:
-                    x, y, w, h, id, ss, sr, fa, g = gt_data
+                    x, y, w, h, id, ss, sr, fa, g, ob = gt_data
                 else:
                     x, y, w, h, id = gt_data
-                    ss, sr, fa, g = 0, 0, 0, 0
+                    ss, sr, fa, g, ob = 0, 0, 0, 0, 0
 
                 x_scaled = int(x * target_width / original_width)
                 y_scaled = int(y * target_height / original_height)
@@ -350,20 +349,23 @@ class VideoAnnotationTool(QWidget):
                 id_color = (0, 255, 0) if not touches_circle else (255, 0, 255)
 
                 if self.show_only_actions_checkbox.isChecked() and self.has_actions:
-                    # Filter bboxes with actions, that is any(ss, sr, fa, g)
-                    if not any([ss, sr, fa, g]):
+                    # Filter bboxes with actions, that is any(ss, sr, fa, g, ob)
+                    if not any([ss, sr, fa, g, ob]):
                         continue
 
                 # Get the color state of the tracker ID
                 color_state = self.tracker_color_state.get(id, 'green')
                 bbox_color = bbox_color if color_state == 'green' else (0, 0, 255)  # Red
 
+                # Draw the bounding box
                 cv2.rectangle(image, (x_min, y_min), (x_max, y_max), bbox_color, 1)  # Thinner bounding box
+                # Draw the point of the center of the bounding box
+                cv2.circle(image, (x_scaled + w_scaled // 2, y_scaled + h_scaled // 2), 3, (0, 255, 0), -1)
 
                 # ID and action colors
                 id_color = id_color if color_state == 'green' else (0, 0, 255)  # Red
                 text_y = y_scaled - 10 if y_scaled > 10 else 15
-                cv2.putText(image, f"ID: {int(id)}", (x_scaled, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, id_color, 1)
+                cv2.putText(image, f"ID: {int(id)}", (x_scaled, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
                 # Display actions if the checkbox is checked
                 if self.show_actions_checkbox.isChecked() and self.has_actions:
@@ -372,6 +374,7 @@ class VideoAnnotationTool(QWidget):
                     if sr: actions_display.append("SR")
                     if fa: actions_display.append("FA")
                     if g: actions_display.append(f"G-{int(g)}")
+                    if ob: actions_display.append("OB")
 
                     action_text = ",".join(actions_display)
                     if action_text:
