@@ -5,10 +5,10 @@ import csv
 import numpy as np
 import pandas as pd
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QVBoxLayout, QPushButton, QFileDialog, QHBoxLayout,
-                             QTableWidget, QTableWidgetItem, QSizePolicy, QScrollArea, QCheckBox, QSplitter, QSlider, QStyleFactory, QMessageBox)
+                             QTableWidget, QTableWidgetItem, QSizePolicy, QScrollArea, QCheckBox, QSplitter, QSlider, QStyleFactory, QMessageBox, QLineEdit)
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
-
+from collections import deque
 
 class VideoAnnotationTool(QWidget):
     def __init__(self):
@@ -191,6 +191,21 @@ class VideoAnnotationTool(QWidget):
         # Initialize with the first frame
         self.update_frame()
 
+        # Trace checkbox and frame input
+        self.trace_checkbox = QCheckBox('Trace bbx')
+        self.trace_checkbox.setStyleSheet("font-weight: bold;")
+        self.button_layout.addWidget(self.trace_checkbox)
+
+        self.trace_frames_input = QLineEdit()
+        self.trace_frames_input.setPlaceholderText('Trace Frames')
+        self.trace_frames_input.setFixedWidth(100)
+        self.button_layout.addWidget(self.trace_frames_input)
+
+        # Initialize trajectory storage
+        self.trajectories = {}
+        self.max_trace_frames = 30
+
+
     def load_new_img_seq(self, change_color=False):
         folder = QFileDialog.getExistingDirectory(self, "Select Directory")
         if folder:
@@ -256,10 +271,11 @@ class VideoAnnotationTool(QWidget):
         # Convert to dictionary
         if has_actions:
             self.active_actions = ['SS', 'SR', 'FA', 'G', 'OB'] if 'OB' in df.columns else ['SS', 'SR', 'FA', 'G']
-            gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id'] + self.active_actions].values.tolist()).to_dict()
+            gt_coordinates_dict = {frame: group[['x', 'y', 'w', 'h', 'id'] + self.active_actions].values.tolist()
+                                   for frame, group in df.groupby('frame')}
         else:
-            gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id']].values.tolist()).to_dict()
-
+            gt_coordinates_dict = {frame: group[['x', 'y', 'w', 'h', 'id']].values.tolist()
+                                   for frame, group in df.groupby('frame')}
         return gt_coordinates_dict, has_actions
 
     def play_pause_video(self):
@@ -329,6 +345,12 @@ class VideoAnnotationTool(QWidget):
                 xl, yl, xr, yr = int(xl*r), int(yl*r), int(xr*r), int(yr*r)
                 cv2.line(image, (xl, yl), (xr, yr), (0, 0, 255), thickness=2)
 
+            # Update max_trace_frames from user input
+            try:
+                self.max_trace_frames = int(self.trace_frames_input.text())
+            except ValueError:
+                pass
+
             # Processing detections and drawing rectangles
             detections = self.gt_coordinates_dict.get(self.current_frame, [])
             tracker_ids = []  # Collect tracker IDs for this frame
@@ -354,6 +376,9 @@ class VideoAnnotationTool(QWidget):
                 y_min = y_scaled
                 y_max = y_scaled + h_scaled
 
+                center_x = x_scaled + w_scaled // 2
+                center_y = y_scaled + h_scaled // 2
+
                 closest_x = max(x_min, min(self.interest_point[0], x_max))
                 closest_y = max(y_min, min(self.interest_point[1], y_max))
                 distance = np.sqrt((closest_x - self.interest_point[0]) ** 2 + (closest_y - self.interest_point[1]) ** 2)
@@ -372,8 +397,20 @@ class VideoAnnotationTool(QWidget):
 
                 # Draw the bounding box
                 cv2.rectangle(image, (x_min, y_min), (x_max, y_max), bbox_color, 1)  # Thinner bounding box
+
+                # Store trajectory point and draw trace
+                if self.trace_checkbox.isChecked():
+                    if id not in self.trajectories:
+                        self.trajectories[id] = deque(maxlen=self.max_trace_frames)
+                    self.trajectories[id].append((center_x, center_y))
+
+                    # Draw trajectory
+                    points = list(self.trajectories[id])
+                    for i in range(1, len(points)):
+                        cv2.line(image, points[i-1], points[i], (0, 255, 255), 1)
+
                 # Draw the point of the center of the bounding box
-                cv2.circle(image, (x_scaled + w_scaled // 2, y_scaled + h_scaled // 2), 3, (0, 255, 0), -1)
+                cv2.circle(image, (center_x, center_y), 3, (0, 255, 0), -1)
 
                 # ID and action colors
                 id_color = id_color if color_state == 'green' else (0, 0, 255)  # Red
