@@ -40,35 +40,37 @@
 
   "action_recognition": {
     "enabled": true,
-    "speed_buffer_len": 5,
-    "frame_stride": 30,
-    "speed_projection": [1.265835029527192, 0.7043399836796834],
+    "speed_projection": [1.5951954047750416, 0.8508040956724452],
 
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "distance_threshold": 1,
-      "area_threshold": 0.5,
-      "speed_threshold": 0.009928427718117755,
-      "discriminate_groups": true
+      "last_n": 83,
+      "alpha": 0.25901777612184546,
+      "distance_threshold": 1.0197365426480192,
+      "area_threshold": 0.9960474031910679,
+      "speed_threshold": 0.05854507912290983
     },
 
     "stand_still": {
-      "enabled": false,
-      "speed_threshold": 0.0032508614213948937
+      "enabled": true,
+      "last_n": 111,
+      "alpha": 0.0322541571536545,
+      "speed_threshold": 0.0096460999755457
     },
 
     "fast_approach": {
       "enabled": false,
       "draw": false,
       "distance_threshold": 4,
-      "speed_threshold": 0.09662411646149428
+      "speed_threshold": 0.00162685341658254773
     },
 
     "suddenly_run": {
-      "enabled": false,
-      "last_n": 3,
-      "speed_threshold": 0.025304976367086236
+      "enabled": true,
+      "last_n": 138,
+      "alpha": 0.10873517538408146,
+      "speed_threshold": 0.07195126641202199
     },
 
     "overstep_boundary": {

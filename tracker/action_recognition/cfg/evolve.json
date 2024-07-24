@@ -1,5 +1,5 @@
 {
-  "name": "G-F05-100",
+  "name": "Macro-F05-1000",
 
   "tracker_name": "ByteTrack",
 
@@ -9,9 +9,9 @@
   "device": "cpu",
 
   "evolve": {
-    "n_trials": 100,
-    "objective": ["G", "F"],
-    "projection": false,
+    "n_trials": 1000,
+    "objective": ["Macro", "F"],
+    "projection": true,
     "post_process": false
   },
 
@@ -52,18 +52,18 @@
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "last_n": 74,
-      "alpha": 0.34229572884549236,
-      "distance_threshold": 1.0582730990361537,
-      "area_threshold": 0.9999657751222182,
-      "speed_threshold": 0.046663654115520994
+      "last_n": 83,
+      "alpha": 0.25901777612184546,
+      "distance_threshold": 1.0197365426480192,
+      "area_threshold": 0.9960474031910679,
+      "speed_threshold": 0.05854507912290983
     },
 
     "stand_still": {
       "enabled": true,
-      "last_n": 67,
-      "alpha": 0.07545132570026207,
-      "speed_threshold": 0.011314463977322895
+      "last_n": 111,
+      "alpha": 0.0322541571536545,
+      "speed_threshold": 0.0096460999755457
     },
 
     "fast_approach": {
@@ -75,9 +75,9 @@
 
     "suddenly_run": {
       "enabled": true,
-      "last_n": 72,
-      "alpha": 0.07870212553948636,
-      "speed_threshold": 0.059307918400147513
+      "last_n": 138,
+      "alpha": 0.10873517538408146,
+      "speed_threshold": 0.07195126641202199
     },
 
     "overstep_boundary": {

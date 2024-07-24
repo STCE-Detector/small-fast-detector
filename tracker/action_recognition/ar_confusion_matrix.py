@@ -229,7 +229,7 @@ class ARConfusionMatrix:
         combined_matrix = torch.stack(self.confusion_matrices, 0).sum(0)
         self.micro_recall = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1] + 1e-9)).item()
         self.micro_precision = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0] + 1e-9)).item()
-        self.micro_f = self.f_metric(self.micro_precision, self.micro_recall, beta=1.0)
+        self.micro_f = self.f_metric(self.micro_precision, self.micro_recall, beta=0.5)
 
     def macro_metrics(self):
         for matrix in self.confusion_matrices:
@@ -242,7 +242,7 @@ class ARConfusionMatrix:
         self.macro_precision = sum(self.behaviour_precisions) / len(self.behaviour_precisions)
 
         for precisions, recalls in zip(self.behaviour_precisions, self.behaviour_recalls):
-            self.behaviour_f.append(self.f_metric(precisions, recalls, beta=1.0))
+            self.behaviour_f.append(self.f_metric(precisions, recalls, beta=0.5))
         self.macro_f = sum(self.behaviour_f) / len(self.behaviour_f)
 
     @staticmethod
