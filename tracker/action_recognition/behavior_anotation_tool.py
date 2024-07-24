@@ -115,7 +115,7 @@ class VideoAnnotationTool(QWidget):
             'ob_2': [831, 550, 857, 552, "left"],
             'ob_3': [927, 636, 1169, 638, "bottom"],
             'ob_4': [748, 549, 780, 555, "left"],
-            'ob_5': [1169, 637, 1169, 0, "right"],
+            'ob_5': [624, 841, 869, 842, "bottom"],
         }
 
         # Tables for displaying file paths and annotations
