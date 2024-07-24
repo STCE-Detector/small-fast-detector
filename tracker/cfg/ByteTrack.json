@@ -79,8 +79,7 @@
     "fast_approach": {
       "enabled": false,
       "draw": false,
-      "distance_threshold": 4,
-      "speed_threshold": 0.00162685341658254773
+      "distance_threshold": 4
     },
 
     "suddenly_run": {

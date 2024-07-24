@@ -89,6 +89,7 @@ def add_actions(sequence_path):
 
     intervals_columns = ['id', 'start_frame', 'end_frame', 'SS', 'SR', 'FA', 'G', 'OB']
     intervals_df = pd.read_csv(actions_path, names=intervals_columns, usecols=[i for i in range(len(intervals_columns))], header=0)
+    intervals_df.fillna(0, inplace=True)
     intervals_df = intervals_df.astype(int)
     # Correct visualization tool's 0-based indexing
     intervals_df['start_frame'] = intervals_df['start_frame'] + 1
@@ -99,16 +100,16 @@ def add_actions(sequence_path):
     # Update the gt with the actions
     manual_gt = update_sequential_df(gt_df, intervals_df)
 
-    manual_gt.to_csv(os.path.join(sequence_path, 'gt', 'manual_gt.txt'), header=False, index=False, sep=',')
+    manual_gt.to_csv(os.path.join(sequence_path, 'gt', 'manual_ref_gt.txt'), header=False, index=False, sep=',')
 
 
 if __name__ == "__main__":
 
-    dataset_root = './../evaluation/TrackEval/data/gt/mot_challenge/CARD'
+    dataset_root = './../evaluation/TrackEval/data/gt/mot_challenge/PTD'
 
     # Get all sequences
     sequences = [sequence for sequence in os.listdir(dataset_root) if os.path.isdir(os.path.join(dataset_root, sequence))]
-    sequences = ['fa_1']
+    sequences = ['11']
 
     # Iterate over all sequences
     for sequence in tqdm(sequences, desc='Converting sequences', unit=' sequences'):

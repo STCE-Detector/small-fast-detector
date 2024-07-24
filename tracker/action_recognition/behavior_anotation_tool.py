@@ -109,7 +109,7 @@ class VideoAnnotationTool(QWidget):
         # Fast approaching zone
         self.draw_half_circle = True  # Control if draw or not the zone
 
-        # Boundary line
+        # Boundary lines
         self.boundaries = {
             'ob_1': [802, 676, 822, 658, "right"],
             'ob_2': [831, 550, 857, 552, "left"],
@@ -255,7 +255,8 @@ class VideoAnnotationTool(QWidget):
 
         # Convert to dictionary
         if has_actions:
-            gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id', 'SS', 'SR', 'FA', 'G', 'OB']].values.tolist()).to_dict()
+            self.active_actions = ['SS', 'SR', 'FA', 'G', 'OB'] if 'OB' in df.columns else ['SS', 'SR', 'FA', 'G']
+            gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id'] + self.active_actions].values.tolist()).to_dict()
         else:
             gt_coordinates_dict = df.groupby('frame', group_keys=False).apply(lambda x: x[['x', 'y', 'w', 'h', 'id']].values.tolist()).to_dict()
 
@@ -333,7 +334,11 @@ class VideoAnnotationTool(QWidget):
             tracker_ids = []  # Collect tracker IDs for this frame
             for gt_data in detections:
                 if len(gt_data) > 6:
-                    x, y, w, h, id, ss, sr, fa, g, ob = gt_data
+                    if 'OB' in self.active_actions:
+                        x, y, w, h, id, ss, sr, fa, g, ob = gt_data
+                    else:
+                        x, y, w, h, id, ss, sr, fa, g = gt_data
+                        ob = 0
                 else:
                     x, y, w, h, id = gt_data
                     ss, sr, fa, g, ob = 0, 0, 0, 0, 0

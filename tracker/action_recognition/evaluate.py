@@ -47,7 +47,7 @@ class AREvaluator:
         self.sequences = [f for f in os.listdir(self.data_dir) if os.path.isdir(os.path.join(self.data_dir, f))]
 
         # DataFrame column names
-        self.behavior_columns = ['SS', 'SR', 'FA', 'G']
+        self.behavior_columns = ['SS', 'SR', 'FA', 'G', 'OB']
         self.df_columns = ['frame', 'id', 'xl', 'yt', 'w', 'h', 'x/conf', 'y/class', 'z/vis'] + self.behavior_columns
 
         # Frame shape
