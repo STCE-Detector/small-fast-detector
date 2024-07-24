@@ -211,6 +211,10 @@ class VideoAnnotationTool(QWidget):
             if change_color:
                 self.btn_load_gt.setStyleSheet("background-color: lightgreen;")
             self.update_table()
+
+            # Clear the annotations table
+            self.clear_annotations_table()
+
             if not self.has_actions:
                 self.show_actions_checkbox.setChecked(False)
                 self.show_actions_checkbox.setEnabled(False)
@@ -223,8 +227,12 @@ class VideoAnnotationTool(QWidget):
                 self.show_only_actions_checkbox.setEnabled(True)
                 self.show_only_actions_checkbox.setChecked(False)
 
+    def clear_annotations_table(self):
+        self.annotations_table.setRowCount(0)
+
     def load_image_sequence(self, image_sequence_path):
         self.image_files = sorted([os.path.join(image_sequence_path, f) for f in os.listdir(image_sequence_path) if f.endswith('.jpg') or f.endswith('.png')])
+
 
     def load_gt_coordinates(self, gt_file_path):
         df = pd.read_csv(gt_file_path, header=None)
