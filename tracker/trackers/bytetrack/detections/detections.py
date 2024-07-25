@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+import random
+
 import cv2
 from collections import defaultdict, deque
 from contextlib import suppress
@@ -517,57 +520,50 @@ class Detections:
         return (self.xyxy[:, 3] - self.xyxy[:, 1]) * (self.xyxy[:, 2] - self.xyxy[:, 0])
 
 
+class ColorPalette:
+    """
+    A class to generate and manage a color palette for different classes.
+    """
+    def __init__(self, seed=42):
+        random.seed(seed)
+        self.colors = {}
+
+    def get_color(self, class_name):
+        if class_name not in self.colors:
+            self.colors[class_name] = self._generate_color()
+        return self.colors[class_name]
+
+    def _generate_color(self):
+        return tuple(random.randint(0, 255) for _ in range(3))
+
+
 class AnnotationDrawer:
-    """
-    A class to draw annotations on the frame
-    """
     def __init__(self):
-        self.class_colors = {
-            "person": (0, 0, 255),  # Red
-            "car": (0, 255, 0),  # Green
-            "truck": (255, 0, 0),  # Blue
-            "uav": (255, 255, 0),  # Cyan
-            "airplane": (255, 0, 255),  # Magenta
-            "boat": (0, 255, 255)  # Yellow
-        }
-        self.trajectory_manager = TrajectoryManager(maxlen=50)
+        self.color_palette = ColorPalette()
+        self.trajectory_manager = TrajectoryManager(maxlen=50, color_palette=self.color_palette)
 
     def draw_annotations(self, frame, detections, class_names, ar_results, frame_number, fps, save_video=False):
         labels = [f"#{tracker_id} {class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
                   zip(detections.tracker_id, detections.class_id, detections.confidence)]
 
-        for det, label, tracker_id, class_id in zip(detections.xyxy, labels, detections.tracker_id,
-                                                    detections.class_id):
+        for det, label, tracker_id, class_id in zip(detections.xyxy, labels, detections.tracker_id, detections.class_id):
             x1, y1, x2, y2 = map(int, det)
-            color = self.class_colors[class_names[class_id]]
+            color = self.color_palette.get_color(class_names[class_id])
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
 
             # Calculate the center of the bounding box
             center_x = (x1 + x2) // 2
             center_y = (y1 + y2) // 2
-            self.trajectory_manager.update(tracker_id, (center_x, center_y), color)
+            self.trajectory_manager.update(tracker_id, (center_x, center_y), class_names[class_id])
 
         # Draw all trajectories
         frame = self.trajectory_manager.draw(frame)
 
         # Add action recognition results if any
         if ar_results:
-            if 'individual' in ar_results and ar_results['individual']:
-                for track_id, result in ar_results['individual'].items():
-                    actions = ', '.join(result.get('actions', []))
-                    bbox = result.get('bbox', [0, 0, 0, 0])
-                    x1, y1, x2, y2 = map(int, bbox)
-                    cv2.putText(frame, actions, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            if 'group' in ar_results and ar_results['group']:
-                group_gather = ar_results['group'].get('gather')
-                if group_gather:
-                    for group_id, bbox in group_gather.items():
-                        x1, y1, x2, y2 = map(int, bbox)
-                        cv2.putText(frame, 'Group ' + str(group_id), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                                    (0, 255, 0), 2)
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            self._draw_action_results(frame, ar_results)
 
         if save_video:
             cv2.putText(frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
@@ -575,25 +571,47 @@ class AnnotationDrawer:
 
         return frame
 
+    def _draw_action_results(self, frame, ar_results):
+        if 'individual' in ar_results and ar_results['individual']:
+            for track_id, result in ar_results['individual'].items():
+                actions = ', '.join(result.get('actions', []))
+                bbox = result.get('bbox', [0, 0, 0, 0])
+                x1, y1, x2, y2 = map(int, bbox)
+                cv2.putText(frame, actions, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        if 'group' in ar_results and ar_results['group']:
+            group_gather = ar_results['group'].get('gather')
+            if group_gather:
+                for group_id, bbox in group_gather.items():
+                    x1, y1, x2, y2 = map(int, bbox)
+                    cv2.putText(frame, 'Group ' + str(group_id), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                (0, 255, 0), 2)
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
 
 class TrajectoryManager:
     """
-    A class to manage and draw trajectories of detected objects
+    A class to manage and draw trajectories of detected objects.
     """
-    def __init__(self, maxlen=50):
+    def __init__(self, maxlen=50, color_palette=None):
         self.trajectories = defaultdict(lambda: deque(maxlen=maxlen))
-        self.colors = {}
+        self.color_palette = color_palette
+        self.class_colors = {}
 
-    def update(self, tracker_id, center, color):
+    def update(self, tracker_id, center, class_name):
         self.trajectories[tracker_id].append(center)
-        self.colors[tracker_id] = color
+        if class_name not in self.class_colors:
+            self.class_colors[class_name] = self.color_palette.get_color(class_name)
 
     def draw(self, frame):
         for tracker_id, points in self.trajectories.items():
             points_list = list(points)
-            color = self.colors[tracker_id]
+            class_name = self._get_class_name(tracker_id)
+            color = self.class_colors[class_name]
             for i in range(1, len(points_list)):
                 cv2.line(frame, points_list[i - 1], points_list[i], color, 2)
                 cv2.circle(frame, points_list[i], 3, color, -1)
-
         return frame
+
+    def _get_class_name(self, tracker_id):
+        # Implement a way to map tracker_id to class_name if needed
+        return list(self.class_colors.keys())[tracker_id % len(self.class_colors)]  # Example implementation
