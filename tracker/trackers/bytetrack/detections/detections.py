@@ -521,6 +521,9 @@ from collections import defaultdict, deque
 
 
 class AnnotationDrawer:
+    """
+    A class to draw annotations on the frame
+    """
     def __init__(self):
         self.class_colors = {
             "person": (0, 0, 255),  # Red
@@ -577,6 +580,9 @@ class AnnotationDrawer:
 
 
 class TrajectoryManager:
+    """
+    A class to manage and draw trajectories of detected objects
+    """
     def __init__(self, maxlen=50):
         self.trajectories = defaultdict(lambda: deque(maxlen=maxlen))
         self.colors = {}

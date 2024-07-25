@@ -2,6 +2,9 @@ import cv2
 
 
 class VideoInfo:
+    """
+    Class to store video information
+    """
     def __init__(self, source):
         cap = cv2.VideoCapture(source)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
