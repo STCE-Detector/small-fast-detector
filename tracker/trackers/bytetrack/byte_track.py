@@ -4,6 +4,7 @@ from collections import deque
 import numpy as np
 import torch
 
+from tracker.trackers.bytetrack.detections.detections import Detections
 from ultralytics.utils.downloads import safe_download
 from tracker.trackers.bytetrack.basetrack import BaseTrack, TrackState
 from tracker.utils import matching
@@ -11,7 +12,6 @@ from tracker.utils.gmc import GMC
 from tracker.utils.kalman_filter import KalmanFilterXYAH
 from tracker.utils.preprocessing import extract_image_patches
 from tracker.utils.slm import load_model
-from .detections import Detections
 
 
 class STrack(BaseTrack):

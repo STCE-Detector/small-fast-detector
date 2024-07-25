@@ -2,7 +2,8 @@ import time
 
 import cv2
 from vidgear.gears import VideoGear, CamGear
-import supervision as sv
+
+from tracker.utils.videoInfo import VideoInfo
 
 
 class FrameCapture:
@@ -19,7 +20,7 @@ class FrameCapture:
                                   time_delay=2)
             height, width, _ = self.vcap.stream.frame.shape
             self.fps = self.vcap.stream.framerate
-        self.video_info = sv.VideoInfo.from_video_path(self.source)
+        self.video_info = VideoInfo(self.source)
         self.frame_count = 0
         self.frame_size = (width, height)
         self.streaming = False

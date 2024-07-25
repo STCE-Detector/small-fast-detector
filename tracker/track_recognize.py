@@ -4,6 +4,7 @@ import csv
 import os
 
 from tracker.trackers.bytetrack.detections import Detections, TrajectoryManager, AnnotationDrawer
+from tracker.utils.videoInfo import VideoInfo
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
@@ -46,12 +47,6 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
 if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_FONTDIR")
-
-class VideoInfo:
-    def __init__(self, total_frames, fps, resolution_wh):
-        self.total_frames = total_frames
-        self.fps = fps
-        self.resolution_wh = resolution_wh
 
 class VideoProcessor(QObject):
     frame_ready = Signal(QImage, float)
@@ -148,13 +143,7 @@ class VideoProcessor(QObject):
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
 
     def get_video_info(self, video_path):
-        cap = cv2.VideoCapture(video_path)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cap.release()
-        return VideoInfo(total_frames, fps, (width, height))
+        return VideoInfo(video_path)
 
     def process_video(self):
         print(f"Processing video: {self.source_video_path} ...")
