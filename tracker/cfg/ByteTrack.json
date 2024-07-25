@@ -4,7 +4,7 @@
   "tracker_name": "ByteTrack",
 
   "source_weights_path": "./../detectors/cdv4_8sp2_150e_128b.pt",
-  "source_stream_path": "./../data/CARD/fa_1.mp4",
+  "source_stream_path": "./../data/CARD/gg_2.mp4",
 
   "device": "cpu",
   "fps_reduction": 20,

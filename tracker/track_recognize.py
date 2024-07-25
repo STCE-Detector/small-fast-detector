@@ -19,7 +19,6 @@ if IS_JETSON:
     from tracker.jetson.model.model import Yolov8
 import cv2
 import numpy as np
-import supervision as sv
 from tqdm import tqdm
 
 from tracker.action_recognition.action_recognition import ActionRecognizer
@@ -35,8 +34,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, message="`BoxAnno
 
 import tracker.trackers as trackers
 
-COLORS = sv.ColorPalette.default()
-
 ci_build_and_not_headless = False
 try:
     from cv2.version import ci_build, headless
@@ -48,6 +45,11 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_FONTDIR")
 
+class VideoInfo:
+    def __init__(self, total_frames, fps, resolution_wh):
+        self.total_frames = total_frames
+        self.fps = fps
+        self.resolution_wh = resolution_wh
 
 class VideoProcessor(QObject):
     frame_ready = Signal(QImage, float)
@@ -83,32 +85,26 @@ class VideoProcessor(QObject):
             self.model = Yolov8(config, self.class_names)
 
         # TODO: CHECK IF MAINTAIN THIS
-        self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
+        self.video_info = self.get_video_info(self.source_video_path)
 
         # TODO : CHECK TO PUT IN A THREAD
         self.tracker = getattr(trackers, config["tracker_name"])(config, self.video_info)
 
-        self.box_annotator = sv.BoxAnnotator(color=COLORS)
-        self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
-
         if not IS_JETSON:
             self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
-                                                      stream_mode=config["stream_mode"], logging=config["logging"])
+                                              stream_mode=config["stream_mode"], logging=config["logging"])
             self.frame_capture.start()
         else:
             try:
-                #options = { }
-                # self.frame_capture = VideoSource(self.source_video_path, options=options)
                 self.frame_capture = DeffFrameCapture(self.source_video_path)
                 self.frame_capture.start()
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
 
-
         self.paused = False
 
-        self.frame_skip_interval = 100/(100-config["fps_reduction"])
+        self.frame_skip_interval = 100 / (100 - config["fps_reduction"])
 
         self.display = config["display"]
         self.save_video = config["save_video"]
@@ -135,11 +131,11 @@ class VideoProcessor(QObject):
 
         # Boundary lines
         boundaries = {
-                'ob_1': [802, 676, 822, 658, "right"],
-                'ob_2': [831, 550, 857, 552, "left"],
-                'ob_3': [927, 636, 1169, 638, "bottom"],
-                'ob_4': [748, 549, 780, 555, "left"],
-                'ob_5': [624, 841, 869, 842, "bottom"],
+            'ob_1': [802, 676, 822, 658, "right"],
+            'ob_2': [831, 550, 857, 552, "left"],
+            'ob_3': [927, 636, 1169, 638, "bottom"],
+            'ob_4': [748, 549, 780, 555, "left"],
+            'ob_5': [624, 841, 869, 842, "bottom"],
         }
         seq_name = self.source_video_path.split('/')[-1].split('.')[0]
         if seq_name in boundaries.keys():
@@ -147,6 +143,15 @@ class VideoProcessor(QObject):
             config["action_recognition"]["overstep_boundary"]["line"] = boundaries[seq_name][:4]
             config["action_recognition"]["overstep_boundary"]["region"] = boundaries[seq_name][4]
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
+
+    def get_video_info(self, video_path):
+        cap = cv2.VideoCapture(video_path)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+        return VideoInfo(total_frames, fps, (width, height))
 
     def process_video(self):
         print(f"Processing video: {self.source_video_path} ...")
@@ -230,31 +235,45 @@ class VideoProcessor(QObject):
                 max_det=self.max_det,
                 agnostic_nms=self.agnostic_nms,
             )[0]
-
         else:
-            results = self.model.predict(
-                frame,
-            )[0]
+            results = self.model.predict(frame)[0]
             frame = jetson_utils.cudaToNumpy(frame)
-        # TODO: compare the results with the results from the ByteTrack tracker, losing detections
-        # detections = sv.Detections.from_ultralytics(results)
-        detections, tracks = self.tracker.update(results, frame)
 
+        detections, tracks = self.tracker.update(results, frame)
         ar_results = self.action_recognizer.recognize_frame(tracks)
         return self.annotate_frame(frame, detections, ar_results, frame_number, fps)
 
-    def annotate_frame(self, annotated_frame: np.ndarray, detections: sv.Detections, ar_results: None,
-                       frame_number: int, fps: float) -> np.ndarray:
-
+    def annotate_frame(self, annotated_frame: np.ndarray, detections, ar_results, frame_number: int, fps: float) -> np.ndarray:
         labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
                   zip(detections.tracker_id, detections.class_id, detections.confidence)]
-        annotated_frame = self.trace_annotator.annotate(annotated_frame, detections)
-        annotated_frame = self.box_annotator.annotate(annotated_frame, detections, labels)
-        annotated_frame = self.action_recognizer.annotate(annotated_frame, ar_results)
+        # Perform your custom annotation here using OpenCV or any other method
+        for det, label in zip(detections.xyxy, labels):
+            x1, y1, x2, y2 = map(int, det)
+            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(annotated_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
+
+        # Add action recognition results if any
+        if ar_results:
+            if 'individual' in ar_results and ar_results['individual']:
+                for track_id, result in ar_results['individual'].items():
+                    actions = ', '.join(result.get('actions', []))
+                    bbox = result.get('bbox', [0, 0, 0, 0])
+                    x1, y1, x2, y2 = map(int, bbox)
+                    cv2.putText(annotated_frame, actions, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            if 'group' in ar_results and ar_results['group']:
+                group_gather = ar_results['group'].get('gather')
+                if group_gather:
+                    for group_id, bbox in group_gather.items():
+                        x1, y1, x2, y2 = map(int, bbox)
+                        cv2.putText(annotated_frame, 'Group ' + str(group_id), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                    (0, 255, 0), 2)
+                        cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
         if self.save_video:
             cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
         return annotated_frame
 
     def toggle_pause(self):
