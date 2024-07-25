@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 import numpy as np
 from .position import Position
-from .utils import get_data_item, is_data_equal, merge_data
+from .utils import get_data_item, is_data_equal, merge_data, calculate_masks_centroids
 
 from .validators import validate_detections_fields
 
