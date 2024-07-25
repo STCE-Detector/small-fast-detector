@@ -524,7 +524,7 @@ class ColorPalette:
     """
     A class to generate and manage a color palette for different classes.
     """
-    def __init__(self, seed=42):
+    def __init__(self, seed=54):
         random.seed(seed)
         self.colors = {}
 
