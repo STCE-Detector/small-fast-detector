@@ -84,7 +84,8 @@ class AREvaluator:
 
         try:
             df = pd.read_csv(df_path, header=None)
-            df.columns = self.df_columns
+            df.columns = self.df_columns[:len(df.columns)]
+            self.behavior_columns = df.columns[9:]
         except pd.errors.EmptyDataError:
             df = pd.DataFrame(columns=self.df_columns)
 
@@ -129,7 +130,7 @@ class AREvaluator:
                 group[col] = group[col].ffill(limit=smoothing_window, limit_area='inside')
 
             # Initial padding
-            if col in ['SS', 'G'] and initial_pad > 0:
+            if initial_pad > 0:
                 group[col] = group[col].bfill(limit=initial_pad)
 
             # Final padding

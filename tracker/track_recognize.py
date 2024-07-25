@@ -133,8 +133,19 @@ class VideoProcessor(QObject):
                                             fps=self.frame_capture.GetFrameRate())
             self.video_writer.start()
 
-
-
+        # Boundary lines
+        boundaries = {
+                'ob_1': [802, 676, 822, 658, "right"],
+                'ob_2': [831, 550, 857, 552, "left"],
+                'ob_3': [927, 636, 1169, 638, "bottom"],
+                'ob_4': [748, 549, 780, 555, "left"],
+                'ob_5': [624, 841, 869, 842, "bottom"],
+        }
+        seq_name = self.source_video_path.split('/')[-1].split('.')[0]
+        if seq_name in boundaries.keys():
+            config["action_recognition"]["overstep_boundary"]["enabled"] = True
+            config["action_recognition"]["overstep_boundary"]["line"] = boundaries[seq_name][:4]
+            config["action_recognition"]["overstep_boundary"]["region"] = boundaries[seq_name][4]
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
 
     def process_video(self):
