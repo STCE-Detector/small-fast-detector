@@ -613,5 +613,4 @@ class TrajectoryManager:
         return frame
 
     def _get_class_name(self, tracker_id):
-        # Implement a way to map tracker_id to class_name if needed
-        return list(self.class_colors.keys())[tracker_id % len(self.class_colors)]  # Example implementation
+        return list(self.class_colors.keys())[tracker_id % len(self.class_colors)]
