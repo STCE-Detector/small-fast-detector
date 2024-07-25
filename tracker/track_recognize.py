@@ -3,6 +3,8 @@ import argparse
 import csv
 import os
 
+from tracker.trackers.bytetrack.detections import Detections
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
@@ -239,6 +241,7 @@ class VideoProcessor(QObject):
             results = self.model.predict(frame)[0]
             frame = jetson_utils.cudaToNumpy(frame)
 
+        results = Detections.from_ultralytics(results)
         detections, tracks = self.tracker.update(results, frame)
         ar_results = self.action_recognizer.recognize_frame(tracks)
         return self.annotate_frame(frame, detections, ar_results, frame_number, fps)

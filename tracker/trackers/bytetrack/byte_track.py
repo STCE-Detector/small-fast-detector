@@ -390,7 +390,6 @@ class ByteTrack:
 
     def update(self, results, img=None):
         """Updates object tracker with new detections and returns tracked object bounding boxes."""
-        results = Detections.from_ultralytics(results)
         self.frame_id += 1
         activated_stracks = []
         refind_stracks = []
