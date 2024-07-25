@@ -3,7 +3,7 @@ import argparse
 import csv
 import os
 
-from tracker.trackers.bytetrack.detections import Detections
+from tracker.trackers.bytetrack.detections import Detections, TrajectoryManager, AnnotationDrawer
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
@@ -91,6 +91,7 @@ class VideoProcessor(QObject):
 
         # TODO : CHECK TO PUT IN A THREAD
         self.tracker = getattr(trackers, config["tracker_name"])(config, self.video_info)
+        self.annotation_drawer = AnnotationDrawer()
 
         if not IS_JETSON:
             self.frame_capture = FrameCapture(self.source_video_path, stabilize=config["stabilize"],
@@ -247,36 +248,8 @@ class VideoProcessor(QObject):
         return self.annotate_frame(frame, detections, ar_results, frame_number, fps)
 
     def annotate_frame(self, annotated_frame: np.ndarray, detections, ar_results, frame_number: int, fps: float) -> np.ndarray:
-        labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
-                  for tracker_id, class_id, confidence in
-                  zip(detections.tracker_id, detections.class_id, detections.confidence)]
-        # Perform your custom annotation here using OpenCV or any other method
-        for det, label in zip(detections.xyxy, labels):
-            x1, y1, x2, y2 = map(int, det)
-            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(annotated_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
-
-        # Add action recognition results if any
-        if ar_results:
-            if 'individual' in ar_results and ar_results['individual']:
-                for track_id, result in ar_results['individual'].items():
-                    actions = ', '.join(result.get('actions', []))
-                    bbox = result.get('bbox', [0, 0, 0, 0])
-                    x1, y1, x2, y2 = map(int, bbox)
-                    cv2.putText(annotated_frame, actions, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            if 'group' in ar_results and ar_results['group']:
-                group_gather = ar_results['group'].get('gather')
-                if group_gather:
-                    for group_id, bbox in group_gather.items():
-                        x1, y1, x2, y2 = map(int, bbox)
-                        cv2.putText(annotated_frame, 'Group ' + str(group_id), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                                    (0, 255, 0), 2)
-                        cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-        if self.save_video:
-            cv2.putText(annotated_frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
+        # Draw annotations using AnnotationDrawer
+        annotated_frame = self.annotation_drawer.draw_annotations(annotated_frame, detections, self.class_names, ar_results, frame_number, fps, self.save_video)
         return annotated_frame
 
     def toggle_pause(self):

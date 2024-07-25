@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 import numpy as np
 from .position import Position
+from .utils import get_data_item, is_data_equal, merge_data
 
-from .utils import get_data_item, merge_data, is_data_equal, extract_ultralytics_masks, calculate_masks_centroids
 from .validators import validate_detections_fields
 
 
@@ -514,3 +514,83 @@ class Detections:
                 where n is the number of detections.
         """
         return (self.xyxy[:, 3] - self.xyxy[:, 1]) * (self.xyxy[:, 2] - self.xyxy[:, 0])
+
+
+import cv2
+from collections import defaultdict, deque
+
+
+class AnnotationDrawer:
+    def __init__(self):
+        self.class_colors = {
+            "person": (0, 0, 255),  # Red
+            "car": (0, 255, 0),  # Green
+            "truck": (255, 0, 0),  # Blue
+            "uav": (255, 255, 0),  # Cyan
+            "airplane": (255, 0, 255),  # Magenta
+            "boat": (0, 255, 255)  # Yellow
+        }
+        self.trajectory_manager = TrajectoryManager(maxlen=50)
+
+    def draw_annotations(self, frame, detections, class_names, ar_results, frame_number, fps, save_video=False):
+        labels = [f"#{tracker_id} {class_names[class_id]} {confidence:.2f}"
+                  for tracker_id, class_id, confidence in
+                  zip(detections.tracker_id, detections.class_id, detections.confidence)]
+
+        for det, label, tracker_id, class_id in zip(detections.xyxy, labels, detections.tracker_id,
+                                                    detections.class_id):
+            x1, y1, x2, y2 = map(int, det)
+            color = self.class_colors[class_names[class_id]]
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+
+            # Calculate the center of the bounding box
+            center_x = (x1 + x2) // 2
+            center_y = (y1 + y2) // 2
+            self.trajectory_manager.update(tracker_id, (center_x, center_y), color)
+
+        # Draw all trajectories
+        frame = self.trajectory_manager.draw(frame)
+
+        # Add action recognition results if any
+        if ar_results:
+            if 'individual' in ar_results and ar_results['individual']:
+                for track_id, result in ar_results['individual'].items():
+                    actions = ', '.join(result.get('actions', []))
+                    bbox = result.get('bbox', [0, 0, 0, 0])
+                    x1, y1, x2, y2 = map(int, bbox)
+                    cv2.putText(frame, actions, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            if 'group' in ar_results and ar_results['group']:
+                group_gather = ar_results['group'].get('gather')
+                if group_gather:
+                    for group_id, bbox in group_gather.items():
+                        x1, y1, x2, y2 = map(int, bbox)
+                        cv2.putText(frame, 'Group ' + str(group_id), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                    (0, 255, 0), 2)
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        if save_video:
+            cv2.putText(frame, f"Frame: {frame_number}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(frame, f"FPS: {fps:.2f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        return frame
+
+
+class TrajectoryManager:
+    def __init__(self, maxlen=50):
+        self.trajectories = defaultdict(lambda: deque(maxlen=maxlen))
+        self.colors = {}
+
+    def update(self, tracker_id, center, color):
+        self.trajectories[tracker_id].append(center)
+        self.colors[tracker_id] = color
+
+    def draw(self, frame):
+        for tracker_id, points in self.trajectories.items():
+            points_list = list(points)
+            color = self.colors[tracker_id]
+            for i in range(1, len(points_list)):
+                cv2.line(frame, points_list[i - 1], points_list[i], color, 2)
+                cv2.circle(frame, points_list[i], 3, color, -1)
+
+        return frame
