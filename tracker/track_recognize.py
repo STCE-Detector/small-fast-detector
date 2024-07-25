@@ -237,8 +237,8 @@ class VideoProcessor(QObject):
             )[0]
             frame = jetson_utils.cudaToNumpy(frame)
         # TODO: compare the results with the results from the ByteTrack tracker, losing detections
-        detections = sv.Detections.from_ultralytics(results)
-        detections, tracks = self.tracker.update(detections, frame)
+        # detections = sv.Detections.from_ultralytics(results)
+        detections, tracks = self.tracker.update(results, frame)
 
         ar_results = self.action_recognizer.recognize_frame(tracks)
         return self.annotate_frame(frame, detections, ar_results, frame_number, fps)

@@ -4,7 +4,6 @@ from collections import deque
 import numpy as np
 import torch
 
-from supervision import Detections
 from ultralytics.utils.downloads import safe_download
 from tracker.trackers.bytetrack.basetrack import BaseTrack, TrackState
 from tracker.utils import matching
@@ -12,6 +11,7 @@ from tracker.utils.gmc import GMC
 from tracker.utils.kalman_filter import KalmanFilterXYAH
 from tracker.utils.preprocessing import extract_image_patches
 from tracker.utils.slm import load_model
+from .detections import Detections
 
 
 class STrack(BaseTrack):
@@ -390,6 +390,7 @@ class ByteTrack:
 
     def update(self, results, img=None):
         """Updates object tracker with new detections and returns tracked object bounding boxes."""
+        results = Detections.from_ultralytics(results)
         self.frame_id += 1
         activated_stracks = []
         refind_stracks = []

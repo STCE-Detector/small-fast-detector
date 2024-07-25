@@ -28,9 +28,9 @@ shapely>=2.0.4
 # Export --------------------------------------
 # coremltools>=6.0,<=6.2  # CoreML export
 onnx>=1.16.0  # ONNX export
-onnxruntime>=1.17.3; python_version != '3.9' and sys_platform == 'darwin' and platform_machine != 'arm64'
-onnxruntime-coreml>=1.13.1; python_version == '3.9' and sys_platform == 'darwin' and platform_machine != 'arm64'
-onnxruntime-silicon>=1.16.3; sys_platform == 'darwin' and platform_machine == 'arm64'
+# onnxruntime>=1.17.3; python_version != '3.9' and sys_platform == 'darwin' and platform_machine != 'arm64'
+# onnxruntime-coreml>=1.13.1; python_version == '3.9' and sys_platform == 'darwin' and platform_machine != 'arm64'
+# onnxruntime-silicon>=1.16.3; sys_platform == 'darwin' and platform_machine == 'arm64'
 # onnxruntime-gpu>=1.16.3; sys_platform != 'darwin'
 onnxslim>=0.1.31  # ONNX slimming
 # nvidia-pyindex; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
@@ -51,7 +51,7 @@ pycocotools>=2.0.7  # COCO mAP
 hub-sdk>=0.0.8  # PyTorch Hub
 vidgear[asyncio]
 deffcode
-PySide6>=6.7.0
+PySide6
 simplejpeg
 timm
 einops
