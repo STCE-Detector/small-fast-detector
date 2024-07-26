@@ -3,7 +3,7 @@ import argparse
 import csv
 import os
 
-from tracker.trackers.bytetrack.detections import Detections, TrajectoryManager, AnnotationDrawer
+from tracker.utils.detections import Detections, AnnotationDrawer
 from tracker.utils.videoInfo import VideoInfo
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
@@ -20,7 +20,7 @@ from ultralytics.utils import IS_JETSON
 if IS_JETSON:
     import jetson_utils
     from tracker.jetson.model.model import Yolov8
-import cv2
+
 import numpy as np
 from tqdm import tqdm
 
@@ -47,6 +47,7 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
 if sys.platform.startswith("linux") and ci_and_not_headless:
     os.environ.pop("QT_QPA_FONTDIR")
+
 
 class VideoProcessor(QObject):
     frame_ready = Signal(QImage, float)
@@ -81,10 +82,8 @@ class VideoProcessor(QObject):
         else:
             self.model = Yolov8(config, self.class_names)
 
-        # TODO: CHECK IF MAINTAIN THIS
-        self.video_info = self.get_video_info(self.source_video_path)
+        self.video_info = VideoInfo(self.source_video_path)
 
-        # TODO : CHECK TO PUT IN A THREAD
         self.tracker = getattr(trackers, config["tracker_name"])(config, self.video_info)
         self.annotation_drawer = AnnotationDrawer()
 
@@ -141,9 +140,6 @@ class VideoProcessor(QObject):
             config["action_recognition"]["overstep_boundary"]["line"] = boundaries[seq_name][:4]
             config["action_recognition"]["overstep_boundary"]["region"] = boundaries[seq_name][4]
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
-
-    def get_video_info(self, video_path):
-        return VideoInfo(video_path)
 
     def process_video(self):
         print(f"Processing video: {self.source_video_path} ...")

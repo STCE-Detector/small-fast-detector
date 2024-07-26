@@ -8,6 +8,7 @@ import warnings
 
 import tracker.trackers as trackers
 from tracker.action_recognition.action_recognition import ActionRecognizer
+from tracker.utils.videoInfo import VideoInfo
 
 
 class SequenceProcessor:
@@ -143,7 +144,9 @@ class SequenceProcessor:
         width = int(config['Sequence']['imWidth'])
         height = int(config['Sequence']['imHeight'])
         fps = int(float(config['Sequence']['frameRate']))
-        return sv.VideoInfo(width, height, fps)
+        video_info = VideoInfo()
+        video_info.manual_init(total_frames=None, fps=fps, resolution_wh=(width, height))
+        return video_info
 
 
 def generate_behaviors(config, experiment_id=None, print_bar=False):

@@ -4,7 +4,7 @@ from collections import deque
 import numpy as np
 import torch
 
-from tracker.trackers.bytetrack.detections.detections import Detections
+from tracker.utils.detections.detections import Detections
 from ultralytics.utils.downloads import safe_download
 from tracker.trackers.bytetrack.basetrack import BaseTrack, TrackState
 from tracker.utils import matching
@@ -371,7 +371,7 @@ class ByteTrack:
                 self.with_reid = False
 
         # GMC module
-        self.gmc = GMC(method=self.args["gmc_method"])   # TODO: review the GMC module, bouncing boxes
+        self.gmc = GMC(method=self.args["gmc_method"])
 
         # Action Recognition
         # TODO: solve when config is ConfigParser
@@ -400,7 +400,6 @@ class ByteTrack:
         bboxes = results.xyxy
         bboxes = np.concatenate([bboxes, np.arange(len(bboxes)).reshape(-1, 1)], axis=-1)   # Add index to bboxes
         cls = results.class_id
-        # TODO: features = results.features?
 
         remain_inds = scores >= self.track_high_thresh   # Select indices with high scores for first association
         inds_low = scores >= self.track_low_thresh
@@ -414,7 +413,6 @@ class ByteTrack:
         cls_keep = cls[remain_inds]
         cls_second = cls[inds_second]
         features_keep = None
-
 
         # STEP 1: Feature extraction and create embedding
         if self.with_reid:
@@ -438,7 +436,6 @@ class ByteTrack:
                 unconfirmed.append(track)
             else:
                 tracked_stracks.append(track)
-
 
         # STEP 2: First association, with high score detection boxes
         # Join lost stracks to tracked stracks for the first association
@@ -472,7 +469,6 @@ class ByteTrack:
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
-
 
         # STEP 3: Second association, with low score detection boxes association the untrack to the low score detections
         # Initialize low score detections
@@ -508,8 +504,7 @@ class ByteTrack:
                 track.mark_lost()
                 lost_stracks.append(track)
 
-        # Deal with unmatched detections from the first association and unconfirmed tracks (usually tracks with only one frame)
-        #TODO: is this necessary? Can't we just activate the unconfirmed tracks in their first frame?
+        # Deal with unmatched detections from the first association and unconfirmed tracks (tracks with only one frame)
         detections = [detections[i] for i in u_detection]
         dists = self.get_dists(unconfirmed, detections,
                                conf_fuse=self.new_fuse,
@@ -526,7 +521,6 @@ class ByteTrack:
             track.mark_removed()
             removed_stracks.append(track)
 
-
         # STEP 4: Init new stracks: high confidence detections that are unmatched in the first association and with unconfirmed tracks
         for inew in u_detection:
             track = detections[inew]
@@ -534,7 +528,6 @@ class ByteTrack:
                 continue
             track.activate(self.kalman_filter, self.frame_id)
             activated_stracks.append(track)
-
 
         # STEP 5: Update state
         # Deal with lost tracks, remove if tracked for too long
@@ -556,7 +549,6 @@ class ByteTrack:
             self.removed_stracks = self.removed_stracks[-999:]  # clip remove stracks to 1000 maximum
         # Filter activated tracks
         self.active_tracks = [track for track in self.tracked_stracks if track.is_activated]
-
 
         # STEP 6: Process detection information of activated tracks so that it can be used for further visualization
         # Initialize empty arrays for detections attributes

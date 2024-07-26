@@ -6,6 +6,7 @@ from tqdm import tqdm
 import configparser
 
 import tracker.trackers as trackers
+from tracker.utils.videoInfo import VideoInfo
 
 
 class SequenceProcessor:
@@ -112,7 +113,9 @@ class SequenceProcessor:
         width = int(config['Sequence']['imWidth'])
         height = int(config['Sequence']['imHeight'])
         fps = int(float(config['Sequence']['frameRate']))
-        return sv.VideoInfo(width, height, fps)
+        video_info = VideoInfo()
+        video_info.manual_init(total_frames=None, fps=fps, resolution_wh=(width, height))
+        return video_info
 
 
 def generate_tracks(config, experiment_id=None, print_bar=False):

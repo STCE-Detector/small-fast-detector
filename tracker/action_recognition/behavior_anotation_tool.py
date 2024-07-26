@@ -10,6 +10,7 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
 from collections import deque
 
+
 class VideoAnnotationTool(QWidget):
     def __init__(self):
         super().__init__()
@@ -205,7 +206,6 @@ class VideoAnnotationTool(QWidget):
         self.trajectories = {}
         self.max_trace_frames = 30
 
-
     def load_new_img_seq(self, change_color=False):
         folder = QFileDialog.getExistingDirectory(self, "Select Directory")
         if folder:
@@ -247,7 +247,6 @@ class VideoAnnotationTool(QWidget):
 
     def load_image_sequence(self, image_sequence_path):
         self.image_files = sorted([os.path.join(image_sequence_path, f) for f in os.listdir(image_sequence_path) if f.endswith('.jpg') or f.endswith('.png')])
-
 
     def load_gt_coordinates(self, gt_file_path):
         df = pd.read_csv(gt_file_path, header=None)
