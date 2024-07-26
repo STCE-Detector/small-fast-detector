@@ -74,15 +74,3 @@ class FrameCapture:
         # self.vcap.release()
         self.vcap.stop()
         self.streaming = False
-
-
-if __name__ == '__main__':
-    # Example usage:
-    stream = FrameCapture(0)  # 0 for default webcam
-    stream.start()
-
-    try:
-        input("Press Enter to stop...")
-    finally:
-        stream.stop()
-        print("Exiting program")
