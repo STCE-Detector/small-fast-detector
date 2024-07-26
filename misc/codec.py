@@ -59,25 +59,3 @@ class FFmpegFrameCapture:
 
     def is_streaming(self):
         return not self.stopped
-
-if __name__ == '__main__':
-    video_path = "/home/johnny/Projects/small-fast-detector/tracker/videos/output.mp4"
-    capture = FFmpegFrameCapture(video_path)
-    capture.start()
-    print(capture.decoder.metadata)
-    start_time = time.time()
-    try:
-        while True:
-            frame = capture.capture()
-            if frame is None:
-                break
-            cv2.imshow("Frame", frame)
-            elapsed_time = time.time() - start_time
-            fps = capture.get_frame_count() / elapsed_time if elapsed_time > 0 else 0
-            print(f"Current FPS: {fps:.2f}")
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-    finally:
-        capture.stop()
-        cv2.destroyAllWindows()
-        print("Exiting program")
