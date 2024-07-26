@@ -1,10 +1,10 @@
 {
-  "name": "Macro-F05-1000",
+  "name": "SS-F05-200-CARD",
 
   "tracker_name": "ByteTrack",
 
-  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/PTD",
-  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/PTD",
+  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/CARD",
+  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/CARD",
 
   "device": "cpu",
 
@@ -47,37 +47,36 @@
 
   "action_recognition": {
     "enabled": true,
-    "speed_projection": [1.5951954047750416, 0.8508040956724452],
+    "speed_projection": [1.8287633001510064, 1.860061964484245],
 
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "last_n": 83,
-      "alpha": 0.25901777612184546,
-      "distance_threshold": 1.0197365426480192,
-      "area_threshold": 0.9960474031910679,
-      "speed_threshold": 0.05854507912290983
+      "distance_threshold": 0.9179657289250596,
+      "area_threshold": 0.9998467840658788,
+      "speed_threshold": 0.07991157235834581,
+      "last_n": 123,
+      "alpha": 0.148086754991973
     },
 
     "stand_still": {
       "enabled": true,
-      "last_n": 111,
-      "alpha": 0.0322541571536545,
-      "speed_threshold": 0.0096460999755457
+      "speed_threshold": 0.019336880075957318,
+      "last_n": 31,
+      "alpha": 0.08949537405014585
     },
 
     "fast_approach": {
       "enabled": false,
       "draw": false,
-      "distance_threshold": 4,
-      "speed_threshold": 0.00162685341658254773
+      "distance_threshold": 4
     },
 
     "suddenly_run": {
       "enabled": true,
-      "last_n": 138,
-      "alpha": 0.10873517538408146,
-      "speed_threshold": 0.07195126641202199
+      "speed_threshold": 0.06854956423297197,
+      "last_n": 75,
+      "alpha": 0.04652332834328593
     },
 
     "overstep_boundary": {
