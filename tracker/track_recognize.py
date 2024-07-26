@@ -50,6 +50,15 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 
 
 class VideoProcessor(QObject):
+    """ Class to process video frames using the YOLO detector, the ByteTrack tracker and the Action Recognizer.
+        It select automatically the classes for each device (Jetson or not).
+
+    Args:
+        QObject (Object): Base class of all Qt objects
+
+    Raises:
+        ValueError: If the video file cannot be opened
+    """
     frame_ready = Signal(QImage, float)
 
     def __init__(self, config) -> None:

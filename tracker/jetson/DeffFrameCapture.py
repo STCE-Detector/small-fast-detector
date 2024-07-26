@@ -23,6 +23,9 @@ def check_os():
 
 
 class DeffFrameCapture:
+    """ Class to capture frames from a video source (webcam or video file) using FFmpeg.
+        With FFMPEG you can use hardware acceleration to decode the video stream.
+    """
     def __init__(self, source, frame_format='rgb8', verbose=False):
         self.source = source
         self.frame_format = frame_format
