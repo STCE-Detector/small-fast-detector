@@ -23,6 +23,9 @@ def check_os():
 
 
 class DeffFrameCapture:
+    """ Class to capture frames from a video source (webcam or video file) using FFmpeg.
+        With FFMPEG you can use hardware acceleration to decode the video stream.
+    """
     def __init__(self, source, frame_format='rgb8', verbose=False):
         self.source = source
         self.frame_format = frame_format
@@ -99,26 +102,3 @@ class DeffFrameCapture:
 
     def IsStreaming(self):
         return self.streaming
-
-
-if __name__ == '__main__':
-    video_path = "/Users/johnny/Projects/small-fast-detector/tracker/videos/demo.mp4"
-    capture = DeffFrameCapture(video_path)
-    capture.start()
-    print(capture.decoder.metadata)
-    start_time = time.time()
-    try:
-        while True:
-            frame = capture.Capture()
-            if frame is None:
-                break
-            cv2.imshow("Frame", frame)
-            elapsed_time = time.time() - start_time
-            fps = capture.GetFrameCount() / elapsed_time if elapsed_time > 0 else 0
-            print(f"Current FPS: {fps:.2f}")
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-    finally:
-        capture.stop()
-        cv2.destroyAllWindows()
-        print("Exiting program")
