@@ -28,8 +28,11 @@ onnxruntime>=1.18.1; python_version != '3.9' and sys_platform >= 'darwin' and pl
 onnxruntime-gpu>=1.18.1; sys_platform != 'darwin'
 onnxslim>=0.1.32  # ONNX slimming
 tensorrt;sys_platform != 'darwin'
-# nvidia-pyindex; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
-# nvidia-tensorrt; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+nvidia-pyindex; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+nvidia-tensorrt; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+tensorrt_cu12_libs; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+tensorrt_cu12_bindings; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+tensorrt; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
 # scikit-learn>=0.19.2  # CoreML quantization
 # tensorflow>=2.4.1  # TF exports (-cpu, -aarch64, -macos)
 # tflite-support
@@ -52,6 +55,7 @@ timm
 einops
 supervision
 onnx_graphsurgeon
+loguru
 # paddle2onnx
 # loguru
 # rich_click
