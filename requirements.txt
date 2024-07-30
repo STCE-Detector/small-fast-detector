@@ -53,7 +53,7 @@ PySide6>=6.7.2
 simplejpeg
 timm
 einops
-supervision
+supervision==0.21.0
 onnx_graphsurgeon
 loguru
 # paddle2onnx
