@@ -16,7 +16,6 @@ from PySide6.QtCore import Signal
 from ultralytics.utils import IS_JETSON
 if IS_JETSON:
     import jetson_utils
-    from tracker.jetson.video import VideoSource
     from tracker.jetson.model.model import Yolov8
 import cv2
 import numpy as np
@@ -105,11 +104,10 @@ class VideoProcessor(QObject):
             self.frame_capture.start()
         else:
             try:
-                if self.source_video_path == 0:
-                    self.frame_capture = VideoSource(video_input_framerate=30)
-                else:
-                    self.frame_capture = DeffFrameCapture(self.source_video_path)
-                    self.frame_capture.start()
+                #options = { }
+                # self.frame_capture = VideoSource(self.source_video_path, options=options)
+                self.frame_capture = DeffFrameCapture(self.source_video_path)
+                self.frame_capture.start()
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
