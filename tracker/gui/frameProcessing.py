@@ -5,6 +5,10 @@ from vidgear.gears import WriteGear
 
 
 class VideoWriter:
+    """
+    Class to write frames to a video file in a separate thread. 
+    The frames are written in the order they are received.
+    """
     def __init__(self, output_path, frame_size, compression_mode, logging, fps=30):
         self.output_path = output_path
         self.frame_size = frame_size
