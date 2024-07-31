@@ -75,7 +75,7 @@ class STrack(BaseTrack):
 
         # Action Recognition initialization
         self.speed_projection = speed_projection
-        self.norm_speed = deque([], maxlen=150)
+        self.norm_speed = deque([], maxlen=110)
         self.prev_state = None
         self.SS = False
         self.SR = False
@@ -84,6 +84,7 @@ class STrack(BaseTrack):
         self.OB = False
 
     def update_features(self, feat):
+        """Updates the features of the track."""
         feat /= np.linalg.norm(feat)
         self.curr_feat = feat
         if self.smooth_feat is None:
@@ -415,7 +416,6 @@ class ByteTrack:
         cls_second = cls[inds_second]
         features_keep = None
 
-
         # STEP 1: Feature extraction and create embedding
         if self.with_reid:
             # TODO: batch inference? Maybe at fixed size?
@@ -438,7 +438,6 @@ class ByteTrack:
                 unconfirmed.append(track)
             else:
                 tracked_stracks.append(track)
-
 
         # STEP 2: First association, with high score detection boxes
         # Join lost stracks to tracked stracks for the first association
@@ -472,7 +471,6 @@ class ByteTrack:
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
-
 
         # STEP 3: Second association, with low score detection boxes association the untrack to the low score detections
         # Initialize low score detections
@@ -508,8 +506,7 @@ class ByteTrack:
                 track.mark_lost()
                 lost_stracks.append(track)
 
-        # Deal with unmatched detections from the first association and unconfirmed tracks (usually tracks with only one frame)
-        #TODO: is this necessary? Can't we just activate the unconfirmed tracks in their first frame?
+        # Deal with unmatched detections from the first association and unconfirmed tracks (tracks with only one frame)
         detections = [detections[i] for i in u_detection]
         dists = self.get_dists(unconfirmed, detections,
                                conf_fuse=self.new_fuse,
@@ -526,7 +523,6 @@ class ByteTrack:
             track.mark_removed()
             removed_stracks.append(track)
 
-
         # STEP 4: Init new stracks: high confidence detections that are unmatched in the first association and with unconfirmed tracks
         for inew in u_detection:
             track = detections[inew]
@@ -534,7 +530,6 @@ class ByteTrack:
                 continue
             track.activate(self.kalman_filter, self.frame_id)
             activated_stracks.append(track)
-
 
         # STEP 5: Update state
         # Deal with lost tracks, remove if tracked for too long
@@ -556,7 +551,6 @@ class ByteTrack:
             self.removed_stracks = self.removed_stracks[-999:]  # clip remove stracks to 1000 maximum
         # Filter activated tracks
         self.active_tracks = [track for track in self.tracked_stracks if track.is_activated]
-
 
         # STEP 6: Process detection information of activated tracks so that it can be used for further visualization
         # Initialize empty arrays for detections attributes
@@ -610,7 +604,6 @@ class ByteTrack:
         """Get distances between tracks and detections using IoU and (optionally) ReID embeddings."""
 
         dists = matching.iou_distance(tracks, detections, b=buffer, type=iou_type)
-        # TODO: set it in config
         if conf_fuse:
             # Originally only used with MOT20 dataset
             dists = matching.fuse_score(dists, detections)
@@ -620,10 +613,10 @@ class ByteTrack:
             emb_dists = matching.embedding_distance(tracks, detections) / 2.0
             emb_dists[emb_dists > self.appearance_thresh] = 1.0
             emb_dists[dists_mask] = 1.0
-            # TODO: should be sum?
+            # should be sum?
             dists = np.minimum(dists, emb_dists)
 
-            # TODO: SMILE TRACK IMPLEMENTATION
+            # SMILE TRACK IMPLEMENTATION
             # emb_dists = matching.embedding_distance(tracks, detections)
             # emb_dists = matching.fuse_motion(self.kalman_filter, emb_dists, tracks, detections)
             # if emb_dists.size != 0:

@@ -91,10 +91,8 @@ class VideoProcessor(QObject):
         else:
             self.model = Yolov8(config, self.class_names)
 
-        # TODO: CHECK IF MAINTAIN THIS
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
-        # TODO : CHECK TO PUT IN A THREAD
         self.tracker = getattr(trackers, config["tracker_name"])(config, self.video_info)
 
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
@@ -113,7 +111,6 @@ class VideoProcessor(QObject):
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
-
 
         self.paused = False
 
@@ -158,6 +155,7 @@ class VideoProcessor(QObject):
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
 
     def process_video(self):
+        """Process the video frames using the YOLO detector, the ByteTrack tracker and the Action Recognizer."""
         print(f"Processing video: {self.source_video_path} ...")
         print(f"Original video size: {self.video_info.resolution_wh}")
         print(f"Original video FPS: {self.video_info.fps}")
@@ -228,6 +226,7 @@ class VideoProcessor(QObject):
         self.cleanup()
 
     def process_frame(self, frame: np.ndarray, frame_number: int, fps: float) -> np.ndarray:
+        """Process a single frame using the YOLO detector, the ByteTrack tracker and the Action Recognizer."""
         if not IS_JETSON:
             results = self.model.predict(
                 frame,
@@ -254,7 +253,7 @@ class VideoProcessor(QObject):
 
     def annotate_frame(self, annotated_frame: np.ndarray, detections: sv.Detections, ar_results: None,
                        frame_number: int, fps: float) -> np.ndarray:
-
+        """Annotate the frame with the detections and the action recognition results."""
         labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
                   zip(detections.tracker_id, detections.class_id, detections.confidence)]
