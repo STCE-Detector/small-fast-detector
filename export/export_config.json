@@ -1,0 +1,16 @@
+{
+  "device": "cpu",
+  "model_path": "./../detectors/cdv4_8sp2_150e_128b.pt",
+  "format": "onnx",
+  "img_size": 640,
+  "opset": 13,
+  "simplify": false,
+
+  "include_nms": false,
+  "output": "./../detectors/",
+  "imgsz": 640,
+  "batch": 1,
+  "max_boxes": 300,
+  "iou_thres": 0.7,
+  "conf_thres": 0.1
+}

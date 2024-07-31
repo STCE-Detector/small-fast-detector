@@ -50,7 +50,7 @@ class STrack(BaseTrack):
 
     shared_kalman = KalmanFilterXYAH()
 
-    def __init__(self, tlwh, score, cls, feat=None, feat_history=50):
+    def __init__(self, tlwh, score, cls, feat=None, feat_history=50, speed_projection=None):
         """Initialize new STrack instance."""
         self._tlwh = np.asarray(self.tlbr_to_tlwh(tlwh[:-1]), dtype=np.float32)
         self.kalman_filter = None
@@ -73,22 +73,10 @@ class STrack(BaseTrack):
             self.update_features(feat)
         self.alpha = 0.9
 
-        # Action recognition: widow of previous states
-        self.prev_states = []
-        self.speed_buffer_len = 5
-        self.frame_stride = 30
-
-        # Action recognition: EMA speed
-        """
+        # Action Recognition initialization
+        self.speed_projection = speed_projection
+        self.norm_speed = deque([], maxlen=110)
         self.prev_state = None
-        self.EMA_alpha = 0.3
-        self.EMA_speed = None
-        self.prev_EMA_speed = None
-        self.EMA_accel = None
-        self.prev_EMA_accel = None
-        """
-
-        # Action recognition: init flags
         self.SS = False
         self.SR = False
         self.FA = False
@@ -96,6 +84,7 @@ class STrack(BaseTrack):
         self.OB = False
 
     def update_features(self, feat):
+        """Updates the features of the track."""
         feat /= np.linalg.norm(feat)
         self.curr_feat = feat
         if self.smooth_feat is None:
@@ -181,6 +170,8 @@ class STrack(BaseTrack):
             self.is_activated = True
         self.frame_id = frame_id
         self.start_frame = frame_id
+        # Action Recognition
+        self.prev_state = self.mean
 
     def re_activate(self, new_track, frame_id, new_id=False):
         """Reactivates a previously lost track with a new detection."""
@@ -196,6 +187,8 @@ class STrack(BaseTrack):
         self.score = new_track.score
         self.cls = new_track.cls
         self.idx = new_track.idx
+        # Action Recognition
+        self.prev_state = self.mean
 
     def update(self, new_track, frame_id):
         """
@@ -218,10 +211,18 @@ class STrack(BaseTrack):
         self.cls = new_track.cls
         self.idx = new_track.idx
 
-        if len(self.prev_states) < self.speed_buffer_len or self.frame_id % self.frame_stride == 0:
-            self.prev_states.append(self.mean)
-        if len(self.prev_states) > self.speed_buffer_len:
-            self.prev_states.pop(0)
+        # Action Recognition
+        if self.prev_state is not None:
+            # Compute speed
+            speed = np.linalg.norm((self.mean[:2] - self.prev_state[:2])*self.speed_projection)
+            # Normalize speed by current area
+            speed /= np.sqrt(new_track.tlwh[2] * new_track.tlwh[3])
+            # Append speed to buffer
+            self.norm_speed.append(speed)
+        else:
+            self.norm_speed.append(0)
+
+        self.prev_state = self.mean
 
     def convert_coords(self, tlwh):
         """Convert a bounding box's top-left-width-height format to its x-y-angle-height equivalent."""
@@ -302,7 +303,7 @@ class ByteTrack:
         remove_duplicate_stracks(stracksa, stracksb): Removes duplicate stracks based on IOU.
     """
 
-    def __init__(self, args, video_info):
+    def __init__(self, config, video_info):
         """Initialize a YOLOv8 object to track objects with given arguments and frame rate."""
 
         self.active_tracks = []     # Only for csv writing
@@ -312,20 +313,20 @@ class ByteTrack:
         self.reset_id()
 
         self.frame_id = 0
-        self.args = args
+        self.args = config["tracker_args"]
 
-        self.track_high_thresh = args["track_high_thresh"]
-        self.track_low_thresh = args["track_low_thresh"]
-        self.new_track_thresh = args["new_track_thresh"]
-        self.first_match_thresh = args["first_match_thresh"]
-        self.second_match_thresh = args["second_match_thresh"]
-        self.new_match_thresh = args["new_match_thresh"]
-        self.first_buffer = args["first_buffer"]
-        self.second_buffer = args["second_buffer"]
-        self.new_buffer = args["new_buffer"]
-        self.first_fuse = args["first_fuse"]
-        self.second_fuse = args["second_fuse"]
-        self.new_fuse = args["new_fuse"]
+        self.track_high_thresh = self.args["track_high_thresh"]
+        self.track_low_thresh = self.args["track_low_thresh"]
+        self.new_track_thresh = self.args["new_track_thresh"]
+        self.first_match_thresh = self.args["first_match_thresh"]
+        self.second_match_thresh = self.args["second_match_thresh"]
+        self.new_match_thresh = self.args["new_match_thresh"]
+        self.first_buffer = self.args["first_buffer"]
+        self.second_buffer = self.args["second_buffer"]
+        self.new_buffer = self.args["new_buffer"]
+        self.first_fuse = self.args["first_fuse"]
+        self.second_fuse = self.args["second_fuse"]
+        self.new_fuse = self.args["new_fuse"]
 
         self.iou_type_dict = {
             0: 'iou',
@@ -335,26 +336,26 @@ class ByteTrack:
             4: 'bbsi',
             5: 'hmiou',
         }
-        self.first_iou = self.iou_type_dict[args["first_iou"]]
-        self.second_iou = self.iou_type_dict[args["second_iou"]]
-        self.new_iou = self.iou_type_dict[args["new_iou"]]
+        self.first_iou = self.iou_type_dict[self.args["first_iou"]]
+        self.second_iou = self.iou_type_dict[self.args["second_iou"]]
+        self.new_iou = self.iou_type_dict[self.args["new_iou"]]
 
-        self.buffer_size = np.int8(video_info.fps / 30.0 * args["track_buffer"])
+        self.buffer_size = np.int8(video_info.fps / 30.0 * self.args["track_buffer"])
         self.max_time_lost = self.buffer_size
-        self.cw_thresh = args["cw_thresh"]   # 0 to deactivate
-        self.nk_flag = args["nk_flag"]
-        self.nk_alpha = args["nk_alpha"]
+        self.cw_thresh = self.args["cw_thresh"]   # 0 to deactivate
+        self.nk_flag = self.args["nk_flag"]
+        self.nk_alpha = self.args["nk_alpha"]
         self.kalman_filter = self.get_kalmanfilter()
 
         # ReID module
-        self.with_reid = args["with_reid"]
-        self.device = args["device"]
-        self.proximity_thresh = args["proximity_thresh"]
-        self.appearance_thresh = args["appearance_thresh"]
+        self.with_reid = self.args["with_reid"]
+        self.device = self.args["device"]
+        self.proximity_thresh = self.args["proximity_thresh"]
+        self.appearance_thresh = self.args["appearance_thresh"]
 
         if self.with_reid:
-            if args["reid_default"]:
-                self.weight_path = args["weight_path"]
+            if self.args["reid_default"]:
+                self.weight_path = self.args["weight_path"]
                 # check if self.weight_path is exists if not asset
                 if not os.path.exists(self.weight_path):
                     safe_download('https://drive.google.com/file/d/1RDuVo7jYBkyBR4ngnBaVQUtHL8nAaGaL/view',
@@ -371,7 +372,22 @@ class ByteTrack:
                 self.with_reid = False
 
         # GMC module
-        self.gmc = GMC(method=args["gmc_method"])   # TODO: review the GMC module, bouncing boxes
+        self.gmc = GMC(method=self.args["gmc_method"])   # TODO: review the GMC module, bouncing boxes
+
+        # Action Recognition
+        # TODO: solve when config is ConfigParser
+        if hasattr(config, "keys"):
+            if "action_recognition" in config:
+                self.speed_projection = np.array(config["action_recognition"]["speed_projection"])
+            else:
+                # TODO: use best known values
+                self.speed_projection = np.array([1, 1])
+        else:
+            if "action_recognition" in config.config:
+                self.speed_projection = np.array(config["action_recognition"]["speed_projection"])
+            else:
+                # TODO: use best known values
+                self.speed_projection = np.array([1, 1])
 
     def update(self, results, img=None):
         """Updates object tracker with new detections and returns tracked object bounding boxes."""
@@ -400,7 +416,6 @@ class ByteTrack:
         cls_second = cls[inds_second]
         features_keep = None
 
-
         # STEP 1: Feature extraction and create embedding
         if self.with_reid:
             # TODO: batch inference? Maybe at fixed size?
@@ -423,7 +438,6 @@ class ByteTrack:
                 unconfirmed.append(track)
             else:
                 tracked_stracks.append(track)
-
 
         # STEP 2: First association, with high score detection boxes
         # Join lost stracks to tracked stracks for the first association
@@ -457,7 +471,6 @@ class ByteTrack:
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
-
 
         # STEP 3: Second association, with low score detection boxes association the untrack to the low score detections
         # Initialize low score detections
@@ -493,8 +506,7 @@ class ByteTrack:
                 track.mark_lost()
                 lost_stracks.append(track)
 
-        # Deal with unmatched detections from the first association and unconfirmed tracks (usually tracks with only one frame)
-        #TODO: is this necessary? Can't we just activate the unconfirmed tracks in their first frame?
+        # Deal with unmatched detections from the first association and unconfirmed tracks (tracks with only one frame)
         detections = [detections[i] for i in u_detection]
         dists = self.get_dists(unconfirmed, detections,
                                conf_fuse=self.new_fuse,
@@ -511,7 +523,6 @@ class ByteTrack:
             track.mark_removed()
             removed_stracks.append(track)
 
-
         # STEP 4: Init new stracks: high confidence detections that are unmatched in the first association and with unconfirmed tracks
         for inew in u_detection:
             track = detections[inew]
@@ -519,7 +530,6 @@ class ByteTrack:
                 continue
             track.activate(self.kalman_filter, self.frame_id)
             activated_stracks.append(track)
-
 
         # STEP 5: Update state
         # Deal with lost tracks, remove if tracked for too long
@@ -541,7 +551,6 @@ class ByteTrack:
             self.removed_stracks = self.removed_stracks[-999:]  # clip remove stracks to 1000 maximum
         # Filter activated tracks
         self.active_tracks = [track for track in self.tracked_stracks if track.is_activated]
-
 
         # STEP 6: Process detection information of activated tracks so that it can be used for further visualization
         # Initialize empty arrays for detections attributes
@@ -577,9 +586,15 @@ class ByteTrack:
         if len(dets) > 0:
             """Detections."""
             if self.with_reid and features is not None:
-                detections = [STrack(xyxy, s, c, f) for (xyxy, s, c, f) in zip(dets, scores, cls, features)]
+                detections = [STrack(xyxy,
+                                     s, c, f,
+                                     speed_projection=self.speed_projection)
+                              for (xyxy, s, c, f) in zip(dets, scores, cls, features)]
             else:
-                detections = [STrack(xyxy, s, c) for (xyxy, s, c) in zip(dets, scores, cls)]
+                detections = [STrack(xyxy,
+                                     s, c,
+                                     speed_projection=self.speed_projection)
+                              for (xyxy, s, c) in zip(dets, scores, cls)]
         else:
             detections = []
 
@@ -589,7 +604,6 @@ class ByteTrack:
         """Get distances between tracks and detections using IoU and (optionally) ReID embeddings."""
 
         dists = matching.iou_distance(tracks, detections, b=buffer, type=iou_type)
-        # TODO: set it in config
         if conf_fuse:
             # Originally only used with MOT20 dataset
             dists = matching.fuse_score(dists, detections)
@@ -599,10 +613,10 @@ class ByteTrack:
             emb_dists = matching.embedding_distance(tracks, detections) / 2.0
             emb_dists[emb_dists > self.appearance_thresh] = 1.0
             emb_dists[dists_mask] = 1.0
-            # TODO: should be sum?
+            # should be sum?
             dists = np.minimum(dists, emb_dists)
 
-            # TODO: SMILE TRACK IMPLEMENTATION
+            # SMILE TRACK IMPLEMENTATION
             # emb_dists = matching.embedding_distance(tracks, detections)
             # emb_dists = matching.fuse_motion(self.kalman_filter, emb_dists, tracks, detections)
             # if emb_dists.size != 0:

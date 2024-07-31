@@ -12,8 +12,14 @@ class SequenceProcessor:
     """
     Process a sequence of detections using a tracker and save the results to a txt file.
     """
-
     def __init__(self, config, sequence_path, experiment_id=None):
+        """
+        Initialize the SequenceProcessor.
+        Args:
+            config: Configuration dictionary
+            sequence_path: Path to the sequence directory
+            experiment_id: Experiment ID to append to the output directory name
+        """
         super().__init__()
         self.config = config
 
@@ -33,7 +39,7 @@ class SequenceProcessor:
 
         self.device = config["device"]
 
-        self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.sequence_info)
+        self.tracker = getattr(trackers, config["tracker_name"])(config, self.sequence_info)
         self.data_dict = {
             "frame_id": [],
             "tracker_id": [],
@@ -46,6 +52,11 @@ class SequenceProcessor:
         }
 
     def process_sequence(self, print_bar=False):
+        """
+        Process the sequence of detections using the tracker and save the results to a txt file.
+        Args:
+            print_bar: Whether to print a progress bar
+        """
         for i, txt_file in enumerate(tqdm(sorted(os.listdir(self.detections_path)), desc=f"Processing {self.sequence_name}", unit=" frames", disable=not print_bar)):
             txt_path = os.path.join(self.detections_path, txt_file)
 
@@ -71,16 +82,33 @@ class SequenceProcessor:
     def get_detections(self, txt_path):
         """
         Read detections from a txt file and return a Detections object.
+        Args:
+            txt_path: Path to the txt file
+        Returns:
+            detections: Detections object
         """
         txt_data = np.loadtxt(txt_path)
-        detections = sv.Detections(
-            xyxy=txt_data[:, 1:5],
-            class_id=txt_data[:, 0],
-            confidence=txt_data[:, 5],
-        )
+        if txt_data.ndim == 1:
+            txt_data = txt_data.reshape(1, -1)
+
+        if txt_data.size == 0:
+            detections = sv.Detections(
+                xyxy=np.empty((0, 4), dtype=np.float32),
+                class_id=np.empty(0, dtype=int),
+                confidence=np.empty(0, dtype=np.float32),
+            )
+        else:
+            detections = sv.Detections(
+                xyxy=txt_data[:, 1:5],
+                class_id=txt_data[:, 0],
+                confidence=txt_data[:, 5],
+            )
         return detections
 
     def save_results_to_txt(self):
+        """
+        Save the results to a txt file.
+        """
         mot_results = np.column_stack((
             np.array(self.data_dict["frame_id"]),
             np.array(self.data_dict["tracker_id"]),
@@ -96,12 +124,17 @@ class SequenceProcessor:
             np.savetxt(file, mot_results, fmt='%.6f', delimiter=',')
 
     def get_sequence_info(self):
+        """
+        Read the sequence info from the seqinfo.ini file.
+        Returns:
+            video_info: VideoInfo object
+        """
         seqinfo_file = os.path.join(self.dataset_sequence, 'seqinfo.ini')
         config = configparser.ConfigParser()
         config.read(seqinfo_file)
         width = int(config['Sequence']['imWidth'])
         height = int(config['Sequence']['imHeight'])
-        fps = int(config['Sequence']['frameRate'])
+        fps = int(float(config['Sequence']['frameRate']))
         return sv.VideoInfo(width, height, fps)
 
 
@@ -123,6 +156,11 @@ def generate_tracks(config, experiment_id=None, print_bar=False):
     for sequence_path in sequence_paths:
         processor = SequenceProcessor(config, sequence_path, experiment_id)
         processor.process_sequence(print_bar)
+
+    config_path = '/'.join(processor.output_dir.split('/')[:-1]) + '/config.json'
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=4)
+
     return processor
 
 

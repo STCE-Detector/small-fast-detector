@@ -373,9 +373,7 @@ class Exporter:
         """YOLOv8 ONNX export."""
         requirements = ["onnx>=1.12.0"]
         if self.args.simplify:
-            requirements += ["onnxsim>=0.4.33", "onnxruntime-gpu" if torch.cuda.is_available() else "onnxruntime"]
-            if ARM64:
-                check_requirements("cmake")  # 'cmake' is needed to build onnxsim on aarch64
+            requirements += ["onnxslim>=0.1.31", "onnxruntime" + ("-gpu" if torch.cuda.is_available() else "")]
         check_requirements(requirements)
         import onnx  # noqa
 
@@ -412,14 +410,17 @@ class Exporter:
         # Simplify
         if self.args.simplify:
             try:
-                import onnxsim
+                import onnxslim
 
-                LOGGER.info(f"{prefix} simplifying with onnxsim {onnxsim.__version__}...")
-                # subprocess.run(f'onnxsim "{f}" "{f}"', shell=True)
-                model_onnx, check = onnxsim.simplify(model_onnx)
-                assert check, "Simplified ONNX model could not be validated"
+                LOGGER.info(f"{prefix} slimming with onnxslim {onnxslim.__version__}...")
+                model_onnx = onnxslim.slim(model_onnx)
+
+                # ONNX Simplifier (deprecated as must be compiled with 'cmake' in aarch64 and Conda CI environments)
+                # import onnxsim
+                # model_onnx, check = onnxsim.simplify(model_onnx)
+                # assert check, "Simplified ONNX model could not be validated"
             except Exception as e:
-                LOGGER.info(f"{prefix} simplifier failure: {e}")
+                LOGGER.warning(f"{prefix} simplifier failure: {e}")
 
         # Metadata
         for k, v in self.metadata.items():

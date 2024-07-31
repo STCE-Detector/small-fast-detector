@@ -1,12 +1,12 @@
 {
-  "name": "qualitative",
+  "name": "ByteTrack",
 
   "tracker_name": "ByteTrack",
 
-  "source_weights_path": "./detectors/model_v2.engine",
-  "source_stream_path": 0,
+  "source_weights_path": "./../detectors/cdv4_8sp2_150e_128b.pt",
+  "source_stream_path": "./../data/general/24.mp4",
 
-  "device": "cuda",
+  "device": "mps",
   "fps_reduction": 0,
 
   "save_dir": "./outputs/",
@@ -26,26 +26,25 @@
   "agnostic_nms": true,
 
   "tracker_args": {
-    "track_high_thresh": 0.43,
-    "track_low_thresh": 0.1,
-    "new_track_thresh": 0.22,
-    "first_match_thresh": 0.84,
-    "second_match_thresh": 0.71,
-    "new_match_thresh": 0.86,
-    "first_buffer": 0.01,
-    "second_buffer": 0.04,
-    "new_buffer": 0.13,
-    "first_fuse": 0,
-    "second_fuse": 0,
-    "new_fuse": 0,
-    "first_iou": 0,
-    "second_iou": 3,
+    "track_high_thresh": 0.1,
+    "track_low_thresh": 0.53,
+    "new_track_thresh": 0.56,
+    "first_match_thresh": 0.95,
+    "second_match_thresh": 0.73,
+    "new_match_thresh": 0.54,
+    "first_buffer": 0.04,
+    "second_buffer": 0.35,
+    "new_buffer": 0.29,
+    "first_fuse": 1,
+    "second_fuse": 1,
+    "new_fuse": 1,
+    "first_iou": 3,
+    "second_iou": 4,
     "new_iou": 5,
-    "cw_thresh": 0.87,
+    "cw_thresh": 0.79,
     "nk_flag": 0,
-    "nk_alpha": 140,
-
-    "track_buffer": 50,
+    "nk_alpha": 10,
+    "track_buffer": 350,
 
     "proximity_thresh": 0.9,
     "appearance_thresh": 0.8,
@@ -58,39 +57,40 @@
 
   "action_recognition": {
     "enabled": true,
-    "speed_projection": [0.7, 1.5],
-    "_comment": "",
+    "speed_projection": [1.5951954047750416, 0.8508040956724452],
 
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "distance_threshold": 1.0,
-      "area_threshold": 0.5,
-      "_comment": ""
+      "last_n": 83,
+      "alpha": 0.25901777612184546,
+      "distance_threshold": 1.0197365426480192,
+      "area_threshold": 0.9960474031910679,
+      "speed_threshold": 0.05854507912290983
     },
 
     "stand_still": {
       "enabled": true,
-      "speed_threshold": 0.001,
-      "_comment": ""
+      "last_n": 111,
+      "alpha": 0.0322541571536545,
+      "speed_threshold": 0.0096460999755457
     },
 
     "fast_approach": {
-      "enabled": true,
-      "draw": true,
-      "distance_threshold": 4,
-      "speed_threshold": 0.005,
-      "_comment": ""
+      "enabled": false,
+      "draw": false,
+      "distance_threshold": 4
     },
 
     "suddenly_run": {
       "enabled": true,
-      "speed_threshold": 0.025,
-      "_comment": ""
+      "last_n": 138,
+      "alpha": 0.10873517538408146,
+      "speed_threshold": 0.07195126641202199
     },
 
     "overstep_boundary": {
-      "enabled": true,
+      "enabled": false,
       "draw": true,
       "line": [0, 0, 1920, 1080],
       "region": "top"

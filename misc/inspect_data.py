@@ -52,8 +52,8 @@ def inspect_dataset(
  df['class_name'] = df['new_class_id'].map(class_names)
  return df
 
-df_val = inspect_dataset('/data-fast/128-data1/ierregue/datasets/custom_dataset_v3', 'val')
-df_train = inspect_dataset('/data-fast/128-data1/ierregue/datasets/custom_dataset_v3', 'train')
+df_val = inspect_dataset('/data-fast/128-data1/ierregue/datasets/custom_dataset_v4', 'val')
+df_train = inspect_dataset('/data-fast/128-data1/ierregue/datasets/custom_dataset_v4', 'train')
 
 print(f"The number of objects is {len(df_val)}")
 print(f"The number of images is {len(df_val['img'].unique())}")
@@ -62,11 +62,11 @@ print(f"The number of objects is {len(df_train)}")
 print(f"The number of images is {len(df_train['img'].unique())}")
 
 # Save dataframes
-df_train.to_csv('./data/dataset_creation/dataframes/v3/df_train.csv', index=False)
-df_val.to_csv('./data/dataset_creation/dataframes/v3/df_val.csv', index=False)
+df_train.to_csv('./data/dataset_creation/dataframes/v4/df_train.csv', index=False)
+df_val.to_csv('./data/dataset_creation/dataframes/v4/df_val.csv', index=False)
 
 # Create dir to store plots
-save_dir = './data/dataset_creation/plots/v3'
+save_dir = './data/dataset_creation/plots/v4'
 if not os.path.isdir(save_dir):
     os.makedirs(save_dir)
 
@@ -82,7 +82,7 @@ ax.set_ylabel("Counts", weight='bold', size=12)
 ax.ticklabel_format(axis='y', style='sci', scilimits=(-3,3))
 ax.set_xticklabels(ax.get_xticklabels(), rotation=0, size=8)
 ax.grid()
-#plt.legend()
+plt.legend()
 None
 fig.savefig(save_dir+'/train_class_counts.png', bbox_inches = 'tight')
 

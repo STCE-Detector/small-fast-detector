@@ -1,44 +1,39 @@
 # Ultralytics requirements
 # Example: pip install -r requirements.txt
-
 # Base ----------------------------------------
-cmake
 lapx
-matplotlib>=3.8.4
-numpy>=1.26.4 # pinned by Snyk to avoid a vulnerability
-# opencv-python>=4.9.0.80
-pillow>=7.1.2
+matplotlib>=3.9.1
+numpy==1.26.4 # pinned by Snyk to avoid a vulnerability
+opencv-python>=4.10.0.84
+pillow>=10.4.0
 pyyaml>=6.0.1
-requests>=2.31.0
-scipy>=1.13.0
-#torch>=1.8.0
-#torchvision>=0.9.0
-tqdm>=4.66.2
+requests>=2.32.3
+scipy>=1.14.0
+torch>=2.4.0
+torchvision>=0.19.0
+tqdm>=4.66.4
 
 # Logging -------------------------------------
-# tensorboard>=2.13.0
-# dvclive>=2.12.0
-# clearml
 comet-ml
 
 # Plotting ------------------------------------
 pandas>=2.2.2
 seaborn>=0.13.2
-shapely>=2.0.4
+shapely>=2.0.5
 
 # Export --------------------------------------
 # coremltools>=6.0,<=6.2  # CoreML export
-onnx>=1.16.0  # ONNX export
-onnxruntime>=1.17.3; python_version != '3.9' and sys_platform == 'darwin' and platform_machine != 'arm64'
-onnxruntime-coreml>=1.13.1; python_version == '3.9' and sys_platform == 'darwin' and platform_machine != 'arm64'
-onnxruntime-silicon>=1.16.3; sys_platform == 'darwin' and platform_machine == 'arm64'
-# onnxruntime-gpu>=1.16.3; sys_platform != 'darwin'
-onnxsim>=0.4.36
-onnxoptimizer>=0.3.13
-
-# nvidia-pyindex; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
-# nvidia-tensorrt; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
-# scikit-learn==0.19.2  # CoreML quantization
+onnx>=1.16.1 # ONNX export
+onnxruntime>=1.18.1; python_version != '3.9' and sys_platform >= 'darwin' and platform_machine != 'arm64'
+onnxruntime-gpu>=1.18.1; sys_platform != 'darwin'
+onnxslim>=0.1.32  # ONNX slimming
+tensorrt;sys_platform != 'darwin'
+nvidia-pyindex; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+nvidia-tensorrt; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+tensorrt_cu12_libs; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+tensorrt_cu12_bindings; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+tensorrt; sys_platform != 'darwin' and sys_platform != 'arm64' # TensorRT export
+# scikit-learn>=0.19.2  # CoreML quantization
 # tensorflow>=2.4.1  # TF exports (-cpu, -aarch64, -macos)
 # tflite-support
 # tensorflowjs>=3.9.0  # TF.js export
@@ -47,19 +42,20 @@ onnxoptimizer>=0.3.13
 # Extras --------------------------------------
 psutil  # system utilization
 py-cpuinfo  # display CPU info
-thop>=0.1.1  # FLOPs computation
+ultralytics-thop>=2.0.0  # FLOPs computation
 # ipython  # interactive notebook
 # albumentations>=1.0.3  # training augmentations
-pycocotools>=2.0.7  # COCO mAP
+pycocotools>=2.0.8 # COCO mAP
 hub-sdk>=0.0.8  # PyTorch Hub
 vidgear[asyncio]
 deffcode
-PySide6>=6.7.0
+PySide6>=6.7.2
 simplejpeg
 timm
 einops
-supervision
+supervision==0.21.0
 onnx_graphsurgeon
+loguru
 # paddle2onnx
 # loguru
 # rich_click

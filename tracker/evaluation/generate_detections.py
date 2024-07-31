@@ -10,6 +10,10 @@ from ultralytics import YOLO
 
 
 def main(config):
+    """
+    Generate detections for all sequences in the source directory
+    :param config: Configuration dictionary
+    """
     # Data paths
     sequences_dir = config["source_sequence_dir"]
     sequence_paths = [os.path.join(sequences_dir, name) for name in os.listdir(sequences_dir) if
@@ -24,7 +28,8 @@ def main(config):
 
     # Infer on each sequence
     for sequence_path in sequence_paths:
-        for img in tqdm(os.listdir((sequence_path + '/img1'))):
+        sequence_name = sequence_path.split('/')[-1]
+        for img in tqdm(os.listdir((sequence_path + '/img1')), desc=f"Processing {sequence_name}", unit=" frames",):
             if img.endswith(".jpg") or img.endswith(".png"):
 
                 # Infer on image

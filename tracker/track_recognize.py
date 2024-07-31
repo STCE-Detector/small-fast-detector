@@ -23,7 +23,7 @@ import numpy as np
 import supervision as sv
 from tqdm import tqdm
 
-from tracker.action_recognition import ActionRecognizer
+from tracker.action_recognition.action_recognition import ActionRecognizer
 from tracker.gui.GUI import VideoDisplay
 from tracker.gui.frameCapture import FrameCapture
 from tracker.gui.frameProcessing import VideoWriter
@@ -51,6 +51,15 @@ if sys.platform.startswith("linux") and ci_and_not_headless:
 
 
 class VideoProcessor(QObject):
+    """ Class to process video frames using the YOLO detector, the ByteTrack tracker and the Action Recognizer.
+        It select automatically the classes for each device (Jetson or not).
+
+    Args:
+        QObject (Object): Base class of all Qt objects
+
+    Raises:
+        ValueError: If the video file cannot be opened
+    """
     frame_ready = Signal(QImage, float)
 
     def __init__(self, config) -> None:
@@ -83,11 +92,9 @@ class VideoProcessor(QObject):
         else:
             self.model = Yolov8(config, self.class_names)
 
-        # TODO: CHECK IF MAINTAIN THIS
         self.video_info = sv.VideoInfo.from_video_path(self.source_video_path)
 
-        # TODO : CHECK TO PUT IN A THREAD
-        self.tracker = getattr(trackers, config["tracker_name"])(config["tracker_args"], self.video_info)
+        self.tracker = getattr(trackers, config["tracker_name"])(config, self.video_info)
 
         self.box_annotator = sv.BoxAnnotator(color=COLORS)
         self.trace_annotator = sv.TraceAnnotator(color=COLORS, position=sv.Position.CENTER, trace_length=100, thickness=2)
@@ -106,7 +113,6 @@ class VideoProcessor(QObject):
             except Exception as e:
                 print(f"Failed to open video source: {e}")
                 sys.exit(1)
-
 
         self.paused = False
 
@@ -135,11 +141,23 @@ class VideoProcessor(QObject):
                                             fps=self.frame_capture.GetFrameRate())
             self.video_writer.start()
 
-
-
+        # Boundary lines
+        boundaries = {
+                'ob_1': [802, 676, 822, 658, "right"],
+                'ob_2': [831, 550, 857, 552, "left"],
+                'ob_3': [927, 636, 1169, 638, "bottom"],
+                'ob_4': [748, 549, 780, 555, "left"],
+                'ob_5': [624, 841, 869, 842, "bottom"],
+        }
+        seq_name = self.source_video_path.split('/')[-1].split('.')[0]
+        if seq_name in boundaries.keys():
+            config["action_recognition"]["overstep_boundary"]["enabled"] = True
+            config["action_recognition"]["overstep_boundary"]["line"] = boundaries[seq_name][:4]
+            config["action_recognition"]["overstep_boundary"]["region"] = boundaries[seq_name][4]
         self.action_recognizer = ActionRecognizer(config["action_recognition"], self.video_info)
 
     def process_video(self):
+        """Process the video frames using the YOLO detector, the ByteTrack tracker and the Action Recognizer."""
         print(f"Processing video: {self.source_video_path} ...")
         print(f"Original video size: {self.video_info.resolution_wh}")
         print(f"Original video FPS: {self.video_info.fps}")
@@ -210,6 +228,7 @@ class VideoProcessor(QObject):
         self.cleanup()
 
     def process_frame(self, frame: np.ndarray, frame_number: int, fps: float) -> np.ndarray:
+        """Process a single frame using the YOLO detector, the ByteTrack tracker and the Action Recognizer."""
         if not IS_JETSON:
             results = self.model.predict(
                 frame,
@@ -236,7 +255,7 @@ class VideoProcessor(QObject):
 
     def annotate_frame(self, annotated_frame: np.ndarray, detections: sv.Detections, ar_results: None,
                        frame_number: int, fps: float) -> np.ndarray:
-
+        """Annotate the frame with the detections and the action recognition results."""
         labels = [f"#{tracker_id} {self.class_names[class_id]} {confidence:.2f}"
                   for tracker_id, class_id, confidence in
                   zip(detections.tracker_id, detections.class_id, detections.confidence)]

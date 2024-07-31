@@ -173,11 +173,11 @@ pnnx*
 /tracker/outputs/
 /tracker/data/
 /tracker/outputs/
-/evaluation_tools/data/
-/evaluation_tools/models/
-/evaluation_tools/outputs/
 /models/
 /tracker/evaluation/outputs/
 /tracker/finetune/outputs/
 /debug/
-/tracker/ar_tools/outputs/
+/tracker/action_recognition/outputs/
+/data/
+/inference/outputs/
+/evaluation/outputs/

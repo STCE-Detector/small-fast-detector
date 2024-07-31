@@ -16,6 +16,14 @@ os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 
 class FrameWorker(QObject):
+    """
+    Worker class to process frames from a video file in a separate thread. for Pyside6.
+    Args:
+        QObject (Object): Base class of all Qt objects
+
+    Raises:
+        ValueError: If the video file cannot be opened
+    """
     frame_ready = Signal(QImage, float)  # Emit both the QImage and the calculated FPS
 
     def __init__(self, video_path):
@@ -48,6 +56,12 @@ class FrameWorker(QObject):
 
 
 class VideoDisplay(QGraphicsView):
+    """ Class to display video frames in a QGraphicsView widget.
+    Args:
+        QGraphicsView (Object): Base class of all view items in a QGraphicsScene.
+        processor (FrameWorker): Worker class to process frames from a video file in a separate thread.
+        sync_fps (bool, optional): Flag to synchronize the FPS with the video. Defaults to False.
+    """
     def __init__(self, processor, sync_fps=False):
         super(VideoDisplay, self).__init__()
         self.scene = QGraphicsScene(self)

@@ -1,0 +1,87 @@
+{
+  "name": "Macro-F-100iters-BOOST",
+
+  "tracker_name": "ByteTrack",
+
+  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/CARD",
+  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/CARD",
+
+  "device": "cpu",
+
+  "evolve": {
+    "n_trials": 1000,
+    "objective": ["Macro", "F"]
+  },
+
+  "tracker_args": {
+    "track_high_thresh": 0.1,
+    "track_low_thresh": 0.53,
+    "new_track_thresh": 0.56,
+    "first_match_thresh": 0.95,
+    "second_match_thresh": 0.73,
+    "new_match_thresh": 0.54,
+    "first_buffer": 0.04,
+    "second_buffer": 0.35,
+    "new_buffer": 0.29,
+    "first_fuse": 1,
+    "second_fuse": 1,
+    "new_fuse": 1,
+    "first_iou": 3,
+    "second_iou": 4,
+    "new_iou": 5,
+    "cw_thresh": 0.79,
+    "nk_flag": 0,
+    "nk_alpha": 10,
+    "track_buffer": 350,
+
+    "proximity_thresh": 0.9,
+    "appearance_thresh": 0.8,
+    "with_reid": false,
+    "reid_default": true,
+    "weight_path": "ver12.pt",
+    "gmc_method": null,
+    "device": "cuda"
+  },
+
+  "action_recognition": {
+    "enabled": true,
+    "speed_projection": [1.6799662070693655, 0.9877852037581256],
+
+    "gather": {
+      "enabled": true,
+      "min_people": 3,
+      "distance_threshold": 1.014380855999424,
+      "area_threshold": 0.9976072331026994,
+      "speed_threshold": 0.03675458956979925,
+      "last_n": 105,
+      "alpha": 0.43378162323857844
+    },
+
+    "stand_still": {
+      "enabled": true,
+      "speed_threshold": 0.012516998741456394,
+      "last_n": 57,
+      "alpha": 0.060789690822508874
+    },
+
+    "fast_approach": {
+      "enabled": true,
+      "draw": false,
+      "distance_threshold": 4
+    },
+
+    "suddenly_run": {
+      "enabled": true,
+      "speed_threshold": 0.0677578504855655,
+      "last_n": 38,
+      "alpha": 0.11058998576703946
+    },
+
+    "overstep_boundary": {
+      "enabled": false,
+      "draw": true,
+      "line": [0, 0, 1920, 1080],
+      "region": "top"
+    }
+  }
+}

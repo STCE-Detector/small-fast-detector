@@ -1,0 +1,21 @@
+{
+  "name": "10-10-10",
+
+  "data_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/CARD/",
+  "pred_dir": "./outputs/tracks/CARD/mixv2_cdv4_8sp2_150e_128b/",
+
+  "action_recognition": {
+    "active_behaviors": ["SS", "SR", "G", "FA", "OB"],
+    "discriminate_groups": false,
+
+    "confidence_threshold": 0.1,
+    "iou_threshold": 0.5,
+
+    "smoothing_window": 10,
+    "initial_pad": 10,
+    "final_pad": 10,
+
+    "save_results": true,
+    "print_results": true
+  }
+}

@@ -1,10 +1,10 @@
 {
-  "name": "YOLOv8s-P2-640",
+  "name": "cdv4_8sp2_150e_128b",
 
-  "source_weights_path": "./../detectors/8sp2_150e_64b.pt",
-  "source_sequence_dir": "./TrackEval/data/gt/mot_challenge/MOTHupba-train",
+  "source_weights_path": "./../../detectors/cdv4_8sp2_150e_128b.pt",
+  "source_sequence_dir": "./TrackEval/data/gt/mot_challenge/CARD",
 
-  "device": "mps",
+  "device": "cpu",
 
   "img_size": 640,
   "conf_threshold": 0.1,

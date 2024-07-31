@@ -65,9 +65,9 @@ def trackeval(
 if __name__ == "__main__":
     result = trackeval(
         evaluator_folder="./TrackEval",
-        dataset_folder="./TrackEval/data/gt/mot_challenge/MOTHupba-train",
-        trackers_folder="./outputs/tracks/MOTHupba-train",
-        trackers_to_eval="yolov8x_clip_market1501_botsort",
+        dataset_folder="./TrackEval/data/gt/mot_challenge/PTD",
+        trackers_folder="./outputs/tracks/PTD",
+        trackers_to_eval="DEFAULT_cdv4_8sp2_150e_128b",
         print_output=True
     )
     print(result)
