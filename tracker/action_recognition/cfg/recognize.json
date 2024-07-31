@@ -1,10 +1,10 @@
 {
-  "name": "card",
+  "name": "mixv3",
 
   "tracker_name": "ByteTrack",
 
-  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/PTD",
-  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/PTD",
+  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/CARD",
+  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/CARD",
 
   "device": "cpu",
 
@@ -40,36 +40,36 @@
 
   "action_recognition": {
     "enabled": true,
-    "speed_projection": [1.8287633001510064, 1.860061964484245],
+    "speed_projection": [1.6799662070693655, 0.9877852037581256],
 
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "distance_threshold": 0.9179657289250596,
-      "area_threshold": 0.9998467840658788,
-      "speed_threshold": 0.07991157235834581,
-      "last_n": 123,
-      "alpha": 0.148086754991973
+      "distance_threshold": 1.014380855999424,
+      "area_threshold": 0.9976072331026994,
+      "speed_threshold": 0.03675458956979925,
+      "last_n": 105,
+      "alpha": 0.43378162323857844
     },
 
     "stand_still": {
       "enabled": true,
-      "speed_threshold": 0.019336880075957318,
-      "last_n": 31,
-      "alpha": 0.08949537405014585
+      "speed_threshold": 0.012516998741456394,
+      "last_n": 57,
+      "alpha": 0.060789690822508874
     },
 
     "fast_approach": {
-      "enabled": false,
+      "enabled": true,
       "draw": false,
       "distance_threshold": 4
     },
 
     "suddenly_run": {
       "enabled": true,
-      "speed_threshold": 0.06854956423297197,
-      "last_n": 75,
-      "alpha": 0.04652332834328593
+      "speed_threshold": 0.0677578504855655,
+      "last_n": 38,
+      "alpha": 0.11058998576703946
     },
 
     "overstep_boundary": {
