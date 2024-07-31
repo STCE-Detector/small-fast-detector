@@ -1,15 +1,15 @@
 {
-  "name": "Macro-F05-500-MIX",
+  "name": "Macro-F05-1000",
 
   "tracker_name": "ByteTrack",
 
-  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/MIX",
-  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/MIX",
+  "source_detections_dir": "./../evaluation/outputs/detections/cdv4_8sp2_150e_128b/PTD",
+  "source_gt_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/PTD",
 
   "device": "cpu",
 
   "evolve": {
-    "n_trials": 500,
+    "n_trials": 1000,
     "objective": ["Macro", "F"],
     "projection": true,
     "post_process": false

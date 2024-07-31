@@ -2,7 +2,7 @@
   "name": "10-10-10",
 
   "data_dir": "./../evaluation/TrackEval/data/gt/mot_challenge/CARD/",
-  "pred_dir": "./outputs/tracks/CARD/mixv2_cdv4_8sp2_150e_128b/",
+  "pred_dir": "./outputs/tracks/CARD/best_cdv4_8sp2_150e_128b/",
 
   "action_recognition": {
     "active_behaviors": ["SS", "SR", "G", "FA", "OB"],

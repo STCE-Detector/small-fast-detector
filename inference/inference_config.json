@@ -1,5 +1,5 @@
 {
-  "name": null,
+  "name": "IR_client_test",
 
   "device": "cpu",
 
@@ -10,6 +10,6 @@
   "conf": 0.25,
   "half": false,
 
-  "input_data_dir": "./../data/detection/RGB_client_test/images/val/",
+  "input_data_dir": "./../data/detection/IR_client_test/images/val/",
   "output_dir": "./outputs"
 }

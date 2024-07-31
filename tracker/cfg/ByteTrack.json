@@ -4,10 +4,10 @@
   "tracker_name": "ByteTrack",
 
   "source_weights_path": "./../detectors/cdv4_8sp2_150e_128b.pt",
-  "source_stream_path": "./../data/general/24.mp4",
+  "source_stream_path": "./../data/CTD/Hieve10.mp4",
 
-  "device": "mps",
-  "fps_reduction": 0,
+  "device": "cpu",
+  "fps_reduction": 10,
 
   "save_dir": "./outputs/",
   "save_results": false,
@@ -56,37 +56,37 @@
   },
 
   "action_recognition": {
-    "enabled": true,
-    "speed_projection": [1.5951954047750416, 0.8508040956724452],
+    "enabled": false,
+    "speed_projection": [1.6799662070693655, 0.9877852037581256],
 
     "gather": {
       "enabled": true,
       "min_people": 3,
-      "last_n": 83,
-      "alpha": 0.25901777612184546,
-      "distance_threshold": 1.0197365426480192,
-      "area_threshold": 0.9960474031910679,
-      "speed_threshold": 0.05854507912290983
+      "distance_threshold": 1.014380855999424,
+      "area_threshold": 0.9976072331026994,
+      "speed_threshold": 0.03675458956979925,
+      "last_n": 105,
+      "alpha": 0.43378162323857844
     },
 
     "stand_still": {
       "enabled": true,
-      "last_n": 111,
-      "alpha": 0.0322541571536545,
-      "speed_threshold": 0.0096460999755457
+      "speed_threshold": 0.012516998741456394,
+      "last_n": 57,
+      "alpha": 0.060789690822508874
     },
 
     "fast_approach": {
-      "enabled": false,
-      "draw": false,
+      "enabled": true,
+      "draw": true,
       "distance_threshold": 4
     },
 
     "suddenly_run": {
       "enabled": true,
-      "last_n": 138,
-      "alpha": 0.10873517538408146,
-      "speed_threshold": 0.07195126641202199
+      "speed_threshold": 0.0677578504855655,
+      "last_n": 38,
+      "alpha": 0.11058998576703946
     },
 
     "overstep_boundary": {
