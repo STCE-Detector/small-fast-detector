@@ -16,7 +16,17 @@ text_padding = 7
 
 
 class ActionRecognizer:
+    """
+    Class that recognizes actions in a frame. Spatial and temporal information is used to recognize actions such as
+    gatherings, standing still, fast approach, suddenly running, and overstepping boundaries.
+    """
     def __init__(self, config, video_info):
+        """
+        Initializes the ActionRecognizer object.
+        Args:
+            config (dict): dictionary containing the configuration parameters for the action recognition.
+            video_info (VideoInfo): object containing information about the video.
+        """
         self.ar_enabled = config["enabled"]
         self.video_info = video_info
         # Gathering parameters
@@ -55,7 +65,8 @@ class ActionRecognizer:
         Recognizes actions in a frame.
         Args:
             tracks (list): list of detections in the frame (sv.STrack objects).
-            frame (np.array): frame to be annotated.
+        Returns:
+            ar_results (dict): dictionary containing the results of the action recognition.
         """
         if not self.ar_enabled:
             return None
@@ -89,6 +100,13 @@ class ActionRecognizer:
 
     @staticmethod
     def merge_individual_actions(individual_results):
+        """
+        Merges the results of the individual actions recognition into a single dictionary.
+        Args:
+            individual_results (dict): dictionary containing the results of the individual actions recognition.
+        Returns:
+            merged_results (dict): dictionary containing the merged results of the individual actions recognition.
+        """
         merged_results = {}
         for action, results in individual_results.items():
             if results is not None:
@@ -123,6 +141,15 @@ class ActionRecognizer:
 
     @staticmethod
     def annotate_individual_actions(frame, results):
+        """
+        Annotates the frame with the results of the individual actions recognition. Draws a bounding box around each
+        detection and places text in the top right corner of the bounding box.
+        Args:
+            frame (np.array): frame to be annotated.
+            results (dict): dictionary containing the results of the individual actions recognition.
+        Returns:
+            frame (np.array): annotated frame.
+        """
         for track_id, data in results.items():
             x1, y1, x2, y2 = data['bbox'].astype(int)
 
@@ -315,6 +342,14 @@ class ActionRecognizer:
         return smoothed_speed
 
     def recognize_fast_approach(self, tracks):
+        """
+        Recognizes fast approaches in a frame by computing the closest distance between each detection and the interest
+        point, and comparing it to a threshold.
+        Args:
+            tracks (list): list of detections in the frame (sv.STrack objects).
+        Returns:
+            results (dict): dictionary containing the results of the action recognition.
+        """
         valid_classes = [0, 1, 2]   # Person, Car, Truck
         fa_results = {}
         for track in tracks:
@@ -329,8 +364,8 @@ class ActionRecognizer:
 
     def recognize_suddenly_run(self, tracks):
         """
-        Recognizes people running suddenly in a frame by computing the instantaneus weighted average speed of each
-        detection and comparing it to a threshold.
+        Recognizes people running suddenly in a frame by computing the average speed of each detection and comparing it
+        to a threshold.
         Args:
             tracks (list): list of detections in the frame (sv.STrack objects).
         Returns:
@@ -349,7 +384,7 @@ class ActionRecognizer:
     def annotate_gather(frame, crowd_results):
         """
         Annotates the frame with the results of the gathering recognition. Draws a bounding box around each crowd. Text
-        is placed on the bottom right corner of the bounding box.
+        is placed in the bottom right corner of the bounding box.
         Args:
             frame (np.array): frame to be annotated.
             crowd_results (dict): dictionary containing the results of the gathering recognition.
@@ -406,6 +441,14 @@ class ActionRecognizer:
         return frame
 
     def recognize_overstep_boundary(self, tracks):
+        """
+        Recognizes people overstepping the boundary line in a frame by checking if the bounding box of each detection
+        crosses the boundary line.
+        Args:
+            tracks (list): list of detections in the frame (sv.STrack objects).
+        Returns:
+            osb_results (dict): dictionary containing the results of the action recognition.
+        """
         osb_results = {}
         for track in tracks:
             # Check if the bbox crosses the boundary line
@@ -417,6 +460,14 @@ class ActionRecognizer:
         return osb_results if len(osb_results.keys()) > 0 else None
 
     def init_region(self, osb_line, osb_direction):
+        """
+        Initializes the region of interest for the overstep boundary action recognition.
+        Args:
+            osb_line (list): list containing the coordinates of the boundary line.
+            osb_direction (str): direction of the boundary line.
+        Returns:
+            region (Polygon): region of interest for the overstep boundary action recognition.
+        """
         # Check line coords follows left to right direction [xl, yl, xr, yr]
         assert osb_line[0] <= osb_line[2], "Line coords must follow left to right direction"
 
@@ -451,6 +502,15 @@ class ActionRecognizer:
 
     @staticmethod
     def annotate_overstep_boundary(frame, osb_results):
+        """
+        Annotates the frame with the results of the overstep boundary recognition. Draws a bounding box around each
+        detection that oversteps the boundary line. Text is placed in the top right corner of the bounding box.
+        Args:
+            frame (np.array): frame to be annotated.
+            osb_results (dict): dictionary containing the results of the overstep boundary recognition.
+        Returns:
+            frame (np.array): annotated frame.
+        """
         if osb_results is not None:
             for idx, bbox in osb_results.items():
                 x1, y1, x2, y2 = bbox.astype(int)

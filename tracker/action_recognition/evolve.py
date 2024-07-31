@@ -11,6 +11,15 @@ from tracker.finetune.evolve import generate_unique_tag
 
 
 def ar_optuna_fitness_fn(trial, config, param_names):
+    """
+    Function to optimize the action recognition parameters using Optuna.
+    Args:
+        trial: optuna.trial, the trial object
+        config: dict, the configuration dictionary
+        param_names: list, the list of parameters to optimize
+    Returns:
+        float, the value of the objective function
+    """
     ###############################
     # OVERRIDE CONFIG WITH SOLUTION
     ###############################
@@ -97,9 +106,9 @@ def ar_optuna_fitness_fn(trial, config, param_names):
     # Override the config to include the experiment_id in the pred_dir and disable printing the confusion matrix
     eval_config["pred_dir"] = trackers_folder + "/" + trackers_to_eval + "/"
     eval_config["data_dir"] = config["source_gt_dir"] + "/"
-    eval_config["action_recognition"]["smoothing_window"] = trial.suggest_int("smoothing_window", 0, 60, step=5) if "smoothing_window" in param_names else 0
-    eval_config["action_recognition"]["final_pad"] = trial.suggest_int("final_pad", 0, 60, step=5) if "final_pad" in param_names else 0
-    eval_config["action_recognition"]["initial_pad"] = trial.suggest_int("initial_pad", 0, 200, step=5) if "initial_pad" in param_names else 0
+    eval_config["action_recognition"]["smoothing_window"] = trial.suggest_int("smoothing_window", 0, 30) if "smoothing_window" in param_names else 0
+    eval_config["action_recognition"]["final_pad"] = trial.suggest_int("final_pad", 0, 30) if "final_pad" in param_names else 0
+    eval_config["action_recognition"]["initial_pad"] = trial.suggest_int("initial_pad", 0, 30) if "initial_pad" in param_names else 0
     eval_config["action_recognition"]["save_results"] = False
     eval_config["action_recognition"]["print_results"] = False
     eval_config["action_recognition"]["discriminate_groups"] = False
@@ -119,6 +128,13 @@ def ar_optuna_fitness_fn(trial, config, param_names):
 
 
 def print_and_save(study, trial, name):
+    """
+    Function to print and save the study.
+    Args:
+        study: optuna.study, the study object
+        trial: optuna.trial, the trial object
+        name: str, the name of the study
+    """
     studies_path = "./outputs/studies"
     if not os.path.exists(studies_path):
         os.makedirs(studies_path)

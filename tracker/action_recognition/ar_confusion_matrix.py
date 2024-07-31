@@ -3,6 +3,7 @@
 
 import warnings
 
+import pandas as pd
 import numpy as np
 import torch
 
@@ -79,17 +80,15 @@ def plt_settings(rcparams=None, backend="Agg"):
 class ARConfusionMatrix:
     """
     A class for calculating and updating a confusion matrix for object detection and classification tasks.
-
-    Attributes:
-        task (str): The type of task, either 'detect' or 'classify'.
-        matrix (np.array): The confusion matrix, with dimensions depending on the task.
-        nc (int): The number of classes.
-        conf (float): The confidence threshold for detections.
-        iou_thres (float): The Intersection over Union threshold.
     """
-
     def __init__(self, nc=4, conf=0.25, iou_thres=0.45, class_names=()):
-        """Initialize attributes for the YOLO model."""
+        """
+        Args:
+            nc (int): Number of classes.
+            conf (float): Detection confidence threshold.
+            iou_thres (float): IoU threshold for matching detections to ground truth.
+            class_names (Tuple[str]): Tuple of class names.
+        """
         self.confusion_matrices = [torch.zeros((2, 2)) for _ in range(nc)]
         self.nc = nc  # number of classes
         self.conf = conf
@@ -112,7 +111,8 @@ class ARConfusionMatrix:
 
         Args:
             detections (Array[N, 9]): Detected bounding boxes and their associated information.
-                                      Each row should contain (x1, y1, x2, y2, conf, class1_conf, class2_conf, class3_conf, class4_conf).
+                                      Each row should contain (x1, y1, x2, y2, conf, class1_conf, class2_conf,
+                                      class3_conf, class4_conf).
             gt_bboxes (Array[M, 4]): Ground truth bounding boxes with xyxy format.
             gt_cls (Array[M, B]): The class labels for each category.
         """
@@ -194,16 +194,27 @@ class ARConfusionMatrix:
                         self.confusion_matrices[i][0, 0] += 1  # True Negative
 
     def get_metrics(self):
+        """
+        Calculate the precision, recall, and F1 score for each class and the micro and macro averages.
+        """
         self.macro_metrics()
         self.micro_metrics()
 
         return self.micro_recall, self.micro_precision, self.macro_recall, self.macro_precision, self.micro_f, self.macro_f
 
     def save_results(self, save_dir, save=True, print_results=True):
+        """
+        Save the metrics to a CSV file and optionally print them to the console.
+        Args:
+            save_dir (str): Directory where the metrics will be saved.
+            save (bool): Whether to save the metrics to a CSV file.
+            print_results (bool): Whether to print the metrics to the console.
+        Returns:
+            (pd.DataFrame): DataFrame containing the metrics.
+        """
         self.get_metrics()
 
         # Store metrics into a DataFrame and save it to a CSV file
-        import pandas as pd
         metrics = [
             {'Class': 'Micro', 'Precision': self.micro_precision, 'Recall': self.micro_recall, 'F': self.micro_f},
             {'Class': 'Macro', 'Precision': self.macro_precision, 'Recall': self.macro_recall, 'F': self.macro_f}]
@@ -226,12 +237,18 @@ class ARConfusionMatrix:
         return metrics_df
 
     def micro_metrics(self):
+        """
+        Calculate the micro-averaged precision, recall, and F1 score.
+        """
         combined_matrix = torch.stack(self.confusion_matrices, 0).sum(0)
         self.micro_recall = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[0, 1] + 1e-9)).item()
         self.micro_precision = (combined_matrix[1, 1] / (combined_matrix[1, 1] + combined_matrix[1, 0] + 1e-9)).item()
         self.micro_f = self.f_metric(self.micro_precision, self.micro_recall, beta=0.5)
 
     def macro_metrics(self):
+        """
+        Calculate the macro-averaged precision, recall, and F1 score.
+        """
         for matrix in self.confusion_matrices:
             tp = matrix[1, 1]
             fp = matrix[1, 0]
@@ -247,6 +264,15 @@ class ARConfusionMatrix:
 
     @staticmethod
     def f_metric(precision, recall, beta=1.0):
+        """
+        Calculate the F-beta score.
+        Args:
+            precision (float): Precision value.
+            recall (float): Recall value.
+            beta (float): Beta value for the F-beta score.
+        Returns:
+            (float): F-beta score.
+        """
         return (1 + beta ** 2) * precision * recall / (beta ** 2 * precision + recall + 1e-9)
 
     @plt_settings()

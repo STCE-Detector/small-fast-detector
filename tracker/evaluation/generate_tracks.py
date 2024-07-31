@@ -12,8 +12,14 @@ class SequenceProcessor:
     """
     Process a sequence of detections using a tracker and save the results to a txt file.
     """
-
     def __init__(self, config, sequence_path, experiment_id=None):
+        """
+        Initialize the SequenceProcessor.
+        Args:
+            config: Configuration dictionary
+            sequence_path: Path to the sequence directory
+            experiment_id: Experiment ID to append to the output directory name
+        """
         super().__init__()
         self.config = config
 
@@ -46,6 +52,11 @@ class SequenceProcessor:
         }
 
     def process_sequence(self, print_bar=False):
+        """
+        Process the sequence of detections using the tracker and save the results to a txt file.
+        Args:
+            print_bar: Whether to print a progress bar
+        """
         for i, txt_file in enumerate(tqdm(sorted(os.listdir(self.detections_path)), desc=f"Processing {self.sequence_name}", unit=" frames", disable=not print_bar)):
             txt_path = os.path.join(self.detections_path, txt_file)
 
@@ -71,6 +82,10 @@ class SequenceProcessor:
     def get_detections(self, txt_path):
         """
         Read detections from a txt file and return a Detections object.
+        Args:
+            txt_path: Path to the txt file
+        Returns:
+            detections: Detections object
         """
         txt_data = np.loadtxt(txt_path)
         if txt_data.ndim == 1:
@@ -91,6 +106,9 @@ class SequenceProcessor:
         return detections
 
     def save_results_to_txt(self):
+        """
+        Save the results to a txt file.
+        """
         mot_results = np.column_stack((
             np.array(self.data_dict["frame_id"]),
             np.array(self.data_dict["tracker_id"]),
@@ -106,6 +124,11 @@ class SequenceProcessor:
             np.savetxt(file, mot_results, fmt='%.6f', delimiter=',')
 
     def get_sequence_info(self):
+        """
+        Read the sequence info from the seqinfo.ini file.
+        Returns:
+            video_info: VideoInfo object
+        """
         seqinfo_file = os.path.join(self.dataset_sequence, 'seqinfo.ini')
         config = configparser.ConfigParser()
         config.read(seqinfo_file)

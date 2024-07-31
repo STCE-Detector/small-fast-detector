@@ -10,11 +10,18 @@ import pandas as pd
 from tqdm import tqdm
 
 from tracker.action_recognition.ar_confusion_matrix import ARConfusionMatrix
-from ultralytics.utils.ops import clip_boxes
 
 
 class AREvaluator:
+    """
+    Class to evaluate action recognition results.
+    """
     def __init__(self, config):
+        """
+        Initialize the evaluator.
+        args:
+            config: dict, configuration dictionary
+        """
         self.config = config
 
         # Results flags
@@ -60,6 +67,9 @@ class AREvaluator:
         self.should_smooth_or_pad = self.smoothing_window > 0 or self.initial_pad > 0 or self.final_pad > 0
 
     def evaluate(self):
+        """
+        Evaluate all sequences and save results.
+        """
         # Evaluate all sequences
         for seq in self.sequences:
             video_path = os.path.join(self.data_dir, seq)
@@ -113,6 +123,13 @@ class AREvaluator:
         """
         Smooth predictions by forward filling and backward filling. Since limit_area is not specified, it also performs
         a forward fill and backward fill for the first and last frames of each track (padding).
+        args:
+            pred_df: pd.DataFrame, dataframe with the predictions
+            smoothing_window: int, number of frames to smooth
+            initial_pad: int, number of frames to pad at the beginning
+            final_pad: int, number of frames to pad at the end
+        returns:
+            pred_df: pd.DataFrame, smoothed and padded dataframe
         """
         pred_df = pred_df.sort_values(by=['id', 'frame']).reset_index(drop=True)
 
@@ -148,6 +165,13 @@ class AREvaluator:
         return pred_df
 
     def preprocess_predictions(self, pred_df):
+        """
+        Preprocess predictions by filtering by class and smoothing and padding predictions.
+        args:
+            pred_df: pd.DataFrame, dataframe with the predictions
+        returns:
+            pred_df: pd.DataFrame, preprocessed dataframe
+        """
         # Filter by class
         pred_df = pred_df[pred_df['y/class'] == 0]
 
@@ -163,6 +187,11 @@ class AREvaluator:
         return pred_df
 
     def evaluate_sequence(self, video_path):
+        """
+        Evaluate a single sequence.
+        args:
+            video_path: str, path to the sequence folder
+        """
         seq_name = video_path.split('/')[-1]
 
         # Read frame shape

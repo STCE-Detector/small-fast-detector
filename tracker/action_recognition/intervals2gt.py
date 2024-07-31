@@ -4,6 +4,14 @@ from tqdm import tqdm
 
 
 def update_sequential_df(sequential_df, intervals_df):
+    """
+    Update the sequential dataframe with the actions from the intervals dataframe
+    args:
+        sequential_df: pd.DataFrame, dataframe with the sequential ground truth
+        intervals_df: pd.DataFrame, dataframe with the actions
+    returns:
+        manual_gt: pd.DataFrame, dataframe with the updated ground truth
+    """
     behavior_columns = ['SS', 'SR', 'FA', 'G', 'OB']
 
     # Avoid modifying the original dataframes
@@ -11,7 +19,15 @@ def update_sequential_df(sequential_df, intervals_df):
     manual_gt = sequential_df.copy()
 
     def generate_range(row):
+        """
+        Generate a range of frames from the start_frame to the end_frame
+        args:
+            row: pd.Series, row of the dataframe
+        returns:
+            list, range of frames
+        """
         return list(range(row['start_frame'], row['end_frame'] + 1))
+
     expanded_intervals_df['frame'] = expanded_intervals_df.apply(generate_range, axis=1)
 
     expanded_intervals_df = expanded_intervals_df.explode('frame')
@@ -74,6 +90,11 @@ def update_sequential_df(sequential_df, intervals_df):
 
 
 def add_actions(sequence_path):
+    """
+    Add actions to the ground truth file of a sequence and save it as manual_gt.txt
+    args:
+        sequence_path: str, path to the sequence folder
+    """
     gt_columns = ['frame', 'id', 'x', 'y', 'w', 'h', 'x/conf', 'y/class', 'z/vis']
     gt_df = pd.read_csv(os.path.join(sequence_path, 'gt', 'gt.txt'))
     num_columns = gt_df.shape[1]
@@ -100,7 +121,7 @@ def add_actions(sequence_path):
     # Update the gt with the actions
     manual_gt = update_sequential_df(gt_df, intervals_df)
 
-    manual_gt.to_csv(os.path.join(sequence_path, 'gt', 'manual_ref_gt.txt'), header=False, index=False, sep=',')
+    manual_gt.to_csv(os.path.join(sequence_path, 'gt', 'manual_gt.txt'), header=False, index=False, sep=',')
 
 
 if __name__ == "__main__":

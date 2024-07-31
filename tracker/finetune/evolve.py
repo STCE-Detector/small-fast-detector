@@ -14,6 +14,12 @@ from tracker.evaluation.generate_tracks import generate_tracks
 
 
 def generate_unique_tag():
+    """
+    Generates a unique tag for the experiment by combining the current Unix timestamp with a random 6-character
+    alphanumeric string.
+    Returns:
+        A unique tag for the experiment
+    """
     timestamp = int(time.time())  # Current Unix timestamp
     random_suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=6))  # Random 6-character alphanumeric string
     tag = f"exp_{timestamp}_{random_suffix}"
@@ -29,7 +35,6 @@ def optuna_fitness_fn(trial, config):
     Returns:
         The fitness value of the solution
     """
-
     # Update the config with the solution
     tracker_config = config["tracker_args"]
     tracker_config["track_high_thresh"] = trial.suggest_float("track_high_thresh", 0.1, 0.9, step=0.01)
@@ -75,10 +80,16 @@ def optuna_fitness_fn(trial, config):
         metrics=["HOTA"],  # uncomment this line to only evaluate HOTA, single-object fitness
     )
     return combined_metrics["HOTA"]
-    #return list(combined_metrics.values())
 
 
 def print_and_save(study, trial, name):
+    """
+    Callback function to print the current best trial and save the study to disk
+    Args:
+        study: The Optuna study object
+        trial: The current trial object
+        name: The name of the study
+    """
     studies_path = "./outputs/studies"
     if not os.path.exists(studies_path):
         os.makedirs(studies_path)

@@ -10,7 +10,11 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
 from collections import deque
 
+
 class VideoAnnotationTool(QWidget):
+    """
+    A simple video annotation tool for annotating bounding boxes and actions in a video sequence.
+    """
     def __init__(self):
         super().__init__()
         self.setWindowTitle('📹 Video Annotation Tool 📝')
@@ -205,8 +209,12 @@ class VideoAnnotationTool(QWidget):
         self.trajectories = {}
         self.max_trace_frames = 30
 
-
     def load_new_img_seq(self, change_color=False):
+        """
+        Load a new image sequence from a directory.
+        Args:
+            change_color (bool): Change the button color to green if True.
+        """
         folder = QFileDialog.getExistingDirectory(self, "Select Directory")
         if folder:
             self.img_seq_path = folder
@@ -219,6 +227,11 @@ class VideoAnnotationTool(QWidget):
             self.video_slider.setMaximum(len(self.image_files) - 1)  # Update slider range
 
     def load_new_gt(self, change_color=False):
+        """
+        Load a new ground truth file.
+        Args:
+            change_color (bool): Change the button color to green if True.
+        """
         file_path, _ = QFileDialog.getOpenFileName(self, "Select GT File", "", "Text Files (*.txt)")
         if file_path:
             self.gt_file_path = file_path
@@ -243,13 +256,27 @@ class VideoAnnotationTool(QWidget):
                 self.show_only_actions_checkbox.setChecked(False)
 
     def clear_annotations_table(self):
+        """
+        Clear the annotations table.
+        """
         self.annotations_table.setRowCount(0)
 
     def load_image_sequence(self, image_sequence_path):
+        """
+        Load an image sequence from a directory.
+        Args:
+            image_sequence_path (str): Path to the image sequence directory.
+        """
         self.image_files = sorted([os.path.join(image_sequence_path, f) for f in os.listdir(image_sequence_path) if f.endswith('.jpg') or f.endswith('.png')])
 
-
     def load_gt_coordinates(self, gt_file_path):
+        """
+        Load ground truth coordinates from a file.
+        Args:
+            gt_file_path (str): Path to the ground truth file.
+        Returns:
+            dict: Dictionary containing the ground truth coordinates for each frame.
+        """
         df = pd.read_csv(gt_file_path, header=None)
         has_actions = False
         num_cols = df.shape[1]
@@ -279,6 +306,9 @@ class VideoAnnotationTool(QWidget):
         return gt_coordinates_dict, has_actions
 
     def play_pause_video(self):
+        """
+        Play or pause the video sequence.
+        """
         if self.playing:
             self.timer.stop()
             self.playing = False
@@ -290,6 +320,9 @@ class VideoAnnotationTool(QWidget):
             self.playing = True
 
     def adjust_playback_speed(self):
+        """
+        Adjust the playback speed based on the checkbox states.
+        """
         if self.playing:  # Check if the video is playing
             self.timer.stop()
             if self.slow_motion_checkbox.isChecked():
@@ -298,6 +331,9 @@ class VideoAnnotationTool(QWidget):
                 self.timer.start(1000 // self.frame_rate)
 
     def prev_frame(self):
+        """
+        Go to the previous frame.
+        """
         if self.current_frame > 0:
             self.current_frame -= 1
             self.update_frame()
@@ -307,6 +343,9 @@ class VideoAnnotationTool(QWidget):
         self.video_slider.setValue(self.current_frame)  # Update slider
 
     def next_frame(self):
+        """
+        Go to the next frame.
+        """
         if self.current_frame < len(self.image_files) - 1:
             self.current_frame += 1
             self.update_frame()
@@ -316,6 +355,9 @@ class VideoAnnotationTool(QWidget):
         self.video_slider.setValue(self.current_frame)  # Update slider
 
     def update_frame(self):
+        """
+        Update the frame based on the current frame number.
+        """
         if self.current_frame < len(self.image_files) and len(self.image_files) > 0:
             image_file = self.image_files[self.current_frame]
             image = cv2.imread(image_file)
@@ -472,12 +514,18 @@ class VideoAnnotationTool(QWidget):
             self.video_slider.setValue(self.current_frame)  # Update slider only if not busy
 
     def slider_changed(self, value):
+        """
+        Update the frame based on the slider value.
+        """
         self.slider_busy = True
         self.current_frame = value
         self.update_frame()
         self.slider_busy = False
 
     def keyPressEvent(self, event):
+        """
+        Handle key press events for navigation.
+        """
         if event.key() == Qt.Key_Right:
             self.next_frame()
         elif event.key() == Qt.Key_Left:
@@ -486,11 +534,17 @@ class VideoAnnotationTool(QWidget):
             self.play_pause_video()
 
     def update_table(self):
+        """
+        Update the table with the current file paths and frame rate.
+        """
         self.table_widget.setItem(0, 0, QTableWidgetItem(self.img_seq_path))
         self.table_widget.setItem(0, 1, QTableWidgetItem(self.gt_file_path))
         self.table_widget.setItem(0, 2, QTableWidgetItem(str(self.frame_rate)))
 
     def add_annotation(self):
+        """
+        Add a new annotation to the table.
+        """
         row_position = self.annotations_table.rowCount()
         self.annotations_table.insertRow(row_position)
         self.annotations_table.setItem(row_position, 0, QTableWidgetItem(str(self.current_frame)))
@@ -500,6 +554,9 @@ class VideoAnnotationTool(QWidget):
             self.annotations_table.setItem(row_position, col, QTableWidgetItem("0"))
 
     def add_gathering_annotation(self):
+        """
+        Add a new gathering annotation to the table.
+        """
         selected_rows = self.tracker_table.selectionModel().selectedRows()
         if len(selected_rows) < 3:
             QMessageBox.warning(self, "Selection Error", "Please select at least 3 tracker IDs.")
@@ -521,6 +578,9 @@ class VideoAnnotationTool(QWidget):
         self.update_gathering_button_state()
 
     def export_annotations(self):
+        """
+        Export the annotations to a CSV file.
+        """
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Annotations", "", "CSV Files (*.csv)")
         if file_path:
             with open(file_path, mode='w', newline='') as file:
@@ -534,6 +594,9 @@ class VideoAnnotationTool(QWidget):
                     writer.writerow(row_data)
 
     def import_annotations(self):
+        """
+        Import annotations from a CSV file.
+        """
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Annotations", "", "CSV Files (*.csv)")
         if file_path:
             with open(file_path, mode='r') as file:
@@ -547,6 +610,12 @@ class VideoAnnotationTool(QWidget):
                         self.annotations_table.setItem(row_position, col, QTableWidgetItem(data))
 
     def highlight_tracker_id(self, row, column):
+        """
+        Highlight the tracker ID row when clicked.
+        Args:
+            row (int): The row index.
+            column (int): The column index.
+        """
         # Get the tracker ID item
         item = self.tracker_table.item(row, column)
         if item:
@@ -564,6 +633,9 @@ class VideoAnnotationTool(QWidget):
             self.update_gathering_button_state()
 
     def update_gathering_button_state(self):
+        """
+        Update the state of the gathering annotation button based on the selected rows.
+        """
         selected_rows = self.tracker_table.selectionModel().selectedRows()
         self.btn_add_gathering_annotation.setEnabled(len(selected_rows) >= 3)
 

@@ -10,6 +10,10 @@ from ultralytics import YOLO
 
 
 def main(config):
+    """
+    Generate detections for all sequences in the source directory
+    :param config: Configuration dictionary
+    """
     # Data paths
     sequences_dir = config["source_sequence_dir"]
     sequence_paths = [os.path.join(sequences_dir, name) for name in os.listdir(sequences_dir) if

@@ -1,18 +1,21 @@
 import configparser
 import os
-import time
 import json
 import torch
-import numpy as np
 import pandas as pd
 
 from tqdm import tqdm
 
 from ultralytics.utils.metrics import ConfusionMatrix
-from ultralytics.utils.ops import clip_boxes
 
 
 def load_dataframe(df_path, seq_name, frame_shape):
+    """
+    Load a dataframe from a file, if it exists
+    :param df_path: Path to the dataframe
+    :param seq_name: Name of the sequence
+    :param frame_shape: Shape of the frames
+    """
     column_names = ['frame', 'id', 'xl', 'yt', 'w', 'h', 'x/conf', 'y/class', 'z/vis']
 
     if not os.path.exists(df_path):
@@ -38,6 +41,12 @@ def load_dataframe(df_path, seq_name, frame_shape):
 
 
 def eval_sequence(video_root, config, detection_cm):
+    """
+    Evaluate a single sequence
+    :param video_root: Path to the sequence
+    :param config: Configuration dictionary
+    :param detection_cm: ConfusionMatrix object
+    """
     sequence_name = video_root.split('/')[-1]
 
     # Read frame shape

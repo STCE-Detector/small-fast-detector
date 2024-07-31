@@ -11,6 +11,14 @@ from tracker.finetune.evolve import generate_unique_tag
 
 
 def ar_optuna_fitness_fn(trial, config, trackers_folder, trackers_to_eval):
+    """
+    Fitness function for the Optuna optimization of the action recognition parameters
+    :param trial: Optuna trial object
+    :param config: Configuration dictionary
+    :param trackers_folder: Path to the folder containing the trackers
+    :param trackers_to_eval: Name of the tracker to evaluate
+    :return: The value of the objective metric
+    """
     objective = config["evolve"]["objective"][0]
     metric = config["evolve"]["objective"][1]
 
@@ -19,15 +27,16 @@ def ar_optuna_fitness_fn(trial, config, trackers_folder, trackers_to_eval):
         eval_config = json.load(f)
 
     # Override the config to include the experiment_id in the pred_dir and disable printing the confusion matrix
+    eval_config["name"] = None
     eval_config["pred_dir"] = trackers_folder + "/" + trackers_to_eval + "/"
     eval_config["data_dir"] = config["source_gt_dir"] + "/"
-    eval_config["action_recognition"]["smoothing_window"] = trial.suggest_int("smoothing_window", 0, 60, step=5)
-    eval_config["action_recognition"]["final_pad"] = trial.suggest_int("final_pad", 0, 60, step=5)
-    eval_config["action_recognition"]["initial_pad"] = trial.suggest_int("initial_pad", 0, 200, step=5)
+    eval_config["action_recognition"]["smoothing_window"] = trial.suggest_int("smoothing_window", 0, 30)
+    eval_config["action_recognition"]["final_pad"] = trial.suggest_int("final_pad", 0, 30)
+    eval_config["action_recognition"]["initial_pad"] = trial.suggest_int("initial_pad", 0, 30)
     eval_config["action_recognition"]["save_results"] = False
     eval_config["action_recognition"]["print_results"] = False
     eval_config["action_recognition"]["discriminate_groups"] = False
-    eval_config["action_recognition"]["active_behaviors"] = ["SS", "SR", "G"]
+    eval_config["action_recognition"]["active_behaviors"] = ["SS", "SR", "G", "FA", "OB"]
 
     evaluator = AREvaluator(eval_config)
     metrics_df = evaluator.evaluate()
@@ -39,6 +48,12 @@ def ar_optuna_fitness_fn(trial, config, trackers_folder, trackers_to_eval):
 
 
 def print_and_save(study, trial, name):
+    """
+    Print the best trial and save the study
+    :param study: Optuna study object
+    :param trial: Optuna trial object
+    :param name: Name of the study
+    """
     studies_path = "./outputs/studies"
     if not os.path.exists(studies_path):
         os.makedirs(studies_path)
