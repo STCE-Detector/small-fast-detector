@@ -36,7 +36,7 @@ class DeffFrameCapture:
         operating_system = check_os()
         if IS_JETSON:
             ffparams = {
-                "-vcodec": "h264_nvv4l2dec",  # use H.264 CUVID Video-decoder
+                #"-vcodec": "h264_nvv4l2dec",  # use H.264 CUVID Video-decoder # TODO: CHECK
             }
         elif operating_system == "MacOS":
             ffparams = {

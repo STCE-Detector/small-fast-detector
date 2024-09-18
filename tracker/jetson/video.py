@@ -134,7 +134,7 @@ class VideoSource(Plugin):
     def GetFrameCount(self):
         return self.num_outputs
 
-    @property
+    # @property
     def IsStreaming(self):
         """
         Returns true if the stream is currently open, false if closed or EOS.
@@ -148,6 +148,8 @@ class VideoSource(Plugin):
         """
         return not self.streaming
 
+    def GetFrameRate(self):
+        return self.stream.GetFrameRate()
 
 class VideoOutput(Plugin):
     """
