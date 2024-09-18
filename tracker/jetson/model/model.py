@@ -29,7 +29,7 @@ class Yolov8:
     def setup_model(self, verbose=True):
         """Initialize YOLO model with given parameters and set it to evaluation mode."""
         self.model = AutoBackend(
-            weights=self.cfg['model_path'],
+            weights=self.cfg["source_weights_path"],
             fp16=self.half,
             fuse=True,
             verbose=verbose,
