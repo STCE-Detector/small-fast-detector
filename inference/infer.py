@@ -15,7 +15,7 @@ if config["nms_wrapper"]:
     nms_wrapper_infer(config)
 else:
     # Load model
-    model = YOLO(config['model_path'], task='detect')
+    model = YOLO(config['source_weights_path'], task='detect')
     results = model(
         source=config["input_data_dir"],  # Input image
         conf=config['conf'],  # Confidence threshold

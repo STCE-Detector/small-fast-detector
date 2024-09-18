@@ -3,11 +3,11 @@
 
   "tracker_name": "ByteTrack",
 
-  "source_weights_path": "./../detectors/cdv4_8sp2_150e_128b.pt",
+  "source_weights_path": "./../detectors/cdv4_8sp2_150e_128b_nms.engine",
   "source_stream_path": "./../data/CTD/Hieve10.mp4",
 
-  "device": "cpu",
-  "fps_reduction": 10,
+  "device": "cuda",
+  "fps_reduction": 0,
 
   "save_dir": "./outputs/",
   "save_results": false,
@@ -56,7 +56,7 @@
   },
 
   "action_recognition": {
-    "enabled": false,
+    "enabled": true,
     "speed_projection": [1.6799662070693655, 0.9877852037581256],
 
     "gather": {

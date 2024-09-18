@@ -1,14 +1,14 @@
 {
   "name": "IR_client_test",
 
-  "device": "cpu",
+  "device": "cuda",
 
-  "model_path": "./../detectors/cdv4_8sp2_150e_128b.pt",
-  "nms_wrapper": false,
+  "source_weights_path": "./../detectors/cdv4_8sp2_150e_128b_nms.engine",
+  "nms_wrapper": true,
   "img_size": 640,
   "iou": 0.7,
   "conf": 0.25,
-  "half": false,
+  "half": true,
 
   "input_data_dir": "./../data/detection/IR_client_test/images/val/",
   "output_dir": "./outputs"
